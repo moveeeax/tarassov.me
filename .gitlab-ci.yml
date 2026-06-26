@@ -5,9 +5,10 @@ stages:
   - publish
 
 variables:
-  # Override CI_IMAGE_NAME in project CI/CD variables for forks — the
-  # default is the template author's Docker Hub namespace.
-  IMAGE_NAME: ${CI_IMAGE_NAME:-docker.io/resert/tarassov-me}
+  # Image path comes from the CI_IMAGE_NAME project CI/CD variable
+  # (e.g. resert/tarassov-me). GitLab does not support ${VAR:-default}
+  # in this block, so set CI_IMAGE_NAME in Settings → CI/CD → Variables.
+  IMAGE_NAME: $CI_IMAGE_NAME
   DOCKER_DRIVER: overlay2
   DOCKER_BUILDKIT: 1
   GIT_SUBMODULE_STRATEGY: recursive
