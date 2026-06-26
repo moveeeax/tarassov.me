@@ -1,0 +1,23 @@
+# CODEOWNERS — auto-assigned reviewers per path.
+# Syntax: https://docs.github.com/en/repositories/managing-your-repositories-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Replace @OWNER with your handle or team (e.g. @me, @my-org/maintainers).
+# A template ships ONE placeholder owner on purpose: branch protection that
+# requires code-owner review blocks every PR if a listed owner/team doesn't
+# exist in your org. Add specialised teams (security, devops, product) once they do.
+
+# Default owners (catch-all).
+*                               @OWNER
+
+# Security-sensitive areas — point at a security team once you have one.
+src/security/                   @OWNER
+src/api/Api.hpp                 @OWNER
+
+# Infrastructure.
+docker/                         @OWNER
+helm/                           @OWNER
+.gitlab-ci.yml                  @OWNER
+.github/                        @OWNER
+
+# Docs / API contract.
+docs/openapi.yaml               @OWNER

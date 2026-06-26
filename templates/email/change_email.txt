@@ -1,0 +1,15 @@
+Dear {{ user.full_name }},
+
+We received a request to change the email address on your {{ app_name }}
+account from {{ user.email }} to {{ new_email }}.
+
+To confirm this change, click the following link (valid for 1 hour):
+
+{{ change_email_link }}
+
+If you didn't request this, please change your password immediately and
+contact support.
+
+Sincerely,
+
+The {{ app_name }} Team

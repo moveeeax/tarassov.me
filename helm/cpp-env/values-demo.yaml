@@ -1,0 +1,90 @@
+# ═══════════════════════════════════════════════════════════════
+# Public DEMO preset for the cpp-env umbrella → *.demo.tarassov.me
+#
+# Internet-facing throwaway env: anyone can register, the inbox (Mailpit) and
+# traces (Jaeger) are public on purpose so visitors can walk the full flow.
+# NO real data lives here, and it is periodically reset.
+#
+# Deploy with scripts/deploy-demo.sh — it generates fresh secrets and passes
+# them via --set, so they are NEVER committed (see the empty credentials below).
+#
+#   ./scripts/deploy-demo.sh
+#
+# DNS is automatic: external-dns publishes A records for *.demo.tarassov.me →
+# the ingress IP set in ingress.externalDnsTarget. TLS is cert-manager
+# (letsencrypt-prod). No manual registrar step.
+# ═══════════════════════════════════════════════════════════════
+
+env: demo
+baseDomain: tarassov.me
+
+ingress:
+  className: nginx
+  clusterIssuer: letsencrypt-prod
+  # Public ingress IP — external-dns creates the *.demo.tarassov.me A records.
+  externalDnsTarget: "46.225.37.165"
+
+# Secrets are injected at deploy time by scripts/deploy-demo.sh (--set), never
+# committed. These placeholders are intentionally invalid-looking.
+credentials:
+  dbPassword: "SET-AT-DEPLOY"
+  redisPassword: "SET-AT-DEPLOY"
+  jwtSecret: "SET-AT-DEPLOY"
+
+# Lean the env: a public demo doesn't need Kafka (optional event publishing).
+kafka:
+  enabled: false
+postgres:
+  instances: 2          # primary + 1 replica (the app reads from pg-ro)
+  storageSize: 2Gi
+mailpit:
+  enabled: true
+  ingress:
+    enabled: true       # mail.demo — public inbox so visitors see confirm/reset mail (demo only)
+jaeger:
+  enabled: true
+  ingress:
+    enabled: true       # jaeger.demo — public traces of demo traffic (demo only)
+
+# Periodically reset the public demo back to a clean seeded state.
+demoReset:
+  enabled: true
+  schedule: "0 */6 * * *"   # every 6 hours
+
+cpp-api:
+  image:
+    tag: "v1.4.0"     # pinned known-good amd64 build; bump when a newer one ships
+  externalKafka:
+    enabled: false
+  externalDatabase:
+    password: "SET-AT-DEPLOY"
+  externalRedis:
+    password: "SET-AT-DEPLOY"
+  auth:
+    mode: jwt
+    jwtSecret: "SET-AT-DEPLOY"
+    cookies:
+      enabled: true
+      secure: true
+      samesite: Lax
+
+cpp-worker:
+  image:
+    tag: "v1.4.0"
+  externalDatabase:
+    password: "SET-AT-DEPLOY"
+  externalRedis:
+    password: "SET-AT-DEPLOY"
+  auth:
+    jwtSecret: "SET-AT-DEPLOY"
+  app:
+    baseUrl: "https://app.demo.tarassov.me"
+    name: "C++ REST Template — Demo"
+  mail:
+    from: "noreply@demo.tarassov.me"
+    fromName: "C++ REST Template Demo"
+    subjectPrefix: "[demo] "
+
+cpp-frontend:
+  image:
+    tag: "v1.4.0"

@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+.DS_Store
+
+# schema.gen.ts is committed as a hand-rolled stub so a fresh clone
+# compiles before `npm run gen:api` runs. It's checked in but should
+# always be regenerated before anything depends on the spec — every
+# commit that touches docs/openapi.yaml should re-run gen:api.
+
+# tsc/vite incremental build artifacts
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts

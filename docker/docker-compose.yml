@@ -1,0 +1,622 @@
+# Shared environment fragments. app and worker must agree on these — the
+# worker sends account emails (tokens + SMTP + links), so a key added to one
+# list but not the other produces silent anonymous-SMTP / wrong-link bugs.
+# YAML merge keys need map-form environment blocks below.
+x-data-env: &data-env
+  DATABASE_PRIMARY_URL: ${DATABASE_PRIMARY_URL:-postgresql://postgres:postgres@postgres:5432/appdb}
+  DATABASE_REPLICA_URLS: ${DATABASE_REPLICA_URLS:-}
+  REDIS_URL: ${REDIS_URL:-tcp://redis:6379}
+  REDIS_USE_SENTINEL: ${REDIS_USE_SENTINEL:-false}
+  REDIS_MASTER_NAME: ${REDIS_MASTER_NAME:-mymaster}
+  REDIS_SENTINEL_NODES: ${REDIS_SENTINEL_NODES:-}
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+  REDIS_SENTINEL_PASSWORD: ${REDIS_SENTINEL_PASSWORD:-}
+
+# Auth — JWT in HttpOnly cookies. Defaults keep auth disabled so `make up`
+# stays open. The `with-frontend` profile / .env.everything flips
+# AUTH_MODE=jwt + secrets so the SPA logs in. The worker needs the secret
+# too: account_email jobs issue confirmation/reset tokens.
+x-auth-env: &auth-env
+  AUTH_MODE: ${AUTH_MODE:-none}
+  JWT_SECRET: ${JWT_SECRET:-}
+  JWT_ISSUER: ${JWT_ISSUER:-}
+  JWT_AUDIENCE: ${JWT_AUDIENCE:-}
+  AUTH_COOKIES_ENABLED: ${AUTH_COOKIES_ENABLED:-false}
+  AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
+  AUTH_COOKIE_SAMESITE: ${AUTH_COOKIE_SAMESITE:-Lax}
+  AUTH_COOKIE_ACCESS: ${AUTH_COOKIE_ACCESS:-__Host-access}
+  AUTH_COOKIE_REFRESH: ${AUTH_COOKIE_REFRESH:-__Host-refresh}
+
+# Mail — points at the Mailpit dev sidecar by default. Full credential set:
+# with a production STARTTLS server, a missing username/password here means
+# both containers silently connect anonymously.
+x-mail-env: &mail-env
+  MAIL_ENABLED: ${MAIL_ENABLED:-false}
+  MAIL_VIA_JOBS: ${MAIL_VIA_JOBS:-true}
+  MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:-mailpit}
+  MAIL_SMTP_PORT: ${MAIL_SMTP_PORT:-1025}
+  MAIL_SMTP_USERNAME: ${MAIL_SMTP_USERNAME:-}
+  MAIL_SMTP_PASSWORD: ${MAIL_SMTP_PASSWORD:-}
+  MAIL_SMTP_USE_TLS: ${MAIL_SMTP_USE_TLS:-false}
+  MAIL_FROM: ${MAIL_FROM:-noreply@example.com}
+  MAIL_FROM_NAME: ${MAIL_FROM_NAME:-App}
+  MAIL_SUBJECT_PREFIX: "${MAIL_SUBJECT_PREFIX:-[App] }"
+  APP_NAME: ${APP_NAME:-App}
+  APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+
+services:
+  # Application service
+  app:
+    # Default: pull the public image GitLab CI builds on master. `make up-*`
+    # does `pull` (no local build). To build locally instead use `make up-build`
+    # (or `docker compose ... up --build`), which uses the build: block below.
+    image: ${APP_IMAGE:-resert/cpp-rapid-rest-template:latest}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: runtime
+      cache_from:
+        - ${BUILDER_CACHE_IMAGE:-cpp-rapid-rest-template:builder-latest}
+    container_name: cpp_api_app
+    ports:
+      - "8080:8080"  # API
+      - "9090:9090"  # Metrics
+    environment:
+      <<: [*data-env, *auth-env, *mail-env]
+      MESSAGING_ENABLED: ${MESSAGING_ENABLED:-false}
+      KAFKA_PRODUCER_ENABLED: ${KAFKA_PRODUCER_ENABLED:-false}
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
+      JOBS_ENABLED: ${JOBS_ENABLED:-false}
+      JOBS_RESULT_TTL: ${JOBS_RESULT_TTL:-86400}
+      JOBS_MAX_RETRIES: ${JOBS_MAX_RETRIES:-3}
+      OTLP_ENDPOINT: ${OTLP_ENDPOINT:-}
+      SERVICE_NAME: ${SERVICE_NAME:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SERVER_THREADS: ${SERVER_THREADS:-4}
+      CONFIG_FILE: ${CONFIG_FILE:-config/config.json}
+    volumes:
+      - ../logs:/app/logs
+      - ../config:/app/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Test runner service
+  #
+  # Points at a dedicated test-redis (see below) rather than the shared
+  # `redis` service — otherwise, when `make up` is running, the worker
+  # container BRPOPs test-submitted jobs off the shared queue and the
+  # assertions that expect "pending" see "processing" / "failed" instead.
+  test-runner:
+    # If TEST_IMAGE is set and already present locally (CI pulls the image that
+    # build:docker produced), `compose up` reuses it instead of recompiling.
+    # Locally TEST_IMAGE is unset → the :test-latest tag is missing → compose
+    # falls back to the build: block below (`make test` runs `compose build
+    # test-runner` first to force a fresh compile).
+    image: ${TEST_IMAGE:-cpp-rapid-rest-template:test-latest}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: test-runner
+      cache_from:
+        - ${BUILDER_CACHE_IMAGE:-cpp-rapid-rest-template:builder-latest}
+    container_name: cpp_api_test_runner
+    environment:
+      - TEST_PG_HOST=test-postgres
+      - TEST_REDIS_HOST=test-redis
+      # No DB_MIGRATIONS_ENABLED=false here: env overrides JSON config, and
+      # the fresh test-postgres relies on suites running MigrationRunner to
+      # provision the schema (the shared dev postgres used to get it from an
+      # initdb mount, which masked this).
+    depends_on:
+      test-postgres:
+        condition: service_healthy
+      test-redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    profiles:
+      - test
+
+  # Test-only Postgres — isolated from the dev stack: integration suites
+  # TRUNCATE tables, which used to wipe dev users on the shared instance.
+  # No volume → fresh data every `up`, gone on `down`. Port not published.
+  test-postgres:
+    image: postgres:15-alpine
+    container_name: cpp_api_test_postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=appdb
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    profiles:
+      - test
+
+  # Test-only Redis — isolated from the dev stack so the worker container
+  # can't race with BRPOP against test fixtures.
+  test-redis:
+    image: redis:7-alpine
+    container_name: cpp_api_test_redis
+    command: redis-server --save ""
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+    profiles:
+      - test
+
+  # Background job worker
+  worker:
+    image: ${WORKER_IMAGE:-resert/cpp-rapid-rest-template-worker:latest}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: worker-runtime
+      cache_from:
+        - ${BUILDER_CACHE_IMAGE:-cpp-rapid-rest-template:builder-latest}
+    container_name: cpp_api_worker
+    ports:
+      - "9091:9091"
+      - "9190:9090"  # Metrics (remapped to avoid conflict with app:9090)
+    environment:
+      # Same data/auth/mail env as app — see the x-*-env anchors up top.
+      <<: [*data-env, *auth-env, *mail-env]
+      JOBS_ENABLED: "true"
+      WORKER_ID: ${WORKER_ID:-worker-1}
+      # Production-shaped default: only the real job types the app enqueues.
+      # The demo handlers `echo`/`slow`/`fail` live in src/worker_main.cpp for
+      # manual testing — opt them in explicitly when you want them, e.g.:
+      #   WORKER_TYPES=default,account_email,echo,slow,fail
+      # (The API job tests drain Redis directly and do NOT rely on this list.)
+      WORKER_TYPES: ${WORKER_TYPES:-default,account_email}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      WORKER_HEALTH_PORT: ${WORKER_HEALTH_PORT:-9091}
+      WORKER_BRPOP_TIMEOUT: ${WORKER_BRPOP_TIMEOUT:-5}
+      OTLP_ENDPOINT: ${OTLP_ENDPOINT:-}
+      SERVICE_NAME: ${SERVICE_NAME:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CONFIG_FILE: ${CONFIG_FILE:-config/worker.json}
+    volumes:
+      - ../logs:/app/logs
+      - ../config:/app/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    profiles:
+      - with-worker
+
+  # PostgreSQL database (primary)
+  postgres:
+    image: postgres:15-alpine
+    container_name: cpp_api_postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=appdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../migrations:/docker-entrypoint-initdb.d
+      - ./setup-primary-replication.sh:/docker-entrypoint-initdb.d/99-setup-replication.sh
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=replica"
+      - "-c"
+      - "max_wal_senders=3"
+      - "-c"
+      - "hot_standby=on"
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL read replica (streaming replication from primary)
+  postgres_replica:
+    image: postgres:15-alpine
+    container_name: cpp_api_postgres_replica
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - PRIMARY_HOST=postgres
+      - PRIMARY_PORT=5432
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_replica_data:/var/lib/postgresql/data
+      - ./setup-replica.sh:/setup-replica.sh
+    entrypoint: ["/bin/bash", "/setup-replica.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    profiles:
+      - with-replica
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis cache
+  redis:
+    image: redis:7-alpine
+    container_name: cpp_api_redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Redis Sentinel (optional, for HA)
+  # Each sentinel copies the template config to a writable location before starting,
+  # because Sentinel modifies its config file at runtime to persist state.
+  redis_sentinel_1:
+    image: redis:7-alpine
+    container_name: cpp_api_redis_sentinel_1
+    command: sh -c "cp /etc/redis/sentinel-template.conf /tmp/sentinel.conf && redis-sentinel /tmp/sentinel.conf"
+    ports:
+      - "26379:26379"
+    volumes:
+      - ./redis-sentinel.conf:/etc/redis/sentinel-template.conf:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    profiles:
+      - with-sentinel
+    healthcheck:
+      # Real Sentinel liveness: `sentinel masters` only succeeds against an
+      # actual sentinel (a plain redis on :26379 would answer PING but error
+      # here), so this catches a misconfigured/non-sentinel process.
+      test: ["CMD", "redis-cli", "-p", "26379", "sentinel", "masters"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  redis_sentinel_2:
+    image: redis:7-alpine
+    container_name: cpp_api_redis_sentinel_2
+    command: sh -c "cp /etc/redis/sentinel-template.conf /tmp/sentinel.conf && redis-sentinel /tmp/sentinel.conf"
+    ports:
+      - "26380:26379"
+    volumes:
+      - ./redis-sentinel.conf:/etc/redis/sentinel-template.conf:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    profiles:
+      - with-sentinel
+    healthcheck:
+      # Real Sentinel liveness: `sentinel masters` only succeeds against an
+      # actual sentinel (a plain redis on :26379 would answer PING but error
+      # here), so this catches a misconfigured/non-sentinel process.
+      test: ["CMD", "redis-cli", "-p", "26379", "sentinel", "masters"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  redis_sentinel_3:
+    image: redis:7-alpine
+    container_name: cpp_api_redis_sentinel_3
+    command: sh -c "cp /etc/redis/sentinel-template.conf /tmp/sentinel.conf && redis-sentinel /tmp/sentinel.conf"
+    ports:
+      - "26381:26379"
+    volumes:
+      - ./redis-sentinel.conf:/etc/redis/sentinel-template.conf:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    profiles:
+      - with-sentinel
+    healthcheck:
+      # Real Sentinel liveness: `sentinel masters` only succeeds against an
+      # actual sentinel (a plain redis on :26379 would answer PING but error
+      # here), so this catches a misconfigured/non-sentinel process.
+      test: ["CMD", "redis-cli", "-p", "26379", "sentinel", "masters"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Kafka + Zookeeper (optional)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: cpp_api_zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      # cub (Confluent Utility Belt) ships in cp-* images; nc does not.
+      test: ["CMD", "cub", "zk-ready", "localhost:2181", "5"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    # Cap memory so a dev laptop doesn't OOM when the kafka profile is up.
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    profiles:
+      - with-kafka
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: cpp_api_kafka
+    depends_on:
+      zookeeper:
+        # List-form depends_on only waits for container START; Kafka racing
+        # an unready Zookeeper is a classic CI flake.
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      # Bound the JVM so the kafka profile fits on a dev laptop.
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms256m"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - app-network
+    restart: unless-stopped
+    profiles:
+      - with-kafka
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Prometheus for metrics (optional)
+  prometheus:
+    image: prom/prometheus:v3.12.0
+    container_name: cpp_api_prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      # Host 9091 is taken by the worker's health endpoint; expose Prometheus on 9094.
+      - "9094:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus-rules.yml:/etc/prometheus/rules.yml
+      - prometheus_data:/prometheus
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9090/-/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    profiles:
+      - with-monitoring
+
+  # Grafana for visualization (optional)
+  grafana:
+    image: grafana/grafana:11.6
+    container_name: cpp_api_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      # !!! SECURITY: set GRAFANA_ADMIN_PASSWORD (in docker/.env.monitoring or
+      # your shell) before exposing Grafana anywhere shared. The fallback below
+      # is an INSECURE local-only placeholder, NOT a usable default — generate a
+      # real one with `openssl rand -base64 24`.
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme-local-only}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    profiles:
+      - with-monitoring
+
+  # ---- exporters for service-level dashboards (with-monitoring profile) ----
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.19.1
+    container_name: cpp_api_postgres_exporter
+    environment:
+      # matches docker-compose.yml's postgres service (user/pass/db/port).
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/appdb?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    profiles:
+      - with-monitoring
+
+  # Server-side metrics for the READ REPLICA. pg_replication_lag_seconds is
+  # only meaningful measured ON the replica; the primary's exporter can't see
+  # it. Tied to with-replica (tiny footprint) — Prometheus scrapes it under
+  # with-monitoring and tolerates a down target otherwise.
+  postgres-replica-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.19.1
+    container_name: cpp_api_postgres_replica_exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres_replica:5432/appdb?sslmode=disable"
+    depends_on:
+      postgres_replica:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    profiles:
+      - with-replica
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.86.0
+    container_name: cpp_api_redis_exporter
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    profiles:
+      - with-monitoring
+
+  # Starts only with the kafka profile: multi-profile (with-kafka +
+  # with-monitoring) made it start under with-monitoring alone and
+  # crashloop against a Kafka that was never launched.
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.9.0
+    container_name: cpp_api_kafka_exporter
+    command:
+      - '--kafka.server=kafka:9092'
+    networks:
+      - app-network
+    restart: unless-stopped
+    profiles:
+      - with-kafka
+
+  # React SPA — built once at image build, served by nginx with /api/*
+  # proxied to the `app` container. Visit http://localhost:3001; the
+  # backend's :8080 stays available for direct API hits.
+  # Opt-in via profile `with-frontend` so plain `make up` stays
+  # backend-only (faster cold start, no Node toolchain pulled).
+  frontend:
+    image: ${FRONTEND_IMAGE:-resert/cpp-rapid-rest-template-frontend:latest}
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile
+    container_name: cpp_api_frontend
+    ports:
+      - "3001:8080"
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    profiles:
+      - with-frontend
+
+  # Mailpit — local SMTP catcher for dev. Inbox UI on :8025, SMTP on :1025.
+  # No TLS, no auth — point MAIL_SMTP_HOST=mailpit / MAIL_SMTP_PORT=1025
+  # / MAIL_ENABLED=true at it. Email never leaves the docker network.
+  # DELIBERATELY profile-less (starts with plain `make up`): the account
+  # flows (confirm/reset/invite) are part of the core dev loop. If host
+  # port 1025/8025 clashes with a local mail agent, add a profile here.
+  mailpit:
+    image: axllent/mailpit:v1.30
+    container_name: cpp_api_mailpit
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8025/api/v1/info"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Jaeger for distributed tracing (optional)
+  jaeger:
+    image: jaegertracing/all-in-one:1.76.0
+    container_name: cpp_api_jaeger
+    ports:
+      - "16686:16686"  # UI
+      - "4318:4318"    # OTLP HTTP
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - app-network
+    restart: unless-stopped
+    profiles:
+      - with-monitoring
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  postgres_replica_data:
+  redis_data:
+  zookeeper_data:
+  zookeeper_log:
+  kafka_data:
+  prometheus_data:
+  grafana_data:

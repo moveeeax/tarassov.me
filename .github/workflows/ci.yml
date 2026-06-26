@@ -1,0 +1,269 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# CI only reads the repo; release/builder-cache workflows declare their own
+# write scopes explicitly.
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    # End-to-end: builds the Docker builder stage (which compiles everything
+    # with sanitizers and links the test binary), then runs the full gtest
+    # suite against ephemeral Postgres + Redis containers via the `test`
+    # compose profile — the same thing `make test` does locally.
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
+
+      - name: Build builder image (cache warm)
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: builder
+          push: false
+          load: true
+          tags: cpp-api-template:builder
+          build-args: ENABLE_WERROR=ON
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run full test suite
+        # `make test` builds the test-runner stage with
+        # --cache-from cpp-rapid-rest-template:builder-latest. Alias the builder we just loaded
+        # under that tag so the compose build is a cache hit instead of a full
+        # recompile.
+        run: |
+          docker tag cpp-api-template:builder cpp-rapid-rest-template:builder-latest
+          make test
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          docker compose -f docker/docker-compose.yml --env-file docker/.env \
+            --profile test logs test-runner || true
+
+  lint-format:
+    runs-on: ubuntu-latest
+    # Pure text lint — doesn't need Docker, runs fast, gates style issues
+    # before the heavier build job finishes.
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install clang-format 17
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format-17
+          sudo ln -sf /usr/bin/clang-format-17 /usr/local/bin/clang-format
+
+      - name: Check C++ formatting
+        run: |
+          mapfile -t files < <(find src tests -type f \
+            \( -name '*.hpp' -o -name '*.cpp' -o -name '*.h' \))
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No C++ sources to check"; exit 0
+          fi
+          clang-format --dry-run --Werror "${files[@]}"
+
+      - name: Shellcheck (scripts)
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38  # 2.0.0
+        with:
+          scandir: ./scripts
+          severity: warning
+
+      - name: Shellcheck (docker)
+        # docker/*.sh (Postgres replica setup) lives outside ./scripts and was
+        # previously skipped here, while GitLab CI scanned it. Second invocation
+        # keeps the scandir scoping (the action only accepts one scandir).
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38  # 2.0.0
+        with:
+          scandir: ./docker
+          severity: warning
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    # Catch credentials before they land. We learned the hard way that a
+    # local helm/values.yaml with stage passwords can slip into git.
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0  # gitleaks needs history to scan past commits.
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7  # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  openapi-drift:
+    runs-on: ubuntu-latest
+    # Pure-shell check — verifies (method, path) tuples in
+    # Api::get_endpoints() match docs/openapi.yaml. Runs in seconds, gates
+    # the heavier build job from going green if the spec is stale.
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Check OpenAPI drift
+        run: ./scripts/check-openapi-drift.sh
+      - name: Check routes registered
+        run: ./scripts/check-routes-registered.sh
+      - name: Check test-bucket filter sync
+        run: ./scripts/check-test-buckets.sh
+
+  helm-charts:
+    runs-on: ubuntu-latest
+    # Render the cpp-env umbrella with CI values and assert deploy-path
+    # invariants (ingress<->service port match, MAIL_VIA_JOBS injected,
+    # baseDomain expanded, no null ports). No cluster — pure template smoke
+    # test. Catches the helm bug class that compile + unit tests cannot.
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Install helm + yq
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          sudo curl -fsSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.6/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+      - name: Validate helm render
+        run: ./scripts/check-helm-render.sh
+
+  frontend:
+    runs-on: ubuntu-latest
+    # Frontend gate — typecheck + lint + production build. Regenerates
+    # schema.gen.ts from docs/openapi.yaml and fails if the committed copy
+    # is stale (see the "schema.gen.ts up to date" step).
+    timeout-minutes: 10
+    defaults:
+      run: { working-directory: frontend }
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Regenerate OpenAPI types
+        run: npm run gen:api
+      - name: schema.gen.ts up to date with docs/openapi.yaml
+        # gen:api just rewrote schema.gen.ts from the spec. If the committed
+        # copy differs, someone changed docs/openapi.yaml without running
+        # `make frontend-gen-api` — fail so the stale file can't ride green.
+        run: git diff --exit-code -- src/lib/api/schema.gen.ts
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Lint
+        run: npm run lint  # flat config, zero-warning baseline
+      - name: Production build
+        run: npm run build
+
+  clang-tidy:
+    runs-on: ubuntu-latest
+    # Structural and API-usage lint. Uses the builder image for
+    # compile_commands.json so the analysis sees the real include paths
+    # vcpkg resolved. Best-effort: warnings don't gate yet, the .clang-tidy
+    # baseline is still being tightened.
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
+
+      - name: Build builder image
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: builder
+          push: false
+          load: true
+          tags: cpp-api-template:builder
+          build-args: ENABLE_WERROR=ON
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run clang-tidy inside builder
+        # continue-on-error: ratchet — flip to false once baseline is clean.
+        # Checks come from .clang-tidy in the repo root (mounted read-only).
+        # GitLab CI counterpart previously had -checks=-* (disabled ALL checks);
+        # that flag is now removed there too. Both jobs now use the .clang-tidy
+        # config (bugprone-*, performance-*, portability-*, clang-analyzer-*).
+        continue-on-error: true  # TODO: flip to false once baseline is clean
+        run: |
+          docker run --rm \
+              -v "$PWD":/src \
+              -v "$PWD/.clang-tidy":/app/.clang-tidy:ro \
+              --entrypoint /bin/bash \
+              cpp-api-template:builder -c "
+                  apt-get update -qq && apt-get install -y -qq clang-tidy >/dev/null && \
+                  run-clang-tidy -p /app/build -quiet -header-filter='src/.*' /app/src/ \
+                      | tee /src/clang-tidy.log
+              "
+
+      - name: Upload clang-tidy log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: clang-tidy-log
+          path: clang-tidy.log
+          if-no-files-found: ignore
+
+  sanitizers:
+    runs-on: ubuntu-latest
+    # AddressSanitizer + UndefinedBehaviorSanitizer over the unit-test bucket.
+    # Integration tests need real Postgres/Redis which aren't wired into this
+    # job — keep them out of the filter. Allows a separate, fast feedback
+    # signal for memory/UB regressions.
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
+
+      - name: Build builder image
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: builder
+          push: false
+          load: true
+          tags: cpp-api-template:builder
+          build-args: ENABLE_WERROR=ON
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & run unit tests with ASan + UBSan
+        run: |
+          docker run --rm \
+              --entrypoint /bin/bash \
+              cpp-api-template:builder -c "
+                  set -e
+                  cd /app
+                  rm -rf build-san
+                  cmake -B build-san \
+                      -G Ninja \
+                      -DCMAKE_BUILD_TYPE=Debug \
+                      -DENABLE_SANITIZERS=ON \
+                      -DCMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake \
+                      -DVCPKG_INSTALLED_DIR=/app/build/vcpkg_installed  # reuse the builder stage's vcpkg tree (mirrors the sanitizer-builder Dockerfile stage); avoids a full vcpkg reinstall
+                  cmake --build build-san -j\$(nproc) --target cpp_api_template_tests_unit
+                  ASAN_OPTIONS=halt_on_error=1:detect_leaks=1 \
+                  UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+                  ./build-san/cpp_api_template_tests_unit \
+                      --gtest_color=yes
+              "

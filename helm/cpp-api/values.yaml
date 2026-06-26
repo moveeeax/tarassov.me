@@ -1,0 +1,429 @@
+# ---------------------------------------------------------------
+# Deployment — number of pod replicas and container image settings
+# ---------------------------------------------------------------
+replicaCount: 1
+
+image:
+  repository: resert/cpp-rapid-rest-template
+  tag: ""  # Defaults to chart appVersion
+  pullPolicy: IfNotPresent
+
+# List of Kubernetes secrets for pulling from private registries
+imagePullSecrets: []
+# Override the generated resource names (leave empty to use chart defaults)
+nameOverride: ""
+fullnameOverride: ""
+
+# ---------------------------------------------------------------
+# Networking — Kubernetes Service and Ingress
+# ---------------------------------------------------------------
+service:
+  type: ClusterIP          # ClusterIP | NodePort | LoadBalancer
+  httpPort: 8080           # Main API port (matches SERVER_PORT)
+  metricsPort: 9090        # Prometheus metrics port (matches METRICS_ADDRESS)
+
+ingress:
+  enabled: false
+  className: ""            # e.g. "nginx", "traefik"
+  annotations: {}          # Free-form extra annotations
+  # cert-manager convenience — set one of clusterIssuer/issuer, the template
+  # will render the matching annotation automatically. Leave both empty if
+  # you're using something other than cert-manager (or managing TLS manually).
+  certManager:
+    clusterIssuer: ""      # e.g. "letsencrypt-prod"
+    issuer: ""             # namespaced Issuer name (mutually exclusive with clusterIssuer)
+  hosts:
+    - host: cpp-api.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  # Full cert-manager example — cert-manager watches this Secret name and
+  # populates it from the ClusterIssuer above. Uncomment and set both.
+  #   certManager.clusterIssuer: letsencrypt-prod
+  #   tls:
+  #     - secretName: cpp-api-tls
+  #       hosts:
+  #         - api.example.com
+
+# ---------------------------------------------------------------
+# Resource requests/limits and scaling
+# ---------------------------------------------------------------
+# Starting point — MEASURE under your own load. A Drogon app with libpqxx +
+# redis++ connection pools under traffic can exceed 256Mi and get OOMKilled;
+# these defaults err on the safe side. Tune requests to your steady state and
+# limits to your peak.
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+# Horizontal Pod Autoscaler — requires metrics-server in the cluster
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+# Pod Disruption Budget — ensures minimum available pods during voluntary disruptions
+pdb:
+  enabled: false
+  minAvailable: 1
+
+# ---------------------------------------------------------------
+# Network policy — restrict ingress/egress when enabled.
+#
+# Template ships with `enabled: false` because the selectors below hardcode
+# namespace names (ingress-nginx, monitoring, db) that vary per cluster.
+# Before flipping to true in production:
+#   1. Confirm your ingress-controller namespace and update fromSelectors.
+#   2. Confirm where Postgres/Redis/Kafka live; list egress targets by
+#      podSelector or namespaceSelector (not CIDR — it ties the manifest
+#      to a single environment).
+#   3. Test in a staging namespace first — a wrong NetworkPolicy silently
+#      blackholes traffic.
+# ---------------------------------------------------------------
+networkPolicy:
+  enabled: false
+  ingress:
+    fromSelectors:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+    metricsFromSelectors:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: monitoring
+  egress:
+    extra:
+      # Allow egress to Postgres, Redis, Kafka by namespace/podSelector as appropriate.
+      - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: db
+        ports:
+          - port: 5432
+            protocol: TCP
+          - port: 6379
+            protocol: TCP
+          - port: 26379
+            protocol: TCP
+
+# ---------------------------------------------------------------
+# Prometheus ServiceMonitor (requires prometheus-operator CRDs)
+# ---------------------------------------------------------------
+serviceMonitor:
+  enabled: false           # Set to true if Prometheus Operator is installed
+  interval: 30s            # Scrape interval
+  path: /metrics           # Metrics endpoint path on metricsPort
+
+# ---------------------------------------------------------------
+# Alerting — PrometheusRule objects with baseline SLO alerts.
+# Requires prometheus-operator CRDs (alertsEnabled=true to render).
+# Tune thresholds per service; these defaults are deliberately tight so
+# "the template shipped without alerts" never happens.
+# ---------------------------------------------------------------
+monitoring:
+  alertsEnabled: false
+  jobsAlerts: false         # Include jobs/DLQ alerts (requires Jobs enabled)
+  alertLabels: {}           # Extra labels applied to every rule (e.g. team)
+  # Selector used on every PromQL expression. Must match how your cluster's
+  # ServiceMonitor / scrape relabel config labels targets. Common shapes:
+  #   prometheus-operator default →  job="{namespace}/{service}/{port}"
+  #                                  → set targetSelector: "namespace=\"my-ns\", service=\"{fullname}\""
+  #   simple ServiceMonitor        →  job="{service}"
+  #                                  → set targetSelector: "job=\"{fullname}\""
+  # Default picks service="{fullname}" which works if you keep the label in
+  # relabel_configs. If in doubt, open Prometheus → Targets and look at the
+  # actual label set on your pod.
+  targetSelector: ""
+  thresholds:
+    errorRate: 0.01                 # Fraction of 5xx allowed (1 %)
+    latencyP99Sec: 1                # p99 seconds
+    dlqDepth: 10                    # total job_dlq_depth above this pages
+    queueDepth: 100                 # total jobs_queue_depth above this warns
+    dbPoolSaturation: 0.9           # db_pool_active/size ratio above this warns (90 %)
+    replicaLagSec: 10               # read-replica lag (s) above this warns
+    dlqPerTypeDepth: 5              # single-type DLQ depth that pages
+    retriesExhaustedPerSec: 0.5     # sustained "gave up" retries per second
+
+# ---------------------------------------------------------------
+# External Secrets Operator — pull secrets from Vault / AWS SSM / GCP SM
+# instead of inlining them in values. When enabled, the static Secret
+# rendered by templates/secret.yaml is suppressed and the Deployment
+# consumes the ExternalSecret-materialized Secret instead.
+# ---------------------------------------------------------------
+externalSecrets:
+  enabled: false
+  refreshInterval: "1h"
+  secretStoreRef:
+    name: ""                  # cluster's SecretStore / ClusterSecretStore name
+    kind: ClusterSecretStore  # or SecretStore (namespaced)
+  data: []
+    # - secretKey: database-password
+    #   remoteRef: { key: prod/app/db, property: password }
+    # - secretKey: redis-password
+    #   remoteRef: { key: prod/app/redis, property: password }
+    # - secretKey: jwt-secret
+    #   remoteRef: { key: prod/app/auth, property: jwt_secret }
+
+# ---------------------------------------------------------------
+# External PostgreSQL connection
+# Env vars set: DATABASE_PRIMARY_URL, DATABASE_REPLICA_URLS,
+#               DB_POOL_SIZE, DB_MIGRATIONS_ENABLED
+# ---------------------------------------------------------------
+externalDatabase:
+  host: postgres.example.svc.cluster.local
+  port: 5432
+  name: appdb
+  user: appuser
+  password: ""  # Set via --set or external secret
+  poolSize: 10
+  replicaHost: ""  # e.g. postgres-ro.example.svc.cluster.local — leave empty to disable replicas
+  # Run migrations in the main container on startup.
+  # Prefer false + migrations.runAsInitContainer=true to avoid every replica
+  # racing to apply migrations at rollout time.
+  migrationsEnabled: false
+
+# ---------------------------------------------------------------
+# Schema migrations — run as an init container so only one pod per rollout
+# applies migrations, rather than every replica racing at startup.
+# ---------------------------------------------------------------
+migrations:
+  runAsInitContainer: true
+
+# ---------------------------------------------------------------
+# External Redis / Sentinel connection
+# Env vars set: REDIS_URL, REDIS_PASSWORD, REDIS_USE_SENTINEL,
+#               REDIS_MASTER_NAME, REDIS_SENTINEL_NODES, CACHE_POOL_SIZE
+# ---------------------------------------------------------------
+externalRedis:
+  url: "tcp://redis.example.svc.cluster.local:6379"  # Fallback if sentinel disabled
+  password: ""  # Set via --set or external secret
+  useSentinel: true                                  # Enable Sentinel HA mode
+  masterName: mymaster                               # Sentinel master name
+  # Comma-separated list of sentinel host:port. Adjust to your cluster's
+  # sentinel service.
+  sentinelNodes: "redis-node-0.redis-headless.example.svc.cluster.local:26379,redis-node-1.redis-headless.example.svc.cluster.local:26379,redis-node-2.redis-headless.example.svc.cluster.local:26379"
+  poolSize: 10
+
+# ---------------------------------------------------------------
+# External Kafka (optional messaging)
+# Env vars set: MESSAGING_ENABLED, KAFKA_BROKERS,
+#               KAFKA_PRODUCER_ENABLED, KAFKA_PRODUCER_ID,
+#               KAFKA_CONSUMER_ENABLED, KAFKA_GROUP_ID
+# ---------------------------------------------------------------
+externalKafka:
+  enabled: false
+  brokers: "kafka:9092"
+  producerEnabled: false
+  producerId: cpp_producer
+  consumerEnabled: false
+  consumerGroupId: cpp_consumer_group
+
+# ---------------------------------------------------------------
+# Jobs configuration (disabled on the API by default — use cpp-worker chart)
+# Env vars set: JOBS_ENABLED, JOBS_RESULT_TTL, JOBS_MAX_RETRIES
+# ---------------------------------------------------------------
+jobs:
+  enabled: false
+  resultTtl: 86400
+  maxRetries: 3
+
+# ---------------------------------------------------------------
+# Rate limiting — Redis-backed throttle applied by the middleware chain
+# (notably on /api/auth/login). The C++ code defaults RATE_LIMIT_ENABLED to
+# FALSE, so this MUST be set true in prod or every pod runs unthrottled.
+# fail_open=true means a Redis outage degrades to allow (not block) traffic.
+# Keys mirror config.json "rate_limit". Env: RATE_LIMIT_ENABLED,
+# RATE_LIMIT_REQUESTS, RATE_LIMIT_WINDOW_SEC, RATE_LIMIT_SCOPE,
+# RATE_LIMIT_TRUST_PROXY, RATE_LIMIT_TRUSTED_PROXY_COUNT, RATE_LIMIT_FAIL_OPEN,
+# RATE_LIMIT_WHITELIST
+# ---------------------------------------------------------------
+rateLimit:
+  enabled: false           # set true in prod (values-prod.yaml does)
+  requests: 60             # allowed requests per window
+  windowSec: 60            # sliding window length in seconds
+  scope: ip_or_user        # ip | user | ip_or_user
+  # Behind an ingress/proxy, set trustProxy=true and trustedProxyCount to the
+  # number of proxies in front so the real client IP is taken from
+  # X-Forwarded-For instead of the proxy's address.
+  trustProxy: false
+  trustedProxyCount: 1
+  failOpen: true           # Redis down → allow (don't blackhole) requests
+  whitelist: ""            # comma-separated IPs/subjects exempt from limiting
+
+# ---------------------------------------------------------------
+# Idempotency — de-duplicates retried mutating requests carrying an
+# Idempotency-Key header (Redis-backed). The C++ code defaults
+# IDEMPOTENCY_ENABLED to FALSE; set true in prod to make POST retries safe.
+# Keys mirror config.json "idempotency". Env: IDEMPOTENCY_ENABLED,
+# IDEMPOTENCY_TTL_SEC, IDEMPOTENCY_LOCK_TTL_SEC, IDEMPOTENCY_MAX_BODY_KB,
+# IDEMPOTENCY_MAX_RESPONSE_KB
+# ---------------------------------------------------------------
+idempotency:
+  enabled: false           # set true in prod to enable retry de-duplication
+  ttlSec: 86400            # how long a stored response is replayed (1 day)
+  lockTtlSec: 30           # lock TTL while the first request is in flight
+  maxBodyKb: 1024          # skip caching requests with bodies above this
+  maxResponseKb: 256       # skip caching responses above this
+
+# ---------------------------------------------------------------
+# Application configuration
+# Env vars set: LOG_LEVEL, LOG_NAME, SERVICE_NAME, SERVER_THREADS
+# ---------------------------------------------------------------
+logging:
+  level: info              # trace | debug | info | warn | error | critical
+  name: cpp_api            # Logger name (LOG_NAME)
+  format: json             # text | json (LOG_FORMAT) — json required for log aggregators
+  serviceName: cpp_api_service  # OpenTelemetry service name (SERVICE_NAME)
+
+server:
+  threads: 4               # Drogon event-loop threads (SERVER_THREADS)
+
+# ---------------------------------------------------------------
+# Auth — AUTH_MODE + JWT signing + session cookies.
+# IMPORTANT: login (mint_session) REQUIRES a non-empty jwtSecret even when
+# mode=none — without it the API returns "Could not mint session". Set
+# mode=jwt to also enforce auth on protected routes, and cookies.enabled=true
+# so login actually sets the __Host-* cookies the SPA relies on.
+# Keep jwtSecret/issuer/audience in sync with the cpp-worker chart (it signs
+# the same transactional-email link tokens).
+# Env: AUTH_MODE, JWT_SECRET, JWT_ISSUER, JWT_AUDIENCE, AUTH_COOKIES_ENABLED,
+#      AUTH_COOKIE_SECURE, AUTH_COOKIE_SAMESITE
+# ---------------------------------------------------------------
+auth:
+  mode: jwt            # none | bearer | jwt — default jwt so a bare subchart install never ships a public API; an empty jwtSecret then fail-closes at boot
+  jwtSecret: ""        # HS256 signing key — set via --set auth.jwtSecret=...
+  jwtIssuer: ""
+  jwtAudience: ""
+  cookies:
+    enabled: false     # true → login sets __Host-access / __Host-refresh
+    secure: true       # required for __Host- cookies (must be served over HTTPS)
+    samesite: Lax
+    # Cookie names. Must match the SPA expectation (__Host-* prefix). NOTE: the
+    # __Host- prefix REQUIRES secure=true — with secure=false a __Host- cookie is
+    # silently dropped by the browser. If you must run cookies over plain HTTP in
+    # dev, rename these (e.g. "access" / "refresh") AND set secure=false together.
+    access: __Host-access
+    refresh: __Host-refresh
+
+# ---------------------------------------------------------------
+# Application — public URL/name the API renders into transactional email links
+# when it sends inline (jobs disabled). Keep aligned with the cpp-worker chart,
+# which renders the same links when MAIL_VIA_JOBS routes sends through the queue.
+# Env vars set: APP_BASE_URL, APP_NAME
+# ---------------------------------------------------------------
+app:
+  env: production      # APP_ENV — arms the boot-time prod-safety guard (refuses auth.mode=none in prod)
+  baseUrl: "https://app.example.com"  # base for confirm/reset links in emails
+  name: App
+
+# ---------------------------------------------------------------
+# Mail — with jobs.enabled=false (the API default) the API delivers
+# transactional email INLINE on the request thread, so it needs the same SMTP
+# config the worker would otherwise use. With jobs.enabled=true the API only
+# enqueues and the cpp-worker chart does the delivery — leave mail.enabled here
+# as you see fit but set mail.viaJobs=true so the API enqueues instead of
+# sending inline.
+# Env vars set: MAIL_ENABLED, MAIL_VIA_JOBS, MAIL_SMTP_HOST, MAIL_SMTP_PORT,
+#               MAIL_SMTP_USERNAME, MAIL_SMTP_PASSWORD, MAIL_SMTP_USE_TLS,
+#               MAIL_FROM, MAIL_FROM_NAME, MAIL_SUBJECT_PREFIX
+# ---------------------------------------------------------------
+mail:
+  enabled: false
+  viaJobs: false   # standalone API sends inline; set true when running cpp-worker
+  smtpHost: smtp.example.com
+  smtpPort: 587
+  smtpUsername: ""
+  smtpPassword: ""  # Set via --set or external secret (sourced into MAIL_SMTP_PASSWORD)
+  smtpUseTls: true
+  from: noreply@example.com
+  fromName: App
+  subjectPrefix: "[App] "
+
+# ---------------------------------------------------------------
+# Graceful shutdown
+#   terminationGracePeriodSeconds — total time kubelet waits before SIGKILL.
+#                                   Must cover preStopDelay + in-flight work.
+#   preStopDelay                  — sleep in preStop hook before SIGTERM is sent,
+#                                   giving endpoints controller time to remove
+#                                   the pod from Service backends.
+#   shutdownPreStopDelaySec       — additional in-process drain the app performs
+#                                   between "readiness=503" and "stop accepting"
+#                                   (passed through to SHUTDOWN_PRE_STOP_DELAY_SEC).
+# ---------------------------------------------------------------
+shutdown:
+  terminationGracePeriodSeconds: 30
+  preStopDelay: 5           # seconds
+  shutdownPreStopDelaySec: 5 # seconds
+
+# ---------------------------------------------------------------
+# Startup probe — guards the cold start of the C++ binary (and, when the
+# migrate init-container is disabled, in-process migrations) so the liveness
+# probe doesn't begin counting failures until the process is actually up.
+# failureThreshold * periodSeconds bounds the allowed startup window
+# (default 30 * 5s = 150s). Hits the same /healthz endpoint as liveness.
+# ---------------------------------------------------------------
+startupProbe:
+  enabled: true
+  path: /healthz
+  failureThreshold: 30
+  periodSeconds: 5
+  timeoutSeconds: 3
+
+# ---------------------------------------------------------------
+# Tracing — OpenTelemetry OTLP exporter
+# Env var set: OTLP_ENDPOINT
+# ---------------------------------------------------------------
+tracing:
+  enabled: false
+  otlpEndpoint: ""  # e.g. "http://jaeger-collector.observability:4318/v1/traces"
+
+# ---------------------------------------------------------------
+# Pod scheduling — annotations, node selection, tolerations, affinity
+# ---------------------------------------------------------------
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# ---------------------------------------------------------------
+# Postgres logical backup (pg_dump → S3-compatible storage)
+# Off by default. STARTER-grade: fine to a few GB; past that move to
+# pgBackRest / WAL-G for incremental + PITR. Restore is manual — see
+# docs/RUNBOOK.md. Rendered by templates/backup-cronjob.yaml.
+# ---------------------------------------------------------------
+backup:
+  enabled: false
+  schedule: "0 2 * * *"        # daily 02:00 UTC
+  # REQUIRED: an image with BOTH `pg_dump` and the `aws` CLI on PATH — the job
+  # runs read-only-rootfs as non-root, so installing tools at runtime is NOT an
+  # option. postgres:16-alpine ships pg_dump but NOT aws; amazon/aws-cli ships
+  # aws but NOT pg_dump — either alone fails silently. Build a tiny image that
+  # bundles both (postgres-client + aws-cli) and set backup.image to it before
+  # enabling. The postgres:16-alpine default below covers the pg_dump half so
+  # `helm template` renders; override it for a working backup.
+  image: postgres:16-alpine
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  activeDeadlineSeconds: 3600
+  dbPasswordSecret:
+    name: ""   # defaults to the chart's secret; set when using ExternalSecrets
+    key: database-password
+  s3:
+    bucket: ""                 # REQUIRED when enabled
+    prefix: "cpp-api/"
+    region: ""
+    endpoint: ""               # set for MinIO / non-AWS S3
+    credentialsSecret:
+      name: ""                 # secret holding access-key-id / secret-access-key
+      accessKeyIdKey: access-key-id
+      secretAccessKeyKey: secret-access-key
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }

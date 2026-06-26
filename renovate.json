@@ -1,0 +1,41 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommitsDisabled",
+    "docker:pinDigests"
+  ],
+  "description": "Keeps the pinned world from fossilizing: docker tags, GitHub Action SHAs, npm lockfile, and the vcpkg baseline.",
+  "timezone": "Europe/Moscow",
+  "schedule": ["before 6am on monday"],
+  "prConcurrentLimit": 5,
+  "packageRules": [
+    {
+      "description": "Auto-merge patch updates when CI is green",
+      "matchUpdateTypes": ["patch", "pin", "digest"],
+      "automerge": true
+    },
+    {
+      "description": "Infra images (Postgres/Redis/Kafka) — majors need a human",
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["infra-major"]
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "vcpkg builtin-baseline (vcpkg.json) and the matching VCPKG_REF arg in docker/Dockerfile track microsoft/vcpkg master",
+      "managerFilePatterns": ["/^vcpkg\\.json$/", "/^docker/Dockerfile$/"],
+      "matchStrings": [
+        "\"builtin-baseline\"\\s*:\\s*\"(?<currentDigest>[a-f0-9]{40})\"",
+        "ARG VCPKG_REF=(?<currentDigest>[a-f0-9]{40})"
+      ],
+      "depNameTemplate": "microsoft/vcpkg",
+      "datasourceTemplate": "git-refs",
+      "packageNameTemplate": "https://github.com/microsoft/vcpkg",
+      "currentValueTemplate": "master"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-sentinel-conf
+  labels:
+    {{- include "cpp-env.labels" . | nindent 4 }}
+data:
+  # NOTE: the Redis password is NOT inlined here — a ConfigMap is world-readable
+  # in the cluster. We ship a TEMPLATE with a __REDIS_PASSWORD__ placeholder; the
+  # Sentinel init-container substitutes it from the redis-auth Secret (injected as
+  # the REDIS_PASSWORD env via secretKeyRef) before writing the runtime config.
+  sentinel.conf.tmpl: |
+    port 26379
+    # Clients (the app) authenticate to the Sentinel with this password — the app
+    # sends REDIS_SENTINEL_PASSWORD (defaults to the master password) on connect.
+    requirepass __REDIS_PASSWORD__
+    sentinel resolve-hostnames yes
+    sentinel announce-hostnames yes
+    sentinel monitor mymaster redis 6379 2
+    sentinel auth-pass mymaster __REDIS_PASSWORD__
+    sentinel down-after-milliseconds mymaster 5000
+    sentinel failover-timeout mymaster 10000
+{{- end }}

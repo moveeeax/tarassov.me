@@ -1,0 +1,24 @@
+apiVersion: v2
+name: cpp-env
+description: >-
+  One-namespace ephemeral test environment: cpp-api + worker + frontend wired to
+  a per-env CloudNativePG cluster (rw/ro), Redis Sentinel, optional Kafka, Mailpit
+  and Jaeger — auto-configured, with *.<env>.example.com ingress.
+type: application
+version: 0.1.0
+appVersion: "1.4.0"
+maintainers:
+  - name: cpp-api-team
+# Subcharts are wired entirely from this chart's values (fixed in-namespace
+# service names + per-env domain). Infra (Postgres/Redis/Kafka/Mailpit/Jaeger)
+# is templated here, so no external chart repos are needed.
+dependencies:
+  - name: cpp-api
+    version: "0.1.0"
+    repository: "file://../cpp-api"
+  - name: cpp-worker
+    version: "0.1.0"
+    repository: "file://../cpp-worker"
+  - name: cpp-frontend
+    version: "0.1.0"
+    repository: "file://../cpp-frontend"

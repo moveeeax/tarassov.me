@@ -1,0 +1,26 @@
+{
+  "// note": "Copy to settings.json. Assumes `make compile-commands` has been run so the symlink exists at the repo root.",
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "clangd.arguments": [
+    "--background-index",
+    "--header-insertion=never",
+    "--compile-commands-dir=${workspaceFolder}"
+  ],
+  "files.associations": {
+    "*.hpp": "cpp"
+  },
+  "files.exclude": {
+    "build/**": true,
+    "vcpkg_installed/**": true,
+    "docs/html/**": true,
+    "logs/**": true
+  },
+  "search.exclude": {
+    "build/**": true,
+    "vcpkg_installed/**": true,
+    "docs/html/**": true,
+    "logs/**": true
+  },
+  "cmake.buildDirectory": "${workspaceFolder}/build/dev",
+  "cmake.configureOnOpen": false
+}

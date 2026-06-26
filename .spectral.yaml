@@ -1,0 +1,19 @@
+# Spectral ruleset for docs/openapi.yaml. Starts from the standard OAS bundle
+# and relaxes a handful of rules that don't add value for an internal-first
+# template (operation-tag-defined, info-contact, etc.).
+#
+# Ratchet up over time: when the spec is clean against `error` severity, flip
+# SPECTRAL_FAIL_SEVERITY=warn in CI to enforce the warnings too.
+
+extends:
+  - "spectral:oas"
+
+rules:
+  # Tags are useful but not required for a small infra-only spec.
+  operation-tag-defined: false
+  # Most internal services don't publish a contact block.
+  info-contact: false
+  # Allow `summary`-only operations without a separate `description`.
+  operation-description: false
+  # We emit response examples in the controllers, not in the spec.
+  oas3-valid-media-example: warn

@@ -1,0 +1,22 @@
+
+{{ .Chart.Name }} "{{ .Release.Name }}" deployed to namespace {{ .Release.Namespace }}.
+
+IMPORTANT — JWT secret must match the cpp-api chart:
+  This worker signs the tokens embedded in transactional-email links
+  (confirm / reset / change-email); the cpp-api verifies them. If
+  `auth.jwtSecret` here differs from the cpp-api release, every emailed link
+  fails verification with no obvious error. Set the SAME value in BOTH charts
+  (ideally from one shared Secret / ExternalSecret), and keep auth.jwtIssuer /
+  auth.jwtAudience in sync too.
+
+{{- if and (eq .Values.auth.mode "jwt") (not .Values.auth.jwtSecret) }}
+
+WARNING: auth.mode=jwt but auth.jwtSecret is empty — the worker cannot sign
+  email-link tokens. Set auth.jwtSecret (matching the cpp-api release).
+{{- end }}
+{{- if and .Values.mail.enabled (not .Values.mail.viaJobs) }}
+
+NOTE: mail.enabled=true with mail.viaJobs=false — this worker will send mail
+  directly rather than draining the job queue. Usually the worker should keep
+  viaJobs=true (it IS the queue drainer); set viaJobs=false only intentionally.
+{{- end }}

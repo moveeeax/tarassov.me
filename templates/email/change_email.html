@@ -1,0 +1,17 @@
+<p>Dear {{ user.full_name }},</p>
+
+<p>We received a request to change the email address on your <b>{{ app_name }}</b> account
+from <code>{{ user.email }}</code> to <code>{{ new_email }}</code>.</p>
+
+<p>To confirm this change, please <a href="{{ change_email_link }}">click here</a>.
+The link is valid for 1 hour.</p>
+
+<p>Alternatively, paste this URL into your browser:</p>
+
+<p><code>{{ change_email_link }}</code></p>
+
+<p>If you didn't request this, please change your password immediately and contact support.</p>
+
+<p>Sincerely,</p>
+
+<p>The {{ app_name }} Team</p>

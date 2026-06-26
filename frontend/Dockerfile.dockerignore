@@ -1,0 +1,17 @@
+# BuildKit uses this file INSTEAD of the root .dockerignore when the image is
+# built with `-f frontend/Dockerfile` (see .gitlab-ci.yml build:frontend:*).
+#
+# The root .dockerignore excludes frontend/ to keep the C++ image's build
+# context lean — but this build's context is also the repo root and it COPYs
+# frontend/* , so that exclusion strips the very sources it needs ("/frontend/src
+# not found"). Here we keep frontend/ (+ docs/ for a future openapi codegen step)
+# and drop everything else the SPA build never reads.
+*
+!frontend
+!docs
+# Re-exclude heavy / generated bits inside the kept dirs.
+frontend/node_modules
+frontend/dist
+docs/html
+docs/latex
+**/.DS_Store

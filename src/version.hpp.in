@@ -1,0 +1,13 @@
+/**
+ * @file version.hpp.in
+ * @brief Single source of the application version.
+ *
+ * CMake's configure_file() renders this into <build>/generated/version.hpp
+ * from project(VERSION ...) in CMakeLists.txt — bump the version THERE and
+ * nowhere else. Core::version(), helm appVersion (set by CI from the git
+ * tag) and image tags all chain back to that one number.
+ */
+
+#pragma once
+
+#define CPP_API_VERSION "@PROJECT_VERSION@"

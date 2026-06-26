@@ -1,0 +1,29 @@
+# Per-developer Compose overrides. Copy to docker-compose.override.yml
+# (gitignored) and customize without touching the shared compose file.
+#
+# Compose merges this file on top of docker-compose.yml automatically when
+# both are in the same directory. Use it for ports, mounts, and env that are
+# specific to your local machine.
+
+services:
+  app:
+    # Example: expose the API on a non-default host port.
+    ports:
+      - "18080:8080"
+      - "19090:9090"
+    environment:
+      LOG_LEVEL: debug
+      # Uncomment to develop with auth disabled.
+      # AUTH_MODE: none
+
+  postgres:
+    # Example: bind to a different host port so it doesn't clash with a
+    # locally-installed Postgres.
+    ports:
+      - "15432:5432"
+
+  # Example: mount your local source so a `cmake --build build` host-side
+  # build is immediately picked up by `make dev` without rebuilding the image.
+  # app:
+  #   volumes:
+  #     - ../build:/app/build:ro

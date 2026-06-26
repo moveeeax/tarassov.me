@@ -1,0 +1,59 @@
+# Dev container compose. Reuses the builder stage from the main Dockerfile so
+# the editor sees the exact same toolchain (gcc-13, cmake, vcpkg) the CI uses.
+# Postgres and Redis sidecars provide a working integration-test environment
+# out of the box — `make test` works inside the container with no extra setup.
+
+services:
+  dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: builder
+    command: sleep infinity
+    volumes:
+      - ..:/app:cached
+      - vcpkg-cache:/opt/vcpkg/buildtrees
+      - vcpkg-downloads:/opt/vcpkg/downloads
+    environment:
+      DATABASE_PRIMARY_URL: postgresql://postgres:postgres@postgres:5432/appdb
+      REDIS_URL: tcp://redis:6379
+      TEST_PG_HOST: postgres
+      TEST_REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [devnet]
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: appdb
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks: [devnet]
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks: [devnet]
+
+volumes:
+  vcpkg-cache:
+  vcpkg-downloads:
+  pg-data:
+
+networks:
+  devnet:

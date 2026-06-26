@@ -1,0 +1,34 @@
+# Sample direnv config. Copy to .envrc, edit paths, then `direnv allow`:
+#   cp envrc.sample .envrc && direnv allow
+#
+# Sets the env vars needed for the local-build path (`make build-local`,
+# `make test-local`, native binary against the dockerised stack). Without
+# direnv you can `source .envrc` manually before each shell.
+#
+# Anything sensitive (real DB passwords, JWT secrets, etc.) belongs in
+# .envrc.local — that pattern is gitignored.
+
+# vcpkg checkout — required by `cmake --preset dev`. Point this at wherever
+# you cloned microsoft/vcpkg.
+export VCPKG_ROOT="${HOME}/vcpkg"
+
+# vcpkg binary cache. Re-uses dependency builds across clones, so the second
+# `make build-local` after a clean is near-instant. Safe to commit (or share)
+# the cache directory itself.
+mkdir -p "${HOME}/.vcpkg-bincache"
+export VCPKG_BINARY_SOURCES="clear;files,${HOME}/.vcpkg-bincache,readwrite"
+
+# Native integration tests reach out to the dockerised Postgres + Redis.
+# Override these only if you bind the ports somewhere other than localhost.
+export TEST_PG_HOST="${TEST_PG_HOST:-127.0.0.1}"
+export TEST_REDIS_HOST="${TEST_REDIS_HOST:-127.0.0.1}"
+
+# Required by config/config.json's database.primary placeholder. Use the
+# default dev creds locally; secrets go in .envrc.local (gitignored).
+export DATABASE_PASSWORD="${DATABASE_PASSWORD:-postgres}"
+
+# Optional. Useful when AUTH_MODE=jwt — pass --secret to scripts/make-jwt.sh.
+# export JWT_SECRET="dev-secret-please-rotate"
+
+# Optional. If you have a private overlay file:
+[ -f .envrc.local ] && source_env .envrc.local

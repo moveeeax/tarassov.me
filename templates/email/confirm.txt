@@ -1,0 +1,13 @@
+Dear {{ user.full_name }},
+
+Welcome to {{ app_name }}!
+
+To confirm your account, please click on the following link:
+
+{{ confirm_link }}
+
+If you didn't sign up, you can safely ignore this email.
+
+Sincerely,
+
+The {{ app_name }} Team

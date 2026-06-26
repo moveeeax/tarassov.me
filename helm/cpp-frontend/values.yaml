@@ -1,0 +1,95 @@
+# ---------------------------------------------------------------
+# Deployment — replicas and container image
+# ---------------------------------------------------------------
+replicaCount: 1
+
+image:
+  repository: resert/cpp-rapid-rest-template-frontend
+  tag: ""  # Defaults to chart appVersion
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# ---------------------------------------------------------------
+# Backend the SPA's nginx proxies /api/* to. Keeping the API same-origin
+# behind the frontend means session cookies stay first-party. Point `service`
+# at the cpp-api Service name (its Helm fullname, e.g. "<release>-cpp-api").
+# ---------------------------------------------------------------
+backend:
+  service: cpp-api
+  port: 8080
+
+# ---------------------------------------------------------------
+# Networking — Service + Ingress (the frontend is the single entry point;
+# it serves the SPA and proxies /api itself, so the ingress only routes "/").
+# ---------------------------------------------------------------
+service:
+  type: ClusterIP
+  # Service port; targetPort follows the named "http" container port (8080).
+  port: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  certManager:
+    clusterIssuer: ""
+    issuer: ""
+  hosts:
+    - host: app.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# ---------------------------------------------------------------
+# Resources — nginx serving a static bundle is tiny.
+# ---------------------------------------------------------------
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+# Pod Disruption Budget
+pdb:
+  enabled: false
+  minAvailable: 1
+
+# ---------------------------------------------------------------
+# Pod security context — run nginx as a non-root user.
+#
+# The shipped frontend/Dockerfile is built FROM nginxinc/nginx-unprivileged,
+# whose master runs as the non-root "nginx" user (uid 101) and listens on the
+# unprivileged port 8080. That image runs cleanly under runAsNonRoot, so this
+# block ships ENABLED.
+# ---------------------------------------------------------------
+podSecurityContext:
+  enabled: true
+  runAsNonRoot: true
+  runAsUser: 101        # the "nginx" uid in the nginx-unprivileged image
+  runAsGroup: 101
+  fsGroup: 101
+
+# ---------------------------------------------------------------
+# Container security context — hardening for the nginx container.
+#
+# readOnlyRootFilesystem locks the container's root fs read-only (PSS
+# "restricted" baseline). nginx-unprivileged still needs a few writable
+# paths (pid + temp bodies in /tmp, caches in /var/cache/nginx, sockets in
+# /var/run); when this is enabled the chart wires those as emptyDir volumes.
+# ---------------------------------------------------------------
+containerSecurityContext:
+  readOnlyRootFilesystem: true
+
+# ---------------------------------------------------------------
+# Pod scheduling
+# ---------------------------------------------------------------
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

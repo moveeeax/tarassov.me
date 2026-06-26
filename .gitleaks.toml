@@ -1,0 +1,12 @@
+# Gitleaks config. The default ruleset applies; allowlist below covers
+# local-only artifacts that must never be committed but can sit in the
+# work tree (gitleaks protect scans staged files).
+[allowlist]
+description = "Local dev artifacts (gitignored)"
+paths = [
+  '''docker/\.jwt-dev-secret''',
+  # Per-environment Helm overlays — hold real db/redis/jwt secrets but are
+  # gitignored (local only). Allowlisted so a stray scan of the work tree
+  # doesn't trip on them; they must never be committed.
+  '''helm/.*/values-prod\.yaml''',
+]

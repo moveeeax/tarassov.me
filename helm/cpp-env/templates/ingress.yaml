@@ -1,0 +1,14 @@
+# Per-env ingress: api.<env> → API, app.<env> → SPA (which proxies /api).
+# Mailpit (mail.<env>) and Jaeger (jaeger.<env>) UIs are opt-in (off by default)
+# because they expose tokens/traces with no auth — gate on their ingress.enabled.
+{{ include "cpp-env.ingress" (list "api" (include "cpp-env.host" (list "api" .)) "api" 8080 .) }}
+---
+{{ include "cpp-env.ingress" (list "app" (include "cpp-env.host" (list "app" .)) "web" 8080 .) }}
+{{- if and .Values.mailpit.enabled .Values.mailpit.ingress.enabled }}
+---
+{{ include "cpp-env.ingress" (list "mail" (include "cpp-env.host" (list "mail" .)) "mailpit" 8025 .) }}
+{{- end }}
+{{- if and .Values.jaeger.enabled .Values.jaeger.ingress.enabled }}
+---
+{{ include "cpp-env.ingress" (list "jaeger" (include "cpp-env.host" (list "jaeger" .)) "jaeger" 16686 .) }}
+{{- end }}

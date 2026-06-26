@@ -1,0 +1,60 @@
+{{- /*
+  PrometheusRule — baseline alert set for the cpp-worker.
+  Requires prometheus-operator CRDs installed in the cluster.
+
+  Enabled by monitoring.alertsEnabled=true. Mirrors the cpp-api PrometheusRule
+  structure but focuses on worker-specific signals (queue backlog, DLQ, pool
+  saturation, target-down). Thresholds are independently tunable via
+  monitoring.thresholds so worker queues can have different SLOs than the API.
+*/}}
+{{- if .Values.monitoring.alertsEnabled }}
+{{- $selector := .Values.monitoring.targetSelector | default (printf "service=\"%s\"" (include "cpp-worker.fullname" .)) }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "cpp-worker.fullname" . }}
+  labels:
+    {{- include "cpp-worker.labels" . | nindent 4 }}
+    {{- with .Values.monitoring.alertLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: {{ include "cpp-worker.fullname" . }}.rules
+      interval: 30s
+      rules:
+        - alert: CppWorkerTargetDown
+          # Fires when the worker's metrics endpoint disappears for 2m.
+          # The worker exposes /metrics on metricsPort (9090); if Prometheus
+          # can't scrape it the pod is gone or crashed.
+          expr: |
+            up{ {{ $selector }} } == 0
+          for: 2m
+          labels:
+            severity: critical
+            service: {{ include "cpp-worker.fullname" . }}
+          annotations:
+            runbook_url: "https://gitlab.com/tarassov.me/cpp-rapid-rest-template/-/blob/master/docs/RUNBOOK.md#targetdown"
+            summary: "cpp-worker target is down"
+            description: "Prometheus cannot scrape {{ include "cpp-worker.fullname" . }} — the worker pod is gone or the metrics endpoint is unreachable. Jobs are piling up in the queue."
+
+        # NOTE: db_pool_* and jobs_queue_depth / jobs_dlq_depth gauges are NOT
+        # published by the worker process — register_db_pool_metric_ runs only in
+        # non-Worker mode and the jobs depth gauges need Tasks (Core.hpp:130-138,
+        # 404, 449), which the worker never initializes. Queue/DLQ/pool backlog is
+        # alerted on the cpp-api PrometheusRule (which DOES emit them). Adding them
+        # here would be dead rules. (Follow-up: register these on the worker too if
+        # a worker-side view of its own pool/queue is wanted.)
+
+        - alert: CppWorkerRetriesExhaustedSpike
+          expr: |
+            sum(rate(retries_total{ {{ $selector }}, outcome="exhausted"}[5m])) > {{ .Values.monitoring.thresholds.retriesExhaustedPerSec | default 0.5 }}
+          for: 10m
+          labels:
+            severity: warning
+            service: {{ include "cpp-worker.fullname" . }}
+          annotations:
+            runbook_url: "https://gitlab.com/tarassov.me/cpp-rapid-rest-template/-/blob/master/docs/RUNBOOK.md#retries"
+            summary: "Worker retries frequently exhausted"
+            description: "Downstream is likely degraded — investigate database / cache / mail SMTP health."
+{{- end }}
