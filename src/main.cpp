@@ -89,7 +89,7 @@ CliArgs parse_cli(int argc, char* argv[]) {
 }
 
 void print_usage() {
-    std::cout << "Usage: cpp_api_template [config.json] [ops flag]\n"
+    std::cout << "Usage: tarassov_me [config.json] [ops flag]\n"
               << "  --print-routes              print registered endpoints and exit\n"
               << "  --dump-config               print resolved config as JSON and exit\n"
               << "  --verify-migrations         list pending migrations and exit (1 if any)\n"

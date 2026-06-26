@@ -36,18 +36,18 @@ jobs:
           target: builder
           push: false
           load: true
-          tags: cpp-api-template:builder
+          tags: tarassov-me-template:builder
           build-args: ENABLE_WERROR=ON
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Run full test suite
         # `make test` builds the test-runner stage with
-        # --cache-from cpp-rapid-rest-template:builder-latest. Alias the builder we just loaded
+        # --cache-from tarassov-me:builder-latest. Alias the builder we just loaded
         # under that tag so the compose build is a cache hit instead of a full
         # recompile.
         run: |
-          docker tag cpp-api-template:builder cpp-rapid-rest-template:builder-latest
+          docker tag tarassov-me-template:builder tarassov-me:builder-latest
           make test
 
       - name: Dump logs on failure
@@ -122,7 +122,7 @@ jobs:
 
   helm-charts:
     runs-on: ubuntu-latest
-    # Render the cpp-env umbrella with CI values and assert deploy-path
+    # Render the tarassov-me-env umbrella with CI values and assert deploy-path
     # invariants (ingress<->service port match, MAIL_VIA_JOBS injected,
     # baseDomain expanded, no null ports). No cluster — pure template smoke
     # test. Catches the helm bug class that compile + unit tests cannot.
@@ -190,7 +190,7 @@ jobs:
           target: builder
           push: false
           load: true
-          tags: cpp-api-template:builder
+          tags: tarassov-me-template:builder
           build-args: ENABLE_WERROR=ON
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -207,7 +207,7 @@ jobs:
               -v "$PWD":/src \
               -v "$PWD/.clang-tidy":/app/.clang-tidy:ro \
               --entrypoint /bin/bash \
-              cpp-api-template:builder -c "
+              tarassov-me-template:builder -c "
                   apt-get update -qq && apt-get install -y -qq clang-tidy >/dev/null && \
                   run-clang-tidy -p /app/build -quiet -header-filter='src/.*' /app/src/ \
                       | tee /src/clang-tidy.log
@@ -242,7 +242,7 @@ jobs:
           target: builder
           push: false
           load: true
-          tags: cpp-api-template:builder
+          tags: tarassov-me-template:builder
           build-args: ENABLE_WERROR=ON
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -251,7 +251,7 @@ jobs:
         run: |
           docker run --rm \
               --entrypoint /bin/bash \
-              cpp-api-template:builder -c "
+              tarassov-me-template:builder -c "
                   set -e
                   cd /app
                   rm -rf build-san
@@ -261,9 +261,9 @@ jobs:
                       -DENABLE_SANITIZERS=ON \
                       -DCMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake \
                       -DVCPKG_INSTALLED_DIR=/app/build/vcpkg_installed  # reuse the builder stage's vcpkg tree (mirrors the sanitizer-builder Dockerfile stage); avoids a full vcpkg reinstall
-                  cmake --build build-san -j\$(nproc) --target cpp_api_template_tests_unit
+                  cmake --build build-san -j\$(nproc) --target tarassov_me_tests_unit
                   ASAN_OPTIONS=halt_on_error=1:detect_leaks=1 \
                   UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
-                  ./build-san/cpp_api_template_tests_unit \
+                  ./build-san/tarassov_me_tests_unit \
                       --gtest_color=yes
               "

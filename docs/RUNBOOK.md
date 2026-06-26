@@ -87,7 +87,7 @@ submitters are outrunning the worker pool. This is the *leading* signal; left
 alone, jobs eventually age into the DLQ ([DeadLetterQueueGrowing](#dlq)).
 
 1. Which type? `jobs_queue_depth` is labeled by `type`.
-2. Workers alive and consuming? Check `up{job="cpp_worker"}` and the worker
+2. Workers alive and consuming? Check `up{job="tarassov_me_worker"}` and the worker
    logs. A stuck handler (one slow job type blocking its thread) starves the
    rest — BRPOP concurrency equals the thread count.
 3. Genuine load spike? Scale worker replicas / `WORKER_CONCURRENCY`.
@@ -135,7 +135,7 @@ pgBackRest / WAL-G.
 
 ```sh
 # 1. Fetch the dump
-aws s3 cp s3://<bucket>/cpp-api/appdb-<ts>.sql.gz .
+aws s3 cp s3://<bucket>/tarassov-me/appdb-<ts>.sql.gz .
 # 2. Restore into a FRESH database (never over a live one without a maintenance window)
 gunzip -c appdb-<ts>.sql.gz | psql -h <host> -U <user> -d appdb_restore
 # 3. Verify, then cut over (repoint DATABASE_PRIMARY_URL, rolling restart).
@@ -146,7 +146,7 @@ schema will be brought forward automatically by the next deploy.
 
 ## Roll back a release {#rollback}
 
-- k8s: `helm rollback cpp-api <REVISION>` (`helm history cpp-api`).
+- k8s: `helm rollback tarassov-me <REVISION>` (`helm history tarassov-me`).
 - Images are tagged `vX.Y.Z` in GHCR; pin the previous tag if needed.
 - Migrations are forward-only — a rollback of the app does NOT revert schema.
   If a migration is the problem, write a new forward migration that fixes it.

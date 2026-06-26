@@ -16,14 +16,14 @@
     "pre_stop_delay_sec": 5
   },
   "logging": {
-    "name": "cpp_api",
+    "name": "tarassov_me",
     "file": "logs/app.log",
     "level": "info",
     "format": "${LOG_FORMAT:-text}"
   },
   "observability": {
     "metrics_address": "0.0.0.0:9090",
-    "service_name": "cpp_api_service"
+    "service_name": "tarassov_me_service"
   },
   "database": {
     "primary": "postgresql://${DATABASE_USER:-postgres}:${DATABASE_PASSWORD}@${DATABASE_HOST:-localhost}:${DATABASE_PORT:-5432}/${DATABASE_NAME:-appdb}",
@@ -77,7 +77,7 @@
       "brokers": "localhost:9092",
       "producer": {
         "enabled": false,
-        "client_id": "cpp_producer"
+        "client_id": "tarassov_me_producer"
       },
       "consumer": {
         "enabled": false,

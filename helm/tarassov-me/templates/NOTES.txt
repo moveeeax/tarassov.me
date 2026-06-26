@@ -1,0 +1,24 @@
+
+{{ .Chart.Name }} "{{ .Release.Name }}" deployed to namespace {{ .Release.Namespace }}.
+
+IMPORTANT — JWT secret must match the tarassov-me-worker chart:
+  The tarassov-me-worker signs the tokens embedded in transactional-email links
+  (confirm / reset / change-email); this API verifies them. If
+  `auth.jwtSecret` here differs from the tarassov-me-worker release, every emailed
+  link fails verification with no obvious error. Set the SAME value in BOTH
+  charts (ideally from one shared Secret / ExternalSecret), and keep
+  auth.jwtIssuer / auth.jwtAudience in sync too.
+
+{{- if not .Values.auth.jwtSecret }}
+
+WARNING: auth.jwtSecret is empty. Login (mint_session) returns
+  "Could not mint session" until it is set — even when auth.mode=none.
+{{- end }}
+{{- if and .Values.auth.cookies.enabled (not .Values.auth.cookies.secure) }}
+
+WARNING: auth.cookies.enabled=true with auth.cookies.secure=false while the
+  cookie names use the "__Host-" prefix ({{ .Values.auth.cookies.access }} /
+  {{ .Values.auth.cookies.refresh }}). Browsers SILENTLY DROP __Host- cookies
+  over insecure connections. Serve over HTTPS (secure=true) or rename the
+  cookies (auth.cookies.access/refresh) to non-__Host- names.
+{{- end }}

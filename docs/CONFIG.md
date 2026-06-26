@@ -103,12 +103,12 @@ Set `CONFIG_FILE` to point at a different JSON file (e.g.
 
 | Env | JSON key | Type | Default | Notes |
 |---|---|---|---|---|
-| `LOG_NAME` | `logging.name` | string | `cpp_api` | |
+| `LOG_NAME` | `logging.name` | string | `tarassov_me` | |
 | `LOG_FILE` | `logging.file` | string | `logs/app.log` | |
 | `LOG_LEVEL` | `logging.level` | enum | `info` | trace/debug/info/warn/error/critical |
 | `LOG_FORMAT` | `logging.format` | enum | `text` | `text` (human) or `json` (one JSON object per line for Loki/ELK) |
 | `METRICS_ADDRESS` | `observability.metrics_address` | string | `0.0.0.0:9090` | |
-| `SERVICE_NAME` | `observability.service_name` | string | `cpp_api_service` | Also emitted as `service` field in JSON logs |
+| `SERVICE_NAME` | `observability.service_name` | string | `tarassov_me_service` | Also emitted as `service` field in JSON logs |
 | `OTLP_ENDPOINT` | `observability.otlp_endpoint` | string | — | OTLP HTTP traces endpoint. Empty + `trace_stdout=false` → no-op tracer |
 | `TRACE_STDOUT` | `observability.trace_stdout` | bool | `false` | Synchronous stdout span exporter for debugging. When `OTLP_ENDPOINT` is empty and this is off, tracing is a no-op |
 
@@ -165,7 +165,7 @@ For URL components: `REDIS_HOST`, `REDIS_PORT`.
 | `MESSAGING_ENABLED` | `messaging.enabled` | bool | `false` | Parent switch |
 | `KAFKA_BROKERS` | `messaging.kafka.brokers` | string | `localhost:9092` | |
 | `KAFKA_PRODUCER_ENABLED` | `messaging.kafka.producer.enabled` | bool | `false` | |
-| `KAFKA_PRODUCER_ID` | `messaging.kafka.producer.client_id` | string | `cpp_producer` | |
+| `KAFKA_PRODUCER_ID` | `messaging.kafka.producer.client_id` | string | `tarassov_me_producer` | |
 | `KAFKA_CONSUMER_ENABLED` | `messaging.kafka.consumer.enabled` | bool | `false` | |
 | `KAFKA_GROUP_ID` | `messaging.kafka.consumer.group_id` | string | `cpp_consumer_group` | |
 
@@ -196,7 +196,7 @@ For URL components: `REDIS_HOST`, `REDIS_PORT`.
 | `MAIL_TEMPLATES_DIR` | `mail.templates_dir` | string | `templates/email` | Relative to the working directory |
 | `MAIL_TIMEOUT_SEC` | `mail.timeout_sec` | int | `30` | |
 
-## Worker (second binary, `cpp_api_template_worker`)
+## Worker (second binary, `tarassov_me_worker`)
 
 | Env | JSON key | Type | Default |
 |---|---|---|---|
@@ -224,5 +224,5 @@ For URL components: `REDIS_HOST`, `REDIS_PORT`.
   "auth":   { "mode": "jwt" }
 }
 
-CONFIG_FILE=config/local.json ./cpp_api_template
+CONFIG_FILE=config/local.json ./tarassov_me
 ```

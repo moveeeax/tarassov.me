@@ -1,0 +1,244 @@
+# ---------------------------------------------------------------
+# Deployment — number of pod replicas and container image settings
+# ---------------------------------------------------------------
+replicaCount: 1
+
+image:
+  # The worker image, NOT the API one — Makefile pushes it as <name>-worker.
+  repository: docker.io/resert/tarassov-me-worker
+  tag: ""  # Defaults to chart appVersion
+  pullPolicy: IfNotPresent
+
+# List of Kubernetes secrets for pulling from private registries
+imagePullSecrets: []
+# Override the generated resource names (leave empty to use chart defaults)
+nameOverride: ""
+fullnameOverride: ""
+
+# ---------------------------------------------------------------
+# Networking — Kubernetes Service (health + metrics only, no HTTP)
+# ---------------------------------------------------------------
+service:
+  type: ClusterIP
+  healthPort: 9091           # Worker health check port
+  metricsPort: 9090          # Prometheus metrics port
+
+# ---------------------------------------------------------------
+# Resource requests/limits and scaling
+# ---------------------------------------------------------------
+# Starting point — MEASURE under your own job load (a busy worker holds the
+# same pqxx/redis++ pools as the app). Tune to your throughput.
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+# Horizontal Pod Autoscaler — requires metrics-server in the cluster
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+# Pod Disruption Budget — ensures minimum available pods during voluntary disruptions
+pdb:
+  enabled: false
+  minAvailable: 1
+
+# ---------------------------------------------------------------
+# Prometheus ServiceMonitor (requires prometheus-operator CRDs)
+# ---------------------------------------------------------------
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  path: /metrics
+
+# ---------------------------------------------------------------
+# Alerting — PrometheusRule objects with baseline SLO alerts.
+# Requires prometheus-operator CRDs (alertsEnabled=true to render).
+# Mirrors the tarassov-me monitoring block; separate so worker alerts can
+# be tuned independently (e.g. different queue thresholds).
+# ---------------------------------------------------------------
+monitoring:
+  alertsEnabled: false
+  alertLabels: {}           # Extra labels applied to every rule (e.g. team)
+  # Selector used on every PromQL expression. Must match how your cluster's
+  # ServiceMonitor / scrape relabel config labels targets.
+  targetSelector: ""
+  thresholds:
+    queueDepth: 100                 # total jobs_queue_depth above this warns
+    dlqDepth: 10                    # total jobs_dlq_depth above this pages
+    dlqPerTypeDepth: 5              # single-type DLQ depth that pages
+    dbPoolSaturation: 0.9           # db_pool_active/size ratio above this warns (90 %)
+    retriesExhaustedPerSec: 0.5     # sustained "gave up" retries per second
+
+# ---------------------------------------------------------------
+# External Secrets Operator — pull secrets from Vault / AWS SSM / GCP SM
+# instead of inlining them in values. When enabled, the static Secret
+# rendered by templates/secret.yaml is suppressed and the Deployment
+# consumes the ExternalSecret-materialized Secret instead.
+# Keep aligned with the tarassov-me chart — the worker shares the same
+# JWT signing key / DB / Redis credentials.
+# ---------------------------------------------------------------
+externalSecrets:
+  enabled: false
+  refreshInterval: "1h"
+  secretStoreRef:
+    name: ""                  # cluster's SecretStore / ClusterSecretStore name
+    kind: ClusterSecretStore  # or SecretStore (namespaced)
+  data: []
+    # - secretKey: database-password
+    #   remoteRef: { key: prod/app/db, property: password }
+    # - secretKey: redis-password
+    #   remoteRef: { key: prod/app/redis, property: password }
+    # - secretKey: jwt-secret
+    #   remoteRef: { key: prod/app/auth, property: jwt_secret }
+    # - secretKey: mail-smtp-password
+    #   remoteRef: { key: prod/app/mail, property: smtp_password }
+
+# ---------------------------------------------------------------
+# Worker settings
+# Env vars set: WORKER_ID, WORKER_TYPES, WORKER_CONCURRENCY,
+#               WORKER_HEALTH_PORT, WORKER_BRPOP_TIMEOUT
+# ---------------------------------------------------------------
+worker:
+  id: worker-1
+  # Comma-separated queue types the worker pulls from (matches WORKER_TYPES env).
+  # MUST include "account_email" (transactional confirm/reset/change-email) and
+  # "email.send" (generic ad-hoc email) — a worker that only drains "default"
+  # silently leaves those jobs to pile up in Redis and no mail is ever sent.
+  types: "account_email,email.send,webhook.deliver"
+  concurrency: 2
+  healthPort: 9091
+  brpopTimeout: 5
+
+# ---------------------------------------------------------------
+# Graceful shutdown (for background workers the drain is bounded by
+# brpopTimeout — see worker_main.cpp). Give k8s enough grace so in-flight
+# jobs can complete cleanly.
+# ---------------------------------------------------------------
+shutdown:
+  terminationGracePeriodSeconds: 60
+  preStopDelay: 2         # seconds
+
+# ---------------------------------------------------------------
+# Startup probe — guards the cold start of the C++ worker binary so the
+# liveness probe doesn't begin counting failures until the process is up.
+# failureThreshold * periodSeconds bounds the allowed startup window
+# (default 30 * 5s = 150s). Hits the same /healthz endpoint as liveness.
+# ---------------------------------------------------------------
+startupProbe:
+  enabled: true
+  path: /healthz
+  failureThreshold: 30
+  periodSeconds: 5
+  timeoutSeconds: 3
+
+# ---------------------------------------------------------------
+# Jobs configuration
+# Env vars set: JOBS_ENABLED, JOBS_RESULT_TTL, JOBS_MAX_RETRIES
+# ---------------------------------------------------------------
+jobs:
+  enabled: true
+  resultTtl: 86400
+  maxRetries: 3
+
+# ---------------------------------------------------------------
+# External PostgreSQL connection
+# Env vars set: DATABASE_PRIMARY_URL, DATABASE_REPLICA_URLS, DB_POOL_SIZE,
+#               DB_MIGRATIONS_ENABLED
+# ---------------------------------------------------------------
+externalDatabase:
+  host: postgres.example.svc.cluster.local
+  port: 5432
+  name: appdb
+  user: appuser
+  password: ""  # Set via --set or external secret
+  poolSize: 10
+  replicaHost: ""  # e.g. postgres-ro.example.svc.cluster.local — leave empty to disable replicas
+  # Keep false on the worker: the tarassov-me init-container owns schema migrations.
+  # Core.hpp defaults this to true, so leaving it unset would make every worker
+  # pod race the API for the migration advisory lock at startup.
+  migrationsEnabled: false
+
+# ---------------------------------------------------------------
+# External Redis / Sentinel connection
+# Env vars set: REDIS_URL, REDIS_PASSWORD, REDIS_USE_SENTINEL,
+#               REDIS_MASTER_NAME, REDIS_SENTINEL_NODES, CACHE_POOL_SIZE
+# ---------------------------------------------------------------
+externalRedis:
+  url: "tcp://redis.example.svc.cluster.local:6379"
+  password: ""  # Set via --set or external secret
+  useSentinel: true
+  masterName: mymaster
+  sentinelNodes: "redis-node-0.redis-headless.example.svc.cluster.local:26379,redis-node-1.redis-headless.example.svc.cluster.local:26379,redis-node-2.redis-headless.example.svc.cluster.local:26379"
+  poolSize: 10
+
+# ---------------------------------------------------------------
+# Application configuration
+# Env vars set: LOG_LEVEL, LOG_NAME, SERVICE_NAME
+# ---------------------------------------------------------------
+logging:
+  level: info
+  name: tarassov_me_worker
+  format: json             # text | json (LOG_FORMAT) — json required for log aggregators
+  serviceName: tarassov_me_worker_service
+
+# ---------------------------------------------------------------
+# Tracing — OpenTelemetry OTLP exporter
+# Env var set: OTLP_ENDPOINT
+# ---------------------------------------------------------------
+tracing:
+  enabled: false
+  otlpEndpoint: ""  # e.g. "http://jaeger-collector.observability:4318/v1/traces"
+
+# ---------------------------------------------------------------
+# Auth — the worker signs the tokens embedded in transactional email links
+# (confirm / reset / change-email). MUST match the API chart's auth settings,
+# otherwise the links the worker mints won't verify against the API.
+# Env vars set: AUTH_MODE, JWT_SECRET, JWT_ISSUER, JWT_AUDIENCE
+# ---------------------------------------------------------------
+auth:
+  mode: jwt        # none | bearer | jwt — keep in sync with the tarassov-me chart
+  jwtSecret: ""    # Set via --set or external secret (sourced into JWT_SECRET)
+  jwtIssuer: ""
+  jwtAudience: ""
+
+# ---------------------------------------------------------------
+# Application — public URL the worker renders into email links.
+# Env vars set: APP_BASE_URL, APP_NAME
+# ---------------------------------------------------------------
+app:
+  baseUrl: "https://app.example.com"  # base for confirm/reset links in emails
+  name: App
+
+# ---------------------------------------------------------------
+# Mail — the worker is the component that actually delivers transactional
+# email (with MAIL_VIA_JOBS it drains the email job queue and sends).
+# Env vars set: MAIL_ENABLED, MAIL_VIA_JOBS, MAIL_SMTP_HOST, MAIL_SMTP_PORT,
+#               MAIL_SMTP_USERNAME, MAIL_SMTP_PASSWORD, MAIL_SMTP_USE_TLS,
+#               MAIL_FROM, MAIL_FROM_NAME, MAIL_SUBJECT_PREFIX
+# ---------------------------------------------------------------
+mail:
+  enabled: false
+  viaJobs: true
+  smtpHost: smtp.example.com
+  smtpPort: 587
+  smtpUsername: ""
+  smtpPassword: ""  # Set via --set or external secret (sourced into MAIL_SMTP_PASSWORD)
+  smtpUseTls: true
+  from: noreply@example.com
+  fromName: App
+  subjectPrefix: "[App] "
+
+# ---------------------------------------------------------------
+# Pod scheduling — annotations, node selection, tolerations, affinity
+# ---------------------------------------------------------------
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

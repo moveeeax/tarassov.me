@@ -1,0 +1,24 @@
+apiVersion: v2
+name: tarassov-me-env
+description: >-
+  One-namespace ephemeral test environment: tarassov-me + worker + frontend wired to
+  a per-env CloudNativePG cluster (rw/ro), Redis Sentinel, optional Kafka, Mailpit
+  and Jaeger — auto-configured, with *.<env>.example.com ingress.
+type: application
+version: 0.1.0
+appVersion: "1.4.0"
+maintainers:
+  - name: tarassov-me-team
+# Subcharts are wired entirely from this chart's values (fixed in-namespace
+# service names + per-env domain). Infra (Postgres/Redis/Kafka/Mailpit/Jaeger)
+# is templated here, so no external chart repos are needed.
+dependencies:
+  - name: tarassov-me
+    version: "0.1.0"
+    repository: "file://../tarassov-me"
+  - name: tarassov-me-worker
+    version: "0.1.0"
+    repository: "file://../tarassov-me-worker"
+  - name: tarassov-me-frontend
+    version: "0.1.0"
+    repository: "file://../tarassov-me-frontend"

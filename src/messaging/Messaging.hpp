@@ -60,7 +60,7 @@ private:
     bool initialized = false;
 
 public:
-    void initialize(const std::string& broker_list, const std::string& client_id = "cpp_producer") {
+    void initialize(const std::string& broker_list, const std::string& client_id = "tarassov_me_producer") {
         if (initialized) {
             throw std::runtime_error("Kafka producer already initialized");
         }
@@ -343,7 +343,7 @@ private:
     bool consumer_initialized = false;
 
 public:
-    void initialize_producer(const std::string& brokers, const std::string& client_id = "cpp_producer") {
+    void initialize_producer(const std::string& brokers, const std::string& client_id = "tarassov_me_producer") {
         producer.initialize(brokers, client_id);
         producer_initialized = true;
     }

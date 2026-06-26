@@ -10,7 +10,7 @@
  * server on a loopback port in a background thread, and talks to it with
  * drogon::HttpClient.
  *
- * Built as a SEPARATE executable (cpp_api_template_e2e): drogon::app() is a
+ * Built as a SEPARATE executable (tarassov_me_e2e): drogon::app() is a
  * process-wide singleton whose run()/quit() cycle is once-per-process, so it
  * cannot coexist with suites that reset global state between tests.
  *

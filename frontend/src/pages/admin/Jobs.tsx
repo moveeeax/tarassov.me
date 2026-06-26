@@ -20,7 +20,7 @@ const PER_PAGE = 20;
 /**
  * Jaeger UI base for the "Open trace" deep link. The SPA image is built once and
  * deployed to every env, so a build-time URL can't be right everywhere. Resolve
- * at RUNTIME from the current origin using the cpp-env umbrella host convention
+ * at RUNTIME from the current origin using the tarassov-me-env umbrella host convention
  * (`app.<env>.<domain>` → `jaeger.<env>.<domain>`); fall back to the docker-compose
  * Jaeger for local dev. A build-time VITE_TRACE_UI_URL still wins for custom infra.
  */

@@ -5,13 +5,13 @@
     "threads": 8
   },
   "logging": {
-    "name": "cpp_api",
+    "name": "tarassov_me",
     "file": "logs/app.log",
     "level": "warn"
   },
   "observability": {
     "metrics_address": "0.0.0.0:9090",
-    "service_name": "cpp_api_bench"
+    "service_name": "tarassov_me_bench"
   },
   "database": {
     "primary": "postgresql://postgres:postgres@postgres:5432/appdb",

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(cpp_api_template VERSION 1.4.0 LANGUAGES CXX)
+project(tarassov_me VERSION 1.4.0 LANGUAGES CXX)
 
 # Set C++20 standard
 set(CMAKE_CXX_STANDARD 20)

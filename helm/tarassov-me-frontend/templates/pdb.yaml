@@ -1,0 +1,13 @@
+{{- if .Values.pdb.enabled -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "tarassov-me-frontend.fullname" . }}
+  labels:
+    {{- include "tarassov-me-frontend.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "tarassov-me-frontend.selectorLabels" . | nindent 6 }}
+{{- end }}

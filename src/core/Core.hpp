@@ -215,12 +215,12 @@ private:
     }
 
     static void init_observability_(Config::AppConfig& cfg) {
-        auto log_name = cfg.get<std::string>("logging.name", "LOG_NAME", "cpp_api");
+        auto log_name = cfg.get<std::string>("logging.name", "LOG_NAME", "tarassov_me");
         auto log_file = cfg.get<std::string>("logging.file", "LOG_FILE", "logs/app.log");
         auto log_level = cfg.get<std::string>("logging.level", "LOG_LEVEL", "info");
         auto log_format = cfg.get<std::string>("logging.format", "LOG_FORMAT", "text");
         auto metrics_addr = cfg.get<std::string>("observability.metrics_address", "METRICS_ADDRESS", "0.0.0.0:9090");
-        auto service_name = cfg.get<std::string>("observability.service_name", "SERVICE_NAME", "cpp_api_service");
+        auto service_name = cfg.get<std::string>("observability.service_name", "SERVICE_NAME", "tarassov_me_service");
         auto otlp_endpoint = cfg.get<std::string>("observability.otlp_endpoint", "OTLP_ENDPOINT", "");
         Observability::initialize(log_name, log_file, metrics_addr, service_name, otlp_endpoint, log_format);
         Observability::get().logger().set_level(log_level);
@@ -305,7 +305,7 @@ private:
                              std::chrono::milliseconds(stmt_timeout_ms));
 
         // db_queries_total{op, pool}: makes replica routing visible on the
-        // cpp-api Grafana dashboard. Same lifetime contract as retries_total.
+        // tarassov-me Grafana dashboard. Same lifetime contract as retries_total.
         static prometheus::Family<prometheus::Counter>* db_queries_family = nullptr;
         db_queries_family = &Observability::get().metrics().create_counter(
             "db_queries_total",
@@ -406,7 +406,7 @@ private:
 
         if (cfg.get<bool>("messaging.kafka.producer.enabled", "KAFKA_PRODUCER_ENABLED", false)) {
             auto producer_id =
-                cfg.get<std::string>("messaging.kafka.producer.client_id", "KAFKA_PRODUCER_ID", "cpp_producer");
+                cfg.get<std::string>("messaging.kafka.producer.client_id", "KAFKA_PRODUCER_ID", "tarassov_me_producer");
             Messaging::get().initialize_producer(brokers, producer_id);
         }
         if (cfg.get<bool>("messaging.kafka.consumer.enabled", "KAFKA_CONSUMER_ENABLED", false)) {

@@ -1,0 +1,157 @@
+{{- if .Values.redis.enabled }}
+# Single Redis master + 3 Sentinels (mymaster). Ephemeral (emptyDir) — test data.
+# The app connects via the redis-sentinel Service and is handed the master.
+#
+# NOT real HA: there is ONE master and NO replica, so on master loss the
+# Sentinels reach ODOWN but have nothing to promote, and the app
+# (useSentinel:true) stalls waiting for a master address. What this DOES buy is
+# automatic master discovery + Sentinel config rewrite, not failover. For true
+# HA give the master replica(s) (make it a StatefulSet) so Sentinel has a
+# promotion target — left out here to keep the default env light.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redis-auth
+  labels:
+    {{- include "tarassov-me-env.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  redis-password: {{ .Values.credentials.redisPassword | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  labels:
+    {{- include "tarassov-me-env.labels" . | nindent 4 }}
+    app: redis
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args:
+            - "--requirepass"
+            - "$(REDIS_PASSWORD)"
+            - "--masterauth"
+            - "$(REDIS_PASSWORD)"
+            - "--appendonly"
+            - "no"
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-auth
+                  key: redis-password
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            tcpSocket: { port: redis }
+            initialDelaySeconds: 2
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  labels:
+    {{- include "tarassov-me-env.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-sentinel
+  labels:
+    {{- include "tarassov-me-env.labels" . | nindent 4 }}
+    app: redis-sentinel
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: redis-sentinel
+  template:
+    metadata:
+      labels:
+        app: redis-sentinel
+      annotations:
+        # Roll the Sentinels when their config changes (they copy it at startup).
+        checksum/config: {{ include (print $.Template.BasePath "/redis-sentinel-configmap.yaml") . | sha256sum }}
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      # Sentinel rewrites its config at runtime → copy the read-only template
+      # into a writable emptyDir before starting (see docker/ notes).
+      initContainers:
+        - name: copy-conf
+          image: redis:7-alpine
+          # Substitute the password placeholder from the redis-auth Secret (env)
+          # into the writable runtime config — the password never lives in the
+          # world-readable ConfigMap. Sentinel rewrites this file at runtime.
+          command:
+            - sh
+            - -c
+            - 'sed "s|__REDIS_PASSWORD__|$REDIS_PASSWORD|g" /tmpl/sentinel.conf.tmpl > /data/sentinel.conf'
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-auth
+                  key: redis-password
+          volumeMounts:
+            - { name: tmpl, mountPath: /tmpl }
+            - { name: data, mountPath: /data }
+      containers:
+        - name: sentinel
+          image: redis:7-alpine
+          command: ["redis-sentinel", "/data/sentinel.conf"]
+          ports:
+            - name: sentinel
+              containerPort: 26379
+          volumeMounts:
+            - { name: data, mountPath: /data }
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+      volumes:
+        - name: tmpl
+          configMap:
+            name: redis-sentinel-conf
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-sentinel
+  labels:
+    {{- include "tarassov-me-env.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: redis-sentinel
+  ports:
+    - name: sentinel
+      port: 26379
+      targetPort: sentinel
+{{- end }}

@@ -10,9 +10,9 @@ on:
 # worker-runtime is the worker image. Both get tagged with the git tag and
 # :latest.
 #
-# Registry: Docker Hub `resert/cpp-rapid-rest-template{,-worker}` — this MUST
+# Registry: Docker Hub `docker.io/resert/tarassov-me{,-worker}` — this MUST
 # match what the runtime actually pulls. docker/docker-compose.yml and
-# helm/*/values-prod.yaml both deploy `resert/…` from Docker Hub, and GitLab CI
+# helm/*/values-prod.yaml both deploy `your-registry/your-project/…` from Docker Hub, and GitLab CI
 # (.gitlab-ci.yml, IMAGE_NAME) publishes there too. Pushing to GHCR here would
 # produce images nothing deploys. Requires repo secrets DOCKER_USERNAME /
 # DOCKER_PASSWORD (same names GitLab CI uses).
@@ -30,7 +30,7 @@ permissions: {}
 env:
   # Single source of truth for the published image namespace; mirrors
   # .gitlab-ci.yml's IMAGE_NAME.
-  IMAGE_NAME: resert/cpp-rapid-rest-template
+  IMAGE_NAME: docker.io/resert/tarassov-me
 
 jobs:
   build-staging:

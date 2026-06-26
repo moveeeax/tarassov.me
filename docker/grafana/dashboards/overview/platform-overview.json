@@ -5,7 +5,7 @@
   "refresh": "15s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["cpp-template", "overview"],
+  "tags": ["tarassov-me", "overview"],
   "templating": {"list": []},
   "time": {"from": "now-30m", "to": "now"},
   "timezone": "",
@@ -43,7 +43,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
       "fieldConfig": {"defaults": {"unit": "reqps"}},
-      "targets": [{"refId": "A", "expr": "sum(rate(http_requests_total{job=\"cpp_api\"}[1m]))"}]
+      "targets": [{"refId": "A", "expr": "sum(rate(http_requests_total{job=\"tarassov_me\"}[1m]))"}]
     },
     {
       "type": "stat",
@@ -57,7 +57,7 @@
           {"color": "green", "value": null}, {"color": "yellow", "value": 0.005}, {"color": "red", "value": 0.01}
         ]}
       }},
-      "targets": [{"refId": "A", "expr": "sum(rate(http_requests_total{job=\"cpp_api\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_requests_total{job=\"cpp_api\"}[5m])), 1)"}]
+      "targets": [{"refId": "A", "expr": "sum(rate(http_requests_total{job=\"tarassov_me\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_requests_total{job=\"tarassov_me\"}[5m])), 1)"}]
     },
     {
       "type": "stat",
@@ -71,7 +71,7 @@
           {"color": "green", "value": null}, {"color": "yellow", "value": 0.5}, {"color": "red", "value": 1}
         ]}
       }},
-      "targets": [{"refId": "A", "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"cpp_api\"}[5m])))"}]
+      "targets": [{"refId": "A", "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"tarassov_me\"}[5m])))"}]
     },
     {
       "type": "stat",
@@ -97,7 +97,7 @@
           {"color": "red", "value": null}, {"color": "green", "value": 1}
         ]}
       }},
-      "targets": [{"refId": "A", "expr": "sum(up{job=\"cpp_worker\"})"}]
+      "targets": [{"refId": "A", "expr": "sum(up{job=\"tarassov_me_worker\"})"}]
     },
     {
       "type": "timeseries",
@@ -107,7 +107,7 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
       "fieldConfig": {"defaults": {"unit": "reqps", "color": {"mode": "palette-classic"}}},
       "targets": [
-        {"refId": "A", "expr": "sum by (status) (rate(http_requests_total{job=\"cpp_api\"}[1m]))", "legendFormat": "{{status}}"}
+        {"refId": "A", "expr": "sum by (status) (rate(http_requests_total{job=\"tarassov_me\"}[1m]))", "legendFormat": "{{status}}"}
       ]
     },
     {
@@ -118,9 +118,9 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
       "fieldConfig": {"defaults": {"unit": "s", "color": {"mode": "palette-classic"}}},
       "targets": [
-        {"refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"cpp_api\"}[5m])))", "legendFormat": "p50"},
-        {"refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"cpp_api\"}[5m])))", "legendFormat": "p95"},
-        {"refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"cpp_api\"}[5m])))", "legendFormat": "p99"}
+        {"refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"tarassov_me\"}[5m])))", "legendFormat": "p50"},
+        {"refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"tarassov_me\"}[5m])))", "legendFormat": "p95"},
+        {"refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"tarassov_me\"}[5m])))", "legendFormat": "p99"}
       ]
     }
   ]

@@ -50,14 +50,14 @@ services:
     # Default: pull the public image GitLab CI builds on master. `make up-*`
     # does `pull` (no local build). To build locally instead use `make up-build`
     # (or `docker compose ... up --build`), which uses the build: block below.
-    image: ${APP_IMAGE:-resert/cpp-rapid-rest-template:latest}
+    image: ${APP_IMAGE:-docker.io/resert/tarassov-me:latest}
     build:
       context: ..
       dockerfile: docker/Dockerfile
       target: runtime
       cache_from:
-        - ${BUILDER_CACHE_IMAGE:-cpp-rapid-rest-template:builder-latest}
-    container_name: cpp_api_app
+        - ${BUILDER_CACHE_IMAGE:-tarassov-me:builder-latest}
+    container_name: tarassov_me_app
     ports:
       - "8080:8080"  # API
       - "9090:9090"  # Metrics
@@ -104,14 +104,14 @@ services:
     # Locally TEST_IMAGE is unset → the :test-latest tag is missing → compose
     # falls back to the build: block below (`make test` runs `compose build
     # test-runner` first to force a fresh compile).
-    image: ${TEST_IMAGE:-cpp-rapid-rest-template:test-latest}
+    image: ${TEST_IMAGE:-tarassov-me:test-latest}
     build:
       context: ..
       dockerfile: docker/Dockerfile
       target: test-runner
       cache_from:
-        - ${BUILDER_CACHE_IMAGE:-cpp-rapid-rest-template:builder-latest}
-    container_name: cpp_api_test_runner
+        - ${BUILDER_CACHE_IMAGE:-tarassov-me:builder-latest}
+    container_name: tarassov_me_test_runner
     environment:
       - TEST_PG_HOST=test-postgres
       - TEST_REDIS_HOST=test-redis
@@ -134,7 +134,7 @@ services:
   # No volume → fresh data every `up`, gone on `down`. Port not published.
   test-postgres:
     image: postgres:15-alpine
-    container_name: cpp_api_test_postgres
+    container_name: tarassov_me_test_postgres
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -153,7 +153,7 @@ services:
   # can't race with BRPOP against test fixtures.
   test-redis:
     image: redis:7-alpine
-    container_name: cpp_api_test_redis
+    container_name: tarassov_me_test_redis
     command: redis-server --save ""
     networks:
       - app-network
@@ -167,14 +167,14 @@ services:
 
   # Background job worker
   worker:
-    image: ${WORKER_IMAGE:-resert/cpp-rapid-rest-template-worker:latest}
+    image: ${WORKER_IMAGE:-docker.io/resert/tarassov-me-worker:latest}
     build:
       context: ..
       dockerfile: docker/Dockerfile
       target: worker-runtime
       cache_from:
-        - ${BUILDER_CACHE_IMAGE:-cpp-rapid-rest-template:builder-latest}
-    container_name: cpp_api_worker
+        - ${BUILDER_CACHE_IMAGE:-tarassov-me:builder-latest}
+    container_name: tarassov_me_worker
     ports:
       - "9091:9091"
       - "9190:9090"  # Metrics (remapped to avoid conflict with app:9090)
@@ -219,7 +219,7 @@ services:
   # PostgreSQL database (primary)
   postgres:
     image: postgres:15-alpine
-    container_name: cpp_api_postgres
+    container_name: tarassov_me_postgres
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -250,7 +250,7 @@ services:
   # PostgreSQL read replica (streaming replication from primary)
   postgres_replica:
     image: postgres:15-alpine
-    container_name: cpp_api_postgres_replica
+    container_name: tarassov_me_postgres_replica
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -279,7 +279,7 @@ services:
   # Redis cache
   redis:
     image: redis:7-alpine
-    container_name: cpp_api_redis
+    container_name: tarassov_me_redis
     command: redis-server --appendonly yes
     ports:
       - "6379:6379"
@@ -299,7 +299,7 @@ services:
   # because Sentinel modifies its config file at runtime to persist state.
   redis_sentinel_1:
     image: redis:7-alpine
-    container_name: cpp_api_redis_sentinel_1
+    container_name: tarassov_me_redis_sentinel_1
     command: sh -c "cp /etc/redis/sentinel-template.conf /tmp/sentinel.conf && redis-sentinel /tmp/sentinel.conf"
     ports:
       - "26379:26379"
@@ -324,7 +324,7 @@ services:
 
   redis_sentinel_2:
     image: redis:7-alpine
-    container_name: cpp_api_redis_sentinel_2
+    container_name: tarassov_me_redis_sentinel_2
     command: sh -c "cp /etc/redis/sentinel-template.conf /tmp/sentinel.conf && redis-sentinel /tmp/sentinel.conf"
     ports:
       - "26380:26379"
@@ -349,7 +349,7 @@ services:
 
   redis_sentinel_3:
     image: redis:7-alpine
-    container_name: cpp_api_redis_sentinel_3
+    container_name: tarassov_me_redis_sentinel_3
     command: sh -c "cp /etc/redis/sentinel-template.conf /tmp/sentinel.conf && redis-sentinel /tmp/sentinel.conf"
     ports:
       - "26381:26379"
@@ -375,7 +375,7 @@ services:
   # Kafka + Zookeeper (optional)
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
-    container_name: cpp_api_zookeeper
+    container_name: tarassov_me_zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -403,7 +403,7 @@ services:
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
-    container_name: cpp_api_kafka
+    container_name: tarassov_me_kafka
     depends_on:
       zookeeper:
         # List-form depends_on only waits for container START; Kafka racing
@@ -438,7 +438,7 @@ services:
   # Prometheus for metrics (optional)
   prometheus:
     image: prom/prometheus:v3.12.0
-    container_name: cpp_api_prometheus
+    container_name: tarassov_me_prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -463,7 +463,7 @@ services:
   # Grafana for visualization (optional)
   grafana:
     image: grafana/grafana:11.6
-    container_name: cpp_api_grafana
+    container_name: tarassov_me_grafana
     ports:
       - "3000:3000"
     environment:
@@ -490,7 +490,7 @@ services:
 
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.19.1
-    container_name: cpp_api_postgres_exporter
+    container_name: tarassov_me_postgres_exporter
     environment:
       # matches docker-compose.yml's postgres service (user/pass/db/port).
       DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/appdb?sslmode=disable"
@@ -509,7 +509,7 @@ services:
   # with-monitoring and tolerates a down target otherwise.
   postgres-replica-exporter:
     image: prometheuscommunity/postgres-exporter:v0.19.1
-    container_name: cpp_api_postgres_replica_exporter
+    container_name: tarassov_me_postgres_replica_exporter
     environment:
       DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres_replica:5432/appdb?sslmode=disable"
     depends_on:
@@ -523,7 +523,7 @@ services:
 
   redis-exporter:
     image: oliver006/redis_exporter:v1.86.0
-    container_name: cpp_api_redis_exporter
+    container_name: tarassov_me_redis_exporter
     environment:
       REDIS_ADDR: "redis://redis:6379"
     depends_on:
@@ -540,7 +540,7 @@ services:
   # crashloop against a Kafka that was never launched.
   kafka-exporter:
     image: danielqsj/kafka-exporter:v1.9.0
-    container_name: cpp_api_kafka_exporter
+    container_name: tarassov_me_kafka_exporter
     command:
       - '--kafka.server=kafka:9092'
     networks:
@@ -555,11 +555,11 @@ services:
   # Opt-in via profile `with-frontend` so plain `make up` stays
   # backend-only (faster cold start, no Node toolchain pulled).
   frontend:
-    image: ${FRONTEND_IMAGE:-resert/cpp-rapid-rest-template-frontend:latest}
+    image: ${FRONTEND_IMAGE:-docker.io/resert/tarassov-me-frontend:latest}
     build:
       context: ..
       dockerfile: frontend/Dockerfile
-    container_name: cpp_api_frontend
+    container_name: tarassov_me_frontend
     ports:
       - "3001:8080"
     depends_on:
@@ -579,7 +579,7 @@ services:
   # port 1025/8025 clashes with a local mail agent, add a profile here.
   mailpit:
     image: axllent/mailpit:v1.30
-    container_name: cpp_api_mailpit
+    container_name: tarassov_me_mailpit
     ports:
       - "1025:1025"   # SMTP
       - "8025:8025"   # Web UI
@@ -595,7 +595,7 @@ services:
   # Jaeger for distributed tracing (optional)
   jaeger:
     image: jaegertracing/all-in-one:1.76.0
-    container_name: cpp_api_jaeger
+    container_name: tarassov_me_jaeger
     ports:
       - "16686:16686"  # UI
       - "4318:4318"    # OTLP HTTP

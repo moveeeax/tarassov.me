@@ -5,7 +5,7 @@
   "refresh": "15s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["cpp-template", "kafka"],
+  "tags": ["tarassov-me", "kafka"],
   "time": {"from": "now-30m", "to": "now"},
   "title": "Kafka",
   "uid": "kafka",

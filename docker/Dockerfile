@@ -1,8 +1,8 @@
 # Multi-stage Dockerfile for C++ API Template
 
-ARG APP_BINARY=cpp_api_template
-ARG WORKER_BINARY=cpp_api_template_worker
-ARG TEST_BINARY=cpp_api_template_tests_unit
+ARG APP_BINARY=tarassov_me
+ARG WORKER_BINARY=tarassov_me_worker
+ARG TEST_BINARY=tarassov_me_tests_unit
 
 # Stage 1: Build environment
 FROM ubuntu:24.04 AS builder
@@ -96,7 +96,7 @@ RUN --mount=type=cache,target=/opt/vcpkg/downloads \
 
 # Stage 2: Test runner (reuses builder, only runs tests)
 FROM builder AS test-runner
-ARG TEST_BINARY=cpp_api_template_tests_unit
+ARG TEST_BINARY=tarassov_me_tests_unit
 ENV TEST_BINARY=${TEST_BINARY}
 
 WORKDIR /app
@@ -130,7 +130,7 @@ RUN cmake -B build-san -G Ninja \
     -DENABLE_SANITIZERS=ON \
     -DVCPKG_INSTALLED_DIR=/app/build/vcpkg_installed \
     -DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake && \
-    cmake --build build-san -j"$(nproc)" --target cpp_api_template_tests_unit
+    cmake --build build-san -j"$(nproc)" --target tarassov_me_tests_unit
 
 # Stage 3: Shared runtime base
 FROM ubuntu:24.04 AS runtime-base
@@ -158,7 +158,7 @@ WORKDIR /app
 
 # Stage 4: API runtime
 FROM runtime-base AS runtime
-ARG APP_BINARY=cpp_api_template
+ARG APP_BINARY=tarassov_me
 ENV APP_BINARY=${APP_BINARY}
 
 COPY --from=builder --chown=appuser:appuser /app/build/${APP_BINARY} /app/
@@ -179,7 +179,7 @@ CMD ["config/config.json"]
 
 # Stage 5: Worker runtime
 FROM runtime-base AS worker-runtime
-ARG WORKER_BINARY=cpp_api_template_worker
+ARG WORKER_BINARY=tarassov_me_worker
 ENV WORKER_BINARY=${WORKER_BINARY}
 
 COPY --from=builder --chown=appuser:appuser /app/build/${WORKER_BINARY} /app/

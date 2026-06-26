@@ -331,7 +331,7 @@ public:
      * @param service_name Service name for traces
      * @param otlp_endpoint OTLP HTTP endpoint (empty = OStream fallback)
      */
-    void initialize(const std::string& service_name = "cpp_api_service", const std::string& otlp_endpoint = "") {
+    void initialize(const std::string& service_name = "tarassov_me_service", const std::string& otlp_endpoint = "") {
         // No endpoint → leave the global no-op TracerProvider in place. The
         // old OStream fallback exported EVERY span synchronously to stdout
         // under a global mutex (SimpleSpanProcessor) — a per-request hot-path
@@ -414,7 +414,7 @@ public:
     void initialize(const std::string& log_name = "app",
                     const std::string& log_file = "logs/app.log",
                     const std::string& metrics_addr = "0.0.0.0:9090",
-                    const std::string& service_name = "cpp_api_service",
+                    const std::string& service_name = "tarassov_me_service",
                     const std::string& otlp_endpoint = "",
                     const std::string& log_format = "text") {
         if (initialized) {
@@ -459,7 +459,7 @@ inline std::unique_ptr<ObservabilitySystem> global_observability = nullptr;
 inline void initialize(const std::string& log_name = "app",
                        const std::string& log_file = "logs/app.log",
                        const std::string& metrics_addr = "0.0.0.0:9090",
-                       const std::string& service_name = "cpp_api_service",
+                       const std::string& service_name = "tarassov_me_service",
                        const std::string& otlp_endpoint = "",
                        const std::string& log_format = "text") {
     if (global_observability != nullptr) {

@@ -96,7 +96,7 @@ cat >"$FILE" <<EOF
 -- Created: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 --
 -- Migrations are applied in numeric order on app boot (or via
--- RUN_MIGRATIONS_ONLY=1 ./cpp_api_template). Use --verify-migrations to
+-- RUN_MIGRATIONS_ONLY=1 ./tarassov_me). Use --verify-migrations to
 -- list pending without applying.
 --
 -- The MigrationRunner already wraps this file in ONE transaction (under an

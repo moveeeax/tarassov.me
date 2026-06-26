@@ -1,13 +1,13 @@
 {
   "logging": {
-    "name": "cpp_worker",
+    "name": "tarassov_me_worker",
     "file": "logs/worker.log",
     "level": "info",
     "format": "${LOG_FORMAT:-text}"
   },
   "observability": {
     "metrics_address": "0.0.0.0:9090",
-    "service_name": "cpp_worker_service"
+    "service_name": "tarassov_me_worker_service"
   },
   "database": {
     "primary": "postgresql://${DATABASE_USER:-postgres}:${DATABASE_PASSWORD:-postgres}@${DATABASE_HOST:-localhost}:${DATABASE_PORT:-5432}/${DATABASE_NAME:-appdb}",

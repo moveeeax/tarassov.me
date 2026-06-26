@@ -1,0 +1,156 @@
+# ───────────────────────────────────────────────────────────────
+# Production overlay TEMPLATE for the tarassov-me chart.
+#
+# This file is TRACKED and ships with the template so a fork has a prod recipe
+# to start from. Copy it to values-prod.yaml (which is GITIGNORED — see
+# .gitignore) and fill in the env-specific values. NEVER put real secrets in
+# THIS file; pass them with --set or, better, external-secrets (the chart ships
+# an ExternalSecret skeleton).
+#
+# Deploy:
+#   cp helm/tarassov-me/values-prod.example.yaml helm/tarassov-me/values-prod.yaml
+#   # edit hosts / image / datastore endpoints, then:
+#   helm upgrade --install api ./helm/tarassov-me -n <namespace> \
+#     -f helm/tarassov-me/values-prod.yaml \
+#     --set externalDatabase.password="$DB_PASSWORD" \
+#     --set externalRedis.password="$REDIS_PASSWORD" \
+#     --set auth.jwtSecret="$JWT_SECRET"
+#
+# Items marked TODO are environment-specific — set them before first deploy.
+# ───────────────────────────────────────────────────────────────
+
+replicaCount: 2
+
+image:
+  # init-project.sh rewrites this to <your-registry>/<your-project>.
+  repository: your-registry/your-project
+  # :latest needs `kubectl rollout restart` to pick up a new push; prefer
+  # pinning an immutable :<sha> in real deployments.
+  tag: latest
+  pullPolicy: Always
+
+# Deploy arch — MUST match your cluster nodes (CI builds arm64; many clusters
+# are amd64). Set to the arch your image is actually built for.
+nodeSelector:
+  kubernetes.io/arch: amd64
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    external-dns.alpha.kubernetes.io/hostname: api.example.com        # TODO
+    external-dns.alpha.kubernetes.io/target: "<your-loadbalancer-ip>" # TODO
+  certManager:
+    clusterIssuer: letsencrypt-prod
+  hosts:
+    - host: api.example.com   # TODO: your API domain
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: tarassov-me-tls
+      hosts:
+        - api.example.com     # TODO: same domain
+
+externalDatabase:
+  host: postgresql-rw.db.svc.cluster.local   # TODO: your primary DSN host
+  port: 5432
+  name: tarassov-me
+  user: tarassov-me
+  password: ""   # NEVER commit a secret here — pass via --set or external-secrets
+  # PER-pool, opened for primary AND each replica → 2 replicas of this
+  # Deployment = 2*(poolSize + poolSize) sockets on a shared cluster
+  # (e.g. max_connections=100). 10 → 2*(10+10)=40 for the API; keep API+worker
+  # comfortably under the server's max_connections.
+  poolSize: 10
+  replicaHost: postgresql-ro.db.svc.cluster.local   # TODO: replica DSN host
+  # false: the init-container (migrations.runAsInitContainer=true) owns schema
+  # migrations. With >1 replica, leaving this true makes every pod race for the
+  # advisory lock at rollout. Keep false in prod (matches chart default).
+  migrationsEnabled: false
+
+migrations:
+  runAsInitContainer: true
+
+externalRedis:
+  url: "tcp://redis.db.svc.cluster.local:6379"   # TODO
+  password: ""   # NEVER commit a secret here — pass via --set or external-secrets
+  useSentinel: true
+  masterName: mymaster
+  sentinelNodes: "redis-node-0.redis-headless.db.svc.cluster.local:26379,redis-node-1.redis-headless.db.svc.cluster.local:26379,redis-node-2.redis-headless.db.svc.cluster.local:26379"   # TODO
+  poolSize: 20
+
+# The API ENQUEUES jobs (transactional email via MAIL_VIA_JOBS) into Redis; the
+# tarassov-me-worker chart PROCESSES them. Jobs must be enabled here too, else enqueue
+# fails with "Job queue not enabled".
+jobs:
+  enabled: true
+
+# Throttle prod traffic (notably /api/auth/login). The chart/code default is
+# OFF, so this MUST be set here. failOpen=false makes a Redis outage fail
+# CLOSED, so the brute-force throttle can't be disabled by knocking out Redis.
+rateLimit:
+  enabled: true
+  failOpen: false
+
+# De-duplicate retried mutating requests carrying an Idempotency-Key header.
+idempotency:
+  enabled: true
+
+externalKafka:
+  enabled: false   # flip on only if you actually use Kafka
+  brokers: "kafka.kafka.svc.cluster.local:9092"
+  producerEnabled: false
+  producerId: tarassov_me_producer
+  consumerEnabled: false
+  consumerGroupId: cpp_consumer_group
+
+tracing:
+  enabled: true
+  otlpEndpoint: "http://jaeger.monitoring.svc.cluster.local:4318/v1/traces"   # TODO
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  path: /metrics
+
+monitoring:
+  alertsEnabled: true
+  jobsAlerts: false
+  targetSelector: ""
+
+logging:
+  level: info
+  format: json             # structured JSON logs — required for prod log aggregators
+
+server:
+  # The REAL concurrency cap for DB-bound work (sync pqxx): in-flight DB calls
+  # == threads. Size to your CPU and keep poolSize >= threads.
+  threads: 4
+
+# ── Auth — enforce JWT + issue session cookies ─────────────────
+# jwtSecret/issuer/audience MUST match the tarassov-me-worker overlay (the worker signs
+# the JWT links inside transactional emails). Behind HTTPS ingress so __Host-
+# cookies (secure=true) work. Pass jwtSecret via --set, never here.
+auth:
+  mode: jwt
+  jwtSecret: ""   # via --set auth.jwtSecret="$JWT_SECRET" or external-secrets
+  jwtIssuer: ""
+  jwtAudience: ""
+  cookies:
+    enabled: true
+    secure: true
+    samesite: Lax

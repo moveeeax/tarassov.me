@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tarassov-me-worker.fullname" . }}
+  labels:
+    {{- include "tarassov-me-worker.labels" . | nindent 4 }}
+data:
+  # NOTE: secrets (DB / Redis passwords) are NOT inlined here — a ConfigMap is
+  # world-readable in the cluster. The worker expands ${DATABASE_PASSWORD} /
+  # ${REDIS_PASSWORD} at startup from env vars the Deployment injects via
+  # secretKeyRef (see deployment.yaml / templates/secret.yaml).
+  config.json: |
+    {
+      "logging": {
+        "name": {{ .Values.logging.name | quote }},
+        "file": "logs/worker.log",
+        "level": {{ .Values.logging.level | quote }},
+        "format": {{ .Values.logging.format | quote }}
+      },
+      "observability": {
+        "metrics_address": "0.0.0.0:{{ .Values.service.metricsPort }}",
+        "service_name": {{ .Values.logging.serviceName | quote }},
+        "otlp_endpoint": {{ if .Values.tracing.enabled }}{{ .Values.tracing.otlpEndpoint | quote }}{{ else }}""{{ end }}
+      },
+      "database": {
+        "primary": "postgresql://{{ .Values.externalDatabase.user }}:${DATABASE_PASSWORD}@{{ .Values.externalDatabase.host }}:{{ .Values.externalDatabase.port }}/{{ .Values.externalDatabase.name }}",
+        "replicas": [
+          {{- if .Values.externalDatabase.replicaHost }}
+          "postgresql://{{ .Values.externalDatabase.user }}:${DATABASE_PASSWORD}@{{ .Values.externalDatabase.replicaHost }}:{{ .Values.externalDatabase.port }}/{{ .Values.externalDatabase.name }}"
+          {{- end }}
+        ],
+        "pool_size": {{ .Values.externalDatabase.poolSize }},
+        "migrations_enabled": {{ .Values.externalDatabase.migrationsEnabled | default false }}
+      },
+      "cache": {
+        "use_sentinel": {{ .Values.externalRedis.useSentinel }},
+        "url": {{ .Values.externalRedis.url | quote }},
+        "password": "${REDIS_PASSWORD:-}",
+        "pool_size": {{ .Values.externalRedis.poolSize }},
+        "sentinel": {
+          "master_name": {{ .Values.externalRedis.masterName | quote }},
+          "nodes": [
+            {{- if .Values.externalRedis.useSentinel }}
+            {{- $nodes := splitList "," .Values.externalRedis.sentinelNodes }}
+            {{- range $i, $node := $nodes }}
+            {{- $parts := splitList ":" $node }}
+            {{- if gt $i 0 }},{{ end }}
+            { "host": {{ index $parts 0 | quote }}, "port": {{ index $parts 1 }} }
+            {{- end }}
+            {{- end }}
+          ]
+        }
+      },
+      "jobs": {
+        "enabled": {{ .Values.jobs.enabled }},
+        "result_ttl": {{ .Values.jobs.resultTtl }},
+        "max_retries": {{ .Values.jobs.maxRetries }}
+      },
+      "worker": {
+        "id": {{ .Values.worker.id | quote }},
+        "types": [{{- range $i, $t := splitList "," .Values.worker.types }}{{- if gt $i 0 }}, {{ end }}{{ $t | quote }}{{- end }}],
+        "concurrency": {{ .Values.worker.concurrency }},
+        "health_port": {{ .Values.worker.healthPort }},
+        "brpop_timeout": {{ .Values.worker.brpopTimeout }}
+      },
+      "mail": {
+        "enabled": {{ .Values.mail.enabled }},
+        "via_jobs": {{ .Values.mail.viaJobs }},
+        "smtp_host": {{ .Values.mail.smtpHost | quote }},
+        "smtp_port": {{ .Values.mail.smtpPort }},
+        "smtp_username": {{ .Values.mail.smtpUsername | quote }},
+        "smtp_password": "${MAIL_SMTP_PASSWORD:-}",
+        "smtp_use_tls": {{ .Values.mail.smtpUseTls }},
+        "from": {{ .Values.mail.from | quote }},
+        "from_name": {{ .Values.mail.fromName | quote }},
+        "subject_prefix": {{ .Values.mail.subjectPrefix | quote }},
+        "timeout_sec": 30
+      }
+    }

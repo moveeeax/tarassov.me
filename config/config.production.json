@@ -18,14 +18,14 @@
     "pre_stop_delay_sec": 5
   },
   "logging": {
-    "name": "${LOG_NAME:-cpp_api}",
+    "name": "${LOG_NAME:-tarassov_me}",
     "file": "logs/app.log",
     "level": "${LOG_LEVEL:-info}",
     "format": "json"
   },
   "observability": {
     "metrics_address": "0.0.0.0:9090",
-    "service_name": "${SERVICE_NAME:-cpp_api_service}",
+    "service_name": "${SERVICE_NAME:-tarassov_me_service}",
     "otlp_endpoint": "${OTLP_ENDPOINT:-}"
   },
   "database": {

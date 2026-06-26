@@ -7,7 +7,7 @@ stages:
 variables:
   # Override CI_IMAGE_NAME in project CI/CD variables for forks — the
   # default is the template author's Docker Hub namespace.
-  IMAGE_NAME: ${CI_IMAGE_NAME:-resert/cpp-rapid-rest-template}
+  IMAGE_NAME: ${CI_IMAGE_NAME:-docker.io/resert/tarassov-me}
   DOCKER_DRIVER: overlay2
   DOCKER_BUILDKIT: 1
   GIT_SUBMODULE_STRATEGY: recursive
@@ -175,7 +175,7 @@ test:unit:
     - >
       docker run --rm
       -v $CI_PROJECT_DIR/test-results:/results
-      -e TEST_BINARY=cpp_api_template_tests_unit
+      -e TEST_BINARY=tarassov_me_tests_unit
       $TEST_IMAGE
       --gtest_color=yes
       --gtest_output=xml:/results/test-results.xml
@@ -230,12 +230,12 @@ test:integration:
       done
     # Unit tests first (fast, no infra — but infra is already up so run in same job
     # to avoid a second image pull)
-    - docker compose --env-file .env --profile test run --rm -e TEST_BINARY=cpp_api_template_tests_unit test-runner
+    - docker compose --env-file .env --profile test run --rm -e TEST_BINARY=tarassov_me_tests_unit test-runner
     # Integration tests — need Postgres + Redis (already up above). CI_REQUIRE_INFRA
     # makes a missing dependency FAIL instead of silently skipping every suite.
-    - docker compose --env-file .env --profile test run --rm -e CI_REQUIRE_INFRA=1 -e TEST_BINARY=cpp_api_template_tests_integration test-runner
+    - docker compose --env-file .env --profile test run --rm -e CI_REQUIRE_INFRA=1 -e TEST_BINARY=tarassov_me_tests_integration test-runner
     # E2E binary: real Drogon server + HTTP client (middleware chain on the wire)
-    - docker compose --env-file .env --profile test run --rm -e CI_REQUIRE_INFRA=1 -e TEST_BINARY=cpp_api_template_e2e test-runner
+    - docker compose --env-file .env --profile test run --rm -e CI_REQUIRE_INFRA=1 -e TEST_BINARY=tarassov_me_e2e test-runner
   after_script:
     - cd docker && docker compose --env-file .env --profile test down -v || true
   rules:
@@ -326,7 +326,7 @@ test:sanitizers:
       docker run --rm --entrypoint /bin/bash $SAN_IMAGE -c '
         export ASAN_OPTIONS=halt_on_error=1:detect_leaks=1
         export UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
-        /app/build-san/cpp_api_template_tests_unit --gtest_color=yes
+        /app/build-san/tarassov_me_tests_unit --gtest_color=yes
       '
   allow_failure: true
   rules:
@@ -399,9 +399,9 @@ test:coverage:
         cd /app &&
         cmake --preset coverage &&
         cmake --build --preset coverage -j\$(nproc) &&
-        (./build/coverage/cpp_api_template_tests_unit --gtest_color=yes || true) &&
-        (./build/coverage/cpp_api_template_tests_integration --gtest_color=yes || true) &&
-        (./build/coverage/cpp_api_template_e2e --gtest_color=yes || true) &&
+        (./build/coverage/tarassov_me_tests_unit --gtest_color=yes || true) &&
+        (./build/coverage/tarassov_me_tests_integration --gtest_color=yes || true) &&
+        (./build/coverage/tarassov_me_e2e --gtest_color=yes || true) &&
         gcovr -r . --filter 'src/.*' --print-summary --fail-under-line ${COVERAGE_MIN}
       "
   after_script:
@@ -465,7 +465,7 @@ lint:openapi-drift:
     - if: $CI_COMMIT_BRANCH == "master"
     - if: $CI_COMMIT_BRANCH == "develop"
 
-# Render the cpp-env umbrella with CI values and assert deploy-path invariants
+# Render the tarassov-me-env umbrella with CI values and assert deploy-path invariants
 # (ingress<->service port, MAIL_VIA_JOBS, baseDomain expansion, no null ports).
 # Pure template smoke test — catches the helm bug class compile+tests can't.
 helm:validate:

@@ -44,7 +44,7 @@ cmake --build --preset "$PRESET" >/dev/null
 # measures whether header-only hurts day-to-day; the gap to the full build
 # measures the redundant per-binary recompile that an app_core static lib would
 # collapse (compile the bodies once, link them into all 5 executables).
-APP_TARGET="${APP_TARGET:-${PROJECT_NAME:-cpp_api_template}}"
+APP_TARGET="${APP_TARGET:-${PROJECT_NAME:-tarassov_me}}"
 echo ""
 printf '%-28s %10s %10s\n' "touched header" "app-only" "full"
 printf '%-28s %10s %10s\n' "----------------------------" "----------" "----------"

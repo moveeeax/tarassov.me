@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: 'cpp-template'
+  - name: 'tarassov-me'
     orgId: 1
-    folder: 'cpp-template'
+    folder: 'tarassov-me'
     type: file
     disableDeletion: false
     updateIntervalSeconds: 30
@@ -11,5 +11,5 @@ providers:
     options:
       path: /var/lib/grafana/dashboards
       # Walk subdirectories so per-service dashboards stay grouped
-      # (cpp-api, cpp-worker, postgres, redis, kafka).
+      # (tarassov-me, tarassov-me-worker, postgres, redis, kafka).
       foldersFromFilesStructure: true

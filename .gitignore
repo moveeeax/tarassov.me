@@ -120,7 +120,7 @@ docker-compose.override.yml
 *.crt
 secrets/
 
-# Helm values with secrets (keep chart defaults under helm/cpp-api/, cpp-worker/).
+# Helm values with secrets (keep chart defaults under helm/tarassov-me/, tarassov-me-worker/).
 # Per-cluster overrides go in untracked files matching the patterns below.
 helm/values.yaml
 helm/values-worker.yaml
@@ -139,7 +139,7 @@ helm/*/charts/
 docker/.jwt-dev-secret
 
 # Demo env generated secrets (never commit)
-helm/cpp-env/.demo-secrets.env
+helm/tarassov-me-env/.demo-secrets.env
 
 # Local file-storage backend (Storage::LocalStorage) — never commit uploads
 data/uploads/

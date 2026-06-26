@@ -1,5 +1,5 @@
 {
-  "name": "cpp-rapid-rest-template",
+  "name": "tarassov-me",
   "dockerComposeFile": ["docker-compose.yml"],
   "service": "dev",
   "workspaceFolder": "/app",

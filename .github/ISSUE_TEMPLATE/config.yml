@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability
-    url: https://gitlab.com/tarassov.me/cpp-rapid-rest-template/-/blob/master/SECURITY.md
+    url: https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/SECURITY.md
     about: Please report security issues privately — do not open a public issue.
   - name: Question / discussion
-    url: https://gitlab.com/tarassov.me/cpp-rapid-rest-template/-/issues
+    url: https://gitlab.com/tarassov.me/tarassov-me/-/issues
     about: For usage questions, open an issue with the question label.

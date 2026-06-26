@@ -6,22 +6,22 @@ groups:
   - name: api-availability
     rules:
       - alert: ApiTargetDown
-        expr: up{job="cpp_api"} == 0
+        expr: up{job="tarassov_me"} == 0
         for: 2m
         labels:
           severity: critical
         annotations:
-          runbook_url: "https://gitlab.com/tarassov.me/cpp-rapid-rest-template/-/blob/master/docs/RUNBOOK.md#targetdown"
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#targetdown"
           summary: "API metrics endpoint is unreachable"
           description: "Prometheus has not scraped {{ $labels.instance }} for 2 minutes — the process is down or wedged."
 
       - alert: WorkerTargetDown
-        expr: up{job="cpp_worker"} == 0
+        expr: up{job="tarassov_me_worker"} == 0
         for: 5m
         labels:
           severity: warning
         annotations:
-          runbook_url: "https://gitlab.com/tarassov.me/cpp-rapid-rest-template/-/blob/master/docs/RUNBOOK.md#targetdown"
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#targetdown"
           summary: "Worker metrics endpoint is unreachable"
           description: "Background jobs are not being processed if the worker is down."
 
@@ -36,7 +36,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          runbook_url: "https://gitlab.com/tarassov.me/cpp-rapid-rest-template/-/blob/master/docs/RUNBOOK.md#high5xx"
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#high5xx"
           summary: "More than 5% of HTTP responses are 5xx"
           description: "Current 5xx ratio: {{ $value | humanizePercentage }}."
 
@@ -48,7 +48,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          runbook_url: "https://gitlab.com/tarassov.me/cpp-rapid-rest-template/-/blob/master/docs/RUNBOOK.md#p99"
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#p99"
           summary: "p99 HTTP latency above 1s for 10 minutes"
           description: "p99 = {{ $value }}s — check DB pool saturation and slow queries first."
 
@@ -62,7 +62,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          runbook_url: "https://gitlab.com/tarassov.me/cpp-rapid-rest-template/-/blob/master/docs/RUNBOOK.md#replag"
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#replag"
           summary: "Read replica is more than 60s behind the primary"
           description: "Lag {{ $value }}s — stale reads are being served; check replica I/O and WAL volume."
 
@@ -75,7 +75,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          runbook_url: "https://gitlab.com/tarassov.me/cpp-rapid-rest-template/-/blob/master/docs/RUNBOOK.md#dlq"
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#dlq"
           summary: "Jobs dead-letter queue is non-empty for 15 minutes"
           description: "{{ $value }} job(s) in the DLQ. Inspect /api/jobs/dlq and requeue or fix the handler."
 
@@ -85,7 +85,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          runbook_url: "https://gitlab.com/tarassov.me/cpp-rapid-rest-template/-/blob/master/docs/RUNBOOK.md#retries"
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#retries"
           summary: "Transient-error retries are being exhausted"
           description: "Downstream (DB/Redis) is failing past the retry budget — check dependency health."
 
@@ -97,7 +97,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          runbook_url: "https://gitlab.com/tarassov.me/cpp-rapid-rest-template/-/blob/master/docs/RUNBOOK.md#queuebacklog"
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#queuebacklog"
           summary: "Jobs waiting-queue backlog above 100 for 10 minutes"
           description: "{{ $value }} job(s) queued and not draining — scale workers or check for a stuck handler before jobs age into the DLQ."
 
@@ -113,6 +113,6 @@ groups:
         labels:
           severity: warning
         annotations:
-          runbook_url: "https://gitlab.com/tarassov.me/cpp-rapid-rest-template/-/blob/master/docs/RUNBOOK.md#dbpool"
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#dbpool"
           summary: "DB connection pool {{ $labels.pool }} over 90% utilized for 5 minutes"
           description: "Pool {{ $labels.pool }} saturation {{ $value | humanizePercentage }} — connections are about to time out on acquire. Raise pool size or shed load."

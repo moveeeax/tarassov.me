@@ -2,7 +2,7 @@
 # Usage: make up | make up-full | make down | make test | make logs
 
 -include project.env
-PROJECT_NAME ?= cpp-rapid-rest-template
+PROJECT_NAME ?= tarassov-me
 REGISTRY     ?= docker.io/library
 # Minimum src/ LINE coverage for `make coverage` to pass — a regression floor,
 # not a target. Start conservative; raise it once you've measured your real
@@ -16,9 +16,6 @@ GIT_SHA   := $(shell git rev-parse --short HEAD)
 # Override via GHCR_ORG in project.env if your fork lives under a different org.
 GHCR_ORG  ?= resert
 GHCR_REPO := ghcr.io/$(GHCR_ORG)/$(PROJECT_NAME)
-# Canonical upstream template cache — a fresh fork's own GHCR is empty until its
-# CI runs, so `make warm-cache` falls back here to skip the first cold build.
-UPSTREAM_GHCR ?= ghcr.io/resert/cpp-rapid-rest-template
 
 # Prefer the Compose v2 plugin (`docker compose`) when present; fall back to
 # the standalone v1 binary. CI images ship only the plugin, older dev
@@ -140,26 +137,26 @@ test:              ## Run all tests in Docker (rebuild image, ~2 min cold)
 	@# `run --rm` instead of `up --abort-on-container-exit`: abort stops EVERY
 	@# container in the compose project — including a dev stack you have up.
 	$(COMPOSE) $(ENV) --profile test build test-runner
-	$(COMPOSE) $(ENV) --profile test run --rm -e TEST_BINARY=cpp_api_template_tests_unit test-runner
-	$(COMPOSE) $(ENV) --profile test run --rm -e TEST_BINARY=cpp_api_template_tests_integration test-runner
+	$(COMPOSE) $(ENV) --profile test run --rm -e TEST_BINARY=tarassov_me_tests_unit test-runner
+	$(COMPOSE) $(ENV) --profile test run --rm -e TEST_BINARY=tarassov_me_tests_integration test-runner
 	@$(MAKE) --no-print-directory test-e2e
 
 test-e2e:          ## Run the HTTP end-to-end binary (real Drogon server + client)
-	$(COMPOSE) $(ENV) --profile test run --rm -e TEST_BINARY=cpp_api_template_e2e test-runner
+	$(COMPOSE) $(ENV) --profile test run --rm -e TEST_BINARY=tarassov_me_e2e test-runner
 
 test-quick:        ## Re-run tests against existing image (no rebuild, ~5 s)
 	@# Fast TDD loop: rebuild the test-runner layer only if it already exists,
 	@# otherwise fall through to the full `make test`. Good for "edit test, run".
-	@if docker image inspect $${TEST_IMAGE:-cpp-rapid-rest-template:test-latest} >/dev/null 2>&1; then \
-		$(COMPOSE) $(ENV) --profile test run --rm -e TEST_BINARY=cpp_api_template_tests_unit test-runner && \
-		$(COMPOSE) $(ENV) --profile test run --rm -e TEST_BINARY=cpp_api_template_tests_integration test-runner ; \
+	@if docker image inspect $${TEST_IMAGE:-tarassov-me:test-latest} >/dev/null 2>&1; then \
+		$(COMPOSE) $(ENV) --profile test run --rm -e TEST_BINARY=tarassov_me_tests_unit test-runner && \
+		$(COMPOSE) $(ENV) --profile test run --rm -e TEST_BINARY=tarassov_me_tests_integration test-runner ; \
 	else \
 		echo "No cached test-runner image, doing a full build first..." ; \
 		$(MAKE) test ; \
 	fi
 
 test-unit:         ## Run only unit tests (no Postgres/Redis needed at runtime)
-	$(COMPOSE) $(ENV) --profile test run --rm -e TEST_BINARY=cpp_api_template_tests_unit test-runner
+	$(COMPOSE) $(ENV) --profile test run --rm -e TEST_BINARY=tarassov_me_tests_unit test-runner
 
 lint-format:       ## Check clang-format compliance across src/ and tests/
 	@if command -v clang-format >/dev/null 2>&1; then \
@@ -215,7 +212,7 @@ helm-lint:         ## helm lint + helm template render for both charts
 	done
 	@echo "==> helm-lint: all charts pass"
 
-helm-validate:     ## Render the cpp-env umbrella + assert deploy-path invariants (port/host/mail)
+helm-validate:     ## Render the tarassov-me-env umbrella + assert deploy-path invariants (port/host/mail)
 	@./scripts/check-helm-render.sh
 
 tidy:              ## Run clang-tidy via the builder image (CI-parity)
@@ -228,18 +225,17 @@ tidy:              ## Run clang-tidy via the builder image (CI-parity)
 			&& run-clang-tidy -p build -quiet -header-filter='src/.*' src/"
 
 warm-cache:        ## Pull a CI-built builder image to skip the cold vcpkg build (~30 min -> ~3)
-	@# Try the fork's own GHCR first, then fall back to the upstream template
-	@# cache (a fresh fork's GHCR is empty until its first CI run). Same vcpkg
-	@# dependency layers, so either primes the build.
-	@for ref in $(GHCR_REPO)/builder:cache $(UPSTREAM_GHCR)/builder:cache ; do \
+	@# Pull the fork's own GHCR builder cache (populated by builder-cache.yml).
+	@# Same vcpkg dependency layers, so it primes the local build.
+	@for ref in $(GHCR_REPO)/builder:cache ; do \
 		echo "Trying $$ref ..." ; \
 		if docker pull "$$ref" 2>/dev/null ; then \
-			docker tag "$$ref" cpp-rapid-rest-template:builder-latest ; \
+			docker tag "$$ref" tarassov-me:builder-latest ; \
 			echo "==> Cache primed from $$ref — make build / make test reuse the dependency layers." ; \
 			exit 0 ; \
 		fi ; \
 	done ; \
-	echo "==> No prebuilt builder cache (tried fork + upstream) — builds compile deps from source (~30 min cold; needs a Docker VM with >=8GiB, see 'make doctor')."
+	echo "==> No prebuilt builder cache (GHCR empty until first CI run) — builds compile deps from source (~30 min cold; needs a Docker VM with >=8GiB, see 'make doctor')."
 
 build:             ## Rebuild app image only
 	$(COMPOSE) $(ENV) build app
@@ -293,23 +289,23 @@ build-local:       ## Build native binaries via the `dev` preset (no Docker)
 
 test-local:        ## Run native gtest binary; pass NAME=<filter> to scope: make test-local NAME=Pagination*
 	@$(MAKE) --no-print-directory build-local PRESET=$(or $(PRESET),dev)
-	@./build/$(or $(PRESET),dev)/cpp_api_template_tests_unit \
+	@./build/$(or $(PRESET),dev)/tarassov_me_tests_unit \
 		--gtest_color=yes \
 		$(if $(NAME),--gtest_filter=$(NAME))
-	@./build/$(or $(PRESET),dev)/cpp_api_template_tests_integration \
+	@./build/$(or $(PRESET),dev)/tarassov_me_tests_integration \
 		--gtest_color=yes \
 		$(if $(NAME),--gtest_filter=$(NAME))
 
 test-unit-local:   ## Run only unit tests natively (no Postgres/Redis required)
 	@$(MAKE) --no-print-directory build-local PRESET=$(or $(PRESET),dev)
-	@./build/$(or $(PRESET),dev)/cpp_api_template_tests_unit \
+	@./build/$(or $(PRESET),dev)/tarassov_me_tests_unit \
 		--gtest_color=yes
 
 test-integration-local: ## Run only integration tests natively (needs the stack: make up)
 	@$(MAKE) --no-print-directory build-local PRESET=$(or $(PRESET),dev)
 	@TEST_PG_HOST=$${TEST_PG_HOST:-127.0.0.1} \
 	 TEST_REDIS_HOST=$${TEST_REDIS_HOST:-127.0.0.1} \
-	 ./build/$(or $(PRESET),dev)/cpp_api_template_tests_integration \
+	 ./build/$(or $(PRESET),dev)/tarassov_me_tests_integration \
 		--gtest_color=yes
 
 test-watch:        ## Re-run unit tests on src/ or tests/ change (watchexec or entr)
@@ -344,9 +340,9 @@ coverage:          ## Build with coverage, run tests, emit HTML + fail under COV
 	@# need Postgres + Redis (run `make up` first); each is `|| true` so a missing
 	@# sidecar degrades the number instead of aborting the whole report.
 	@echo "==> running all test buckets (integration/e2e need Postgres+Redis — make up first)"
-	@./build/coverage/cpp_api_template_tests_unit --gtest_color=yes || true
-	@./build/coverage/cpp_api_template_tests_integration --gtest_color=yes || true
-	@./build/coverage/cpp_api_template_e2e --gtest_color=yes || true
+	@./build/coverage/tarassov_me_tests_unit --gtest_color=yes || true
+	@./build/coverage/tarassov_me_tests_integration --gtest_color=yes || true
+	@./build/coverage/tarassov_me_e2e --gtest_color=yes || true
 	@mkdir -p coverage
 	@# --fail-under-line makes this a gate: gcovr exits non-zero (failing the
 	@# target / CI) when src/ line coverage drops below COVERAGE_MIN. A floor,
@@ -358,8 +354,8 @@ coverage:          ## Build with coverage, run tests, emit HTML + fail under COV
 # ── Inspection / health ──────────────────────────────────────────
 
 routes:            ## Print the registered endpoint table (no DB required)
-	@$(COMPOSE) exec app ./cpp_api_template --print-routes 2>/dev/null || \
-	    ./build/dev/cpp_api_template --print-routes 2>/dev/null || \
+	@$(COMPOSE) exec app ./tarassov_me --print-routes 2>/dev/null || \
+	    ./build/dev/tarassov_me --print-routes 2>/dev/null || \
 	    { echo 'ERROR: neither a running container nor a local build was found. Try make up or make build-local.'; exit 1; }
 
 health:             ## curl /healthz, /ready, and tease /metrics
@@ -403,11 +399,11 @@ migrate:           ## Apply pending migrations using the running app container (
 	$(COMPOSE) run --rm -e RUN_MIGRATIONS_ONLY=1 app
 
 migrate-local:     ## Apply pending migrations natively (requires build-local + reachable Postgres)
-	@if [ ! -x ./build/$(or $(PRESET),dev)/cpp_api_template ]; then \
+	@if [ ! -x ./build/$(or $(PRESET),dev)/tarassov_me ]; then \
 		echo "==> No native build at build/$(or $(PRESET),dev)/ — running build-local first"; \
 		$(MAKE) --no-print-directory build-local PRESET=$(or $(PRESET),dev); \
 	fi
-	./build/$(or $(PRESET),dev)/cpp_api_template --run-migrations $(or $(CONFIG),config/config.json)
+	./build/$(or $(PRESET),dev)/tarassov_me --run-migrations $(or $(CONFIG),config/config.json)
 
 migrate-status:    ## List pending migrations without applying (exits 1 if any pending)
 	$(COMPOSE) run --rm app --verify-migrations || true
@@ -447,10 +443,6 @@ new-resource:      ## Scaffold a full CRUD resource: make new-resource ENTITY=Pr
 new-job:           ## Scaffold a background-job handler: make new-job TYPE=reindex [HANDLER=ReindexJob]
 	@if [ -z "$(TYPE)" ]; then echo "Usage: make new-job TYPE=reindex [HANDLER=ReindexJob]"; exit 1; fi
 	./scripts/new-job.sh $(TYPE) $(HANDLER)
-
-init:              ## Rebrand the template for your fork: make init NAME=my-service [REGISTRY=docker.io/myorg]
-	@if [ -z "$(NAME)" ]; then echo "Usage: make init NAME=my-service [REGISTRY=docker.io/myorg]"; exit 1; fi
-	./scripts/init-project.sh $(NAME) $(REGISTRY)
 
 seed:              ## Apply optional seed fixtures from migrations/seeds/*.sql (idempotent at your risk)
 	@if ! ls migrations/seeds/*.sql >/dev/null 2>&1; then \

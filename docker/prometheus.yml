@@ -13,26 +13,26 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  # cpp-api (HTTP service). Exposes /metrics on :9090 inside the compose
+  # tarassov-me (HTTP service). Exposes /metrics on :9090 inside the compose
   # network — see Observability::initialize() in src/core/Core.hpp.
-  - job_name: cpp_api
+  - job_name: tarassov_me
     metrics_path: /metrics
     static_configs:
       - targets: ['app:9090']
         labels:
-          service: cpp-api
+          service: tarassov-me
           role: api
 
-  # cpp-worker (background jobs). Exposes /metrics on :9090 inside the
+  # tarassov-me-worker (background jobs). Exposes /metrics on :9090 inside the
   # worker container too — the host port is remapped to 9190 in compose to
   # avoid clashing with the app, but prometheus reaches it over the shared
   # docker network directly.
-  - job_name: cpp_worker
+  - job_name: tarassov_me_worker
     metrics_path: /metrics
     static_configs:
       - targets: ['worker:9090']
         labels:
-          service: cpp-worker
+          service: tarassov-me-worker
           role: worker
 
   # PostgreSQL — requires the `postgres-exporter` sidecar (profile:

@@ -1,0 +1,97 @@
+{{- /*
+  Optional logical backup of the external Postgres via pg_dump, uploaded to
+  S3-compatible object storage. Off by default — set backup.enabled=true and
+  point backup.s3.* at your bucket. This is a STARTER: pg_dump is fine up to a
+  few GB; past that switch to pgBackRest / WAL-G for incremental + PITR (see
+  docs/RUNBOOK.md "Restore"). Restores are NOT automated — they're a deliberate
+  human action.
+*/}}
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "tarassov-me.fullname" . }}-backup
+  labels:
+    {{- include "tarassov-me.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: {{ .Values.backup.activeDeadlineSeconds }}
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+          containers:
+            - name: pg-dump
+              image: {{ .Values.backup.image | quote }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+                  base="{{ .Values.externalDatabase.name }}-${ts}.sql"
+                  file="${base}.gz"
+                  echo "Dumping {{ .Values.externalDatabase.name }} -> ${file}"
+                  # Dump to a FILE, not through a pipe: `sh -e` does not have
+                  # pipefail, so `pg_dump | gzip` would mask a failed pg_dump as
+                  # success (gzip of nothing is a valid .gz) and upload a
+                  # truncated dump under a "successful" job. With -f, -e aborts here.
+                  pg_dump --no-owner --no-privileges \
+                    -h "{{ .Values.externalDatabase.host }}" \
+                    -p "{{ .Values.externalDatabase.port }}" \
+                    -U "{{ .Values.externalDatabase.user }}" \
+                    -d "{{ .Values.externalDatabase.name }}" \
+                    -f "/tmp/${base}"
+                  gzip -c "/tmp/${base}" > "/tmp/${file}"
+                  rm -f "/tmp/${base}"
+                  # Trust nothing: verify the gzip is intact and not trivially small.
+                  gunzip -t "/tmp/${file}"
+                  sz="$(wc -c < "/tmp/${file}")"
+                  if [ "${sz}" -lt 100 ]; then
+                    echo "Backup ${file} is only ${sz} bytes — refusing to upload a truncated dump" >&2
+                    exit 1
+                  fi
+                  echo "Uploading ${file} (${sz} bytes) to {{ .Values.backup.s3.bucket }}/${file}"
+                  aws s3 cp "/tmp/${file}" "s3://{{ .Values.backup.s3.bucket }}/{{ .Values.backup.s3.prefix }}${file}" \
+                    {{- if .Values.backup.s3.endpoint }} --endpoint-url "{{ .Values.backup.s3.endpoint }}"{{- end }}
+                  echo "Backup complete: ${sz} bytes."
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backup.dbPasswordSecret.name | default (include "tarassov-me.fullname" .) }}
+                      key: {{ .Values.backup.dbPasswordSecret.key | default "database-password" }}
+                {{- with .Values.backup.s3.credentialsSecret }}
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom: { secretKeyRef: { name: {{ .name }}, key: {{ .accessKeyIdKey | default "access-key-id" }} } }
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom: { secretKeyRef: { name: {{ .name }}, key: {{ .secretAccessKeyKey | default "secret-access-key" }} } }
+                {{- end }}
+                {{- with .Values.backup.s3.region }}
+                - name: AWS_DEFAULT_REGION
+                  value: {{ . | quote }}
+                {{- end }}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                # readOnlyRootFilesystem is on, so pg_dump's scratch space
+                # (/tmp/<dump>.sql.gz) needs an explicit writable mount.
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}
+{{- end }}
