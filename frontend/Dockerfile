@@ -31,7 +31,9 @@ RUN npm run build
 # podSecurityContext (runAsNonRoot) without a privileged port or root pidfile.
 FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
 
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Public BookCard static site owns / ; the React admin SPA is nested at /admin.
+COPY frontend/public-site /usr/share/nginx/html
+COPY --from=builder /app/dist /usr/share/nginx/html/admin
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 8080
