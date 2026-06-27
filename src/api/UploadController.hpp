@@ -15,7 +15,7 @@
 #include <unordered_map>
 
 #include <drogon/HttpController.h>
-#include <drogon/MultiPartParser.h>
+#include <drogon/MultiPart.h>
 #include <spdlog/spdlog.h>
 
 #include <nlohmann/json.hpp>
@@ -47,7 +47,7 @@ public:
         }
         const auto& file = parser.getFiles()[0];
 
-        std::string ext = file.getFileExtension();
+        std::string ext(file.getFileExtension());
         std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
         static const std::unordered_map<std::string, std::string> kTypes = {
             {"jpg", "image/jpeg"},
