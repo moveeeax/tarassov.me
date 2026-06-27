@@ -10,17 +10,16 @@
 #pragma once
 
 #include <optional>
-#include <string>
-
 #include <pqxx/pqxx>
+#include <string>
 
 #include <nlohmann/json.hpp>
 
 namespace Domain {
 
 struct Post {
-    std::string id;       // UUID v4 (text)
-    std::string slug;     // URL key
+    std::string id;    // UUID v4 (text)
+    std::string slug;  // URL key
     std::string title;
     std::string summary;  // list/teaser blurb
     std::string body;     // Markdown source

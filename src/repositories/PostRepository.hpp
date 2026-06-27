@@ -7,11 +7,10 @@
 #pragma once
 
 #include <optional>
+#include <pqxx/pqxx>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include <pqxx/pqxx>
 
 #include "database/Database.hpp"
 #include "domain/Post.hpp"
