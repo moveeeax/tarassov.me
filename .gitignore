@@ -146,3 +146,6 @@ data/uploads/
 
 # Purchased frontend template archive — extracted to a scratch dir, not tracked
 BookCard*.zip
+
+# Personal CV source — content used on the vCard; not published as-is
+Michael_Tarassov_CV.pdf
