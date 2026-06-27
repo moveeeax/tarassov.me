@@ -17,6 +17,7 @@ import { ChangeEmailPage } from '@/pages/ChangeEmail';
 import { RequestResetPage } from '@/pages/RequestReset';
 import { ResetPasswordPage } from '@/pages/ResetPassword';
 import { JoinFromInvitePage } from '@/pages/JoinFromInvite';
+import { AdminPostsPage } from '@/pages/admin/Posts';
 
 // Admin pages are code-split: a logged-out visitor on /login should not pull
 // the whole admin bundle. React.lazy needs a module with a `default` export,
@@ -145,6 +146,7 @@ export const routes: RouteEntry[] = [
     navLabel: 'Audit',
     navIcon: ScrollText,
   },
+  { path: '/admin/posts', element: <AdminPostsPage />, guard: 'admin', navLabel: 'Posts' },
 ];
 
 /** The permission a guard implies, for nav-link filtering in Nav.tsx. */

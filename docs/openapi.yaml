@@ -881,7 +881,7 @@ paths:
       responses:
         '200': { description: OK }
         '404': { description: Not found }
-    put:
+    patch:
       summary: Update post (admin)
       tags: [posts]
       security: [{ BearerAuth: [] }]

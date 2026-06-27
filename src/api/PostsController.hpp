@@ -31,7 +31,7 @@ public:
     ADD_METHOD_TO(PostsController::listPosts, "/api/v1/posts", Get);
     ADD_METHOD_TO(PostsController::createPost, "/api/v1/posts", Post);
     ADD_METHOD_TO(PostsController::getPost, "/api/v1/posts/{1}", Get);
-    ADD_METHOD_TO(PostsController::updatePost, "/api/v1/posts/{1}", Put);
+    ADD_METHOD_TO(PostsController::updatePost, "/api/v1/posts/{1}", Patch);
     ADD_METHOD_TO(PostsController::deletePost, "/api/v1/posts/{1}", Delete);
     // Public site (no auth): published posts only, addressed by slug.
     ADD_METHOD_TO(PostsController::publicListPosts, "/api/v1/public/posts", Get);
