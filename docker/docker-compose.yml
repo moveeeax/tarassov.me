@@ -43,6 +43,9 @@ x-mail-env: &mail-env
   MAIL_SUBJECT_PREFIX: "${MAIL_SUBJECT_PREFIX:-[App] }"
   APP_NAME: ${APP_NAME:-App}
   APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+  # Where the public contact form (POST /api/v1/public/contact) sends mail.
+  # Empty → the endpoint reports the form is not configured.
+  CONTACT_EMAIL: ${CONTACT_EMAIL:-}
 
 services:
   # Application service
