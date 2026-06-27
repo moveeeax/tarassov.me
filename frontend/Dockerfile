@@ -31,9 +31,14 @@ RUN npm run build
 # podSecurityContext (runAsNonRoot) without a privileged port or root pidfile.
 FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
 
-# Public BookCard static site owns / ; the React admin SPA is nested at /admin.
+# React SPA (auth / account / admin). Its index.html is renamed to app.html so
+# it can act as the SPA fallback for /login, /account/*, /admin/* WITHOUT
+# clobbering the public BookCard index.html that owns /. Vite assets live under
+# /assets and don't clash with BookCard's /css /js /images.
+COPY --from=builder /app/dist /usr/share/nginx/html
+RUN mv /usr/share/nginx/html/index.html /usr/share/nginx/html/app.html
+# Public BookCard static site at /: index.html (vCard) + blog + css/js/images.
 COPY frontend/public-site /usr/share/nginx/html
-COPY --from=builder /app/dist /usr/share/nginx/html/admin
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 8080

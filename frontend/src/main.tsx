@@ -23,7 +23,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <ToastProvider>
-          <BrowserRouter basename="/admin">
+          <BrowserRouter>
             <App />
           </BrowserRouter>
         </ToastProvider>

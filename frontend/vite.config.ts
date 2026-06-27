@@ -7,10 +7,6 @@ import path from 'node:path';
 // frontend container's nginx config does the same proxy_pass.
 export default defineConfig({
   plugins: [react()],
-  // The admin SPA is served under /admin/ (the public BookCard site owns /).
-  // base makes built asset URLs resolve under /admin/; pair with the router
-  // basename in main.tsx.
-  base: '/admin/',
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },
   },
