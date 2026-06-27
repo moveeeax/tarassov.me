@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { useErrorToast } from '@/hooks/useErrorToast';
 import { api, csrfHeader } from '@/lib/api/client';
+import { qk } from '@/lib/api/queryKeys';
 
 /**
  * AdminPostsPage — blog CMS. Lists every post (drafts included), creates,
@@ -39,10 +40,6 @@ interface PostForm {
   status: 'draft' | 'published';
 }
 
-// Inline query key (no dedicated hook): shared by the list query and the
-// mutations' cache invalidation so they always match.
-const POSTS_QK = ['admin', 'posts'] as const;
-
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';
   try {
@@ -58,14 +55,14 @@ export function AdminPostsPage() {
   const [deleting, setDeleting] = useState<Post | null>(null);
 
   const postsQ = useQuery({
-    queryKey: POSTS_QK,
+    queryKey: qk.admin.posts(),
     queryFn: () => api.getJson<{ data: Post[]; total: number }>('/api/v1/posts?limit=200'),
   });
 
   const create = useApiMutation(
     (form: PostForm) => api.postJson<{ data: Post }>('/api/v1/posts', { body: form }),
     {
-      invalidate: [POSTS_QK],
+      invalidate: [qk.admin.posts()],
       onSuccess: () => setCreating(false),
     },
   );
@@ -74,13 +71,13 @@ export function AdminPostsPage() {
     (vars: { id: string; form: PostForm }) =>
       api.patchJson<{ data: Post }>(`/api/v1/posts/${vars.id}`, { body: vars.form }),
     {
-      invalidate: [POSTS_QK],
+      invalidate: [qk.admin.posts()],
       onSuccess: () => setEditing(null),
     },
   );
 
   const remove = useApiMutation((id: string) => api.deleteJson(`/api/v1/posts/${id}`), {
-    invalidate: [POSTS_QK],
+    invalidate: [qk.admin.posts()],
     onSuccess: () => setDeleting(null),
   });
 
