@@ -154,3 +154,21 @@ auth:
     enabled: true
     secure: true
     samesite: Lax
+
+# ---------------------------------------------------------------
+# Storage — post images. Use S3/MinIO in prod (local disk is per-pod and
+# ephemeral). publicBaseUrl must be the browser-reachable object URL prefix.
+# ---------------------------------------------------------------
+storage:
+  backend: s3
+  publicBaseUrl: "https://cdn.example.com/uploads"   # TODO: real public URL / CDN
+  s3:
+    endpoint: "https://minio.example.com"            # TODO
+    region: us-east-1
+    bucket: "tarassov-me"                            # TODO
+    accessKey: ""                                    # TODO
+    secretKey: ""   # via --set storage.s3.secretKey="$S3_SECRET" or external-secrets
+
+# Public contact form recipient (the endpoint 503s when empty).
+mail:
+  contactTo: ""    # TODO: where contact-form submissions are emailed
