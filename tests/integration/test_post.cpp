@@ -47,7 +47,8 @@ TEST_F(PostsFlowTest, ListReturnsEnvelope) {
 }
 
 TEST_F(PostsFlowTest, CreatePublishAndPublicRead) {
-    json body = {{"slug", "hello-test"}, {"title", "Hello"}, {"summary", "s"}, {"body", "# h"}, {"status", "published"}};
+    json body = {
+        {"slug", "hello-test"}, {"title", "Hello"}, {"summary", "s"}, {"body", "# h"}, {"status", "published"}};
     auto resp = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, body), std::move(cb)); });
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->statusCode(), k201Created);
@@ -63,11 +64,13 @@ TEST_F(PostsFlowTest, CreatePublishAndPublicRead) {
     EXPECT_TRUE(found);
 
     // Public get by slug.
-    resp = call([&](auto cb) { controller.publicGetPost(TestHelpers::make_request(Get), std::move(cb), "hello-test"); });
+    resp =
+        call([&](auto cb) { controller.publicGetPost(TestHelpers::make_request(Get), std::move(cb), "hello-test"); });
     EXPECT_EQ(resp->statusCode(), k200OK);
 
     // Unknown slug → 404.
-    resp = call([&](auto cb) { controller.publicGetPost(TestHelpers::make_request(Get), std::move(cb), "does-not-exist"); });
+    resp = call(
+        [&](auto cb) { controller.publicGetPost(TestHelpers::make_request(Get), std::move(cb), "does-not-exist"); });
     EXPECT_EQ(resp->statusCode(), k404NotFound);
 }
 
@@ -76,7 +79,8 @@ TEST_F(PostsFlowTest, DraftHiddenFromPublic) {
     auto resp = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, body), std::move(cb)); });
     EXPECT_EQ(resp->statusCode(), k201Created);
     // Drafts must never be exposed on the public read path.
-    resp = call([&](auto cb) { controller.publicGetPost(TestHelpers::make_request(Get), std::move(cb), "draft-test"); });
+    resp =
+        call([&](auto cb) { controller.publicGetPost(TestHelpers::make_request(Get), std::move(cb), "draft-test"); });
     EXPECT_EQ(resp->statusCode(), k404NotFound);
 }
 

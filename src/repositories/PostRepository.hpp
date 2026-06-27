@@ -56,7 +56,9 @@ public:
                     auto r = txn.exec_params(
                         std::string("INSERT INTO posts (slug, title, summary, body, status, published_at) "
                                     "VALUES ($1, $2, $3, $4, $5, "
-                                    "CASE WHEN $5 = 'published' THEN now() ELSE NULL END) RETURNING ") +
+                                    // $5::text disambiguates the parameter type — it's also bound as the
+                                    // varchar `status` column, and Postgres rejects two inferred types for $5.
+                                    "CASE WHEN $5::text = 'published' THEN now() ELSE NULL END) RETURNING ") +
                             kColumns,
                         in.slug,
                         in.title,
@@ -80,9 +82,11 @@ public:
                     // edits to an already-published post leave it untouched.
                     auto r = txn.exec_params(
                         std::string("UPDATE posts SET slug = $2, title = $3, summary = $4, body = $5, status = $6, "
+                                    // $6::text disambiguates the parameter type (also bound as the varchar
+                                    // `status` column) so Postgres doesn't reject two inferred types for $6.
                                     "published_at = CASE "
-                                    "WHEN $6 = 'published' AND published_at IS NULL THEN now() "
-                                    "WHEN $6 = 'draft' THEN NULL "
+                                    "WHEN $6::text = 'published' AND published_at IS NULL THEN now() "
+                                    "WHEN $6::text = 'draft' THEN NULL "
                                     "ELSE published_at END "
                                     "WHERE id = $1 RETURNING ") +
                             kColumns,

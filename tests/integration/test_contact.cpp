@@ -47,10 +47,8 @@ TEST_F(ContactConfiguredTest, MissingFieldsRejected) {
 }
 
 TEST_F(ContactConfiguredTest, CrlfInSubjectRejected) {
-    json body = {{"name", "Ann"},
-                 {"email", "ann@example.com"},
-                 {"subject", "Hi\r\nBcc: victim@example.com"},
-                 {"message", "m"}};
+    json body = {
+        {"name", "Ann"}, {"email", "ann@example.com"}, {"subject", "Hi\r\nBcc: victim@example.com"}, {"message", "m"}};
     auto resp = run([&](auto cb) { controller.submit(TestHelpers::make_request(Post, body), std::move(cb)); });
     EXPECT_EQ(resp->statusCode(), k400BadRequest);
 }
