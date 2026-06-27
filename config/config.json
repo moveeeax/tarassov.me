@@ -76,6 +76,7 @@
     "from": "${MAIL_FROM:-noreply@example.com}",
     "from_name": "${MAIL_FROM_NAME:-App}",
     "subject_prefix": "${MAIL_SUBJECT_PREFIX:-[App] }",
+    "contact_to": "${CONTACT_EMAIL:-}",
     "timeout_sec": 30
   },
   "messaging": {

@@ -71,6 +71,7 @@ inline const std::vector<EndpointInfo>& get_endpoints() {
         {"DELETE", "/api/v1/posts/{id}", "Delete post (admin)"},
         {"GET", "/api/v1/public/posts", "List published posts (public)"},
         {"GET", "/api/v1/public/posts/{slug}", "Get published post by slug (public)"},
+        {"POST", "/api/v1/public/contact", "Send a contact message (public)"},
     };
     return endpoints;
 }

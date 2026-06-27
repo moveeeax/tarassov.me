@@ -929,3 +929,23 @@ paths:
       responses:
         '200': { description: OK }
         '404': { description: Not found or not published }
+  /api/v1/public/contact:
+    post:
+      summary: Send a contact message (public, no auth)
+      tags: [contact]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, message]
+              properties:
+                name:    { type: string, minLength: 1, maxLength: 120 }
+                email:   { type: string, format: email }
+                subject: { type: string, maxLength: 200 }
+                message: { type: string, minLength: 1, maxLength: 5000 }
+      responses:
+        '200': { description: Sent }
+        '400': { description: Validation failed }
+        '503': { description: Contact form not configured }

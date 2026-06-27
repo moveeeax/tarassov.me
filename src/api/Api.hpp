@@ -24,6 +24,7 @@
 #include "api/ApiKeyController.hpp"
 #include "api/AuditController.hpp"
 #include "api/AuthController.hpp"
+#include "api/ContactController.hpp"
 #include "api/HealthController.hpp"
 #include "api/JobsController.hpp"
 #include "api/Middleware.hpp"

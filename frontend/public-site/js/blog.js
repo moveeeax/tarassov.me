@@ -117,8 +117,81 @@
             });
     }
 
+    // The vCard's "latest from the blog" widget (index.html #latest-posts).
+    function renderLatest() {
+        var el = document.getElementById("latest-posts");
+        if (!el) return;
+        fetch(API + "?limit=3")
+            .then(function (r) {
+                return r.json();
+            })
+            .then(function (res) {
+                var posts = (res && res.data) || [];
+                el.innerHTML = posts.length
+                    ? posts
+                          .map(function (p) {
+                              return (
+                                  '<h2><a href="blog-single.html?slug=' +
+                                  encodeURIComponent(p.slug) +
+                                  '">' +
+                                  esc(p.title) +
+                                  "</a></h2>"
+                              );
+                          })
+                          .join("")
+                    : '<p class="blog-notice">Пока нет записей.</p>';
+            })
+            .catch(function () {});
+    }
+
+    // Contact form (index.html #contact-form) -> POST /api/v1/public/contact.
+    function bindContact() {
+        var form = document.getElementById("contact-form");
+        if (!form) return;
+        var status = document.getElementById("cf-status");
+        form.addEventListener("submit", function (e) {
+            e.preventDefault();
+            var btn = form.querySelector('button[type="submit"]');
+            // form.elements[...] (not form.name — that resolves the form's own name attr).
+            var payload = {
+                name: form.elements["name"].value.trim(),
+                email: form.elements["email"].value.trim(),
+                subject: form.elements["subject"] ? form.elements["subject"].value.trim() : "",
+                message: form.elements["message"].value.trim(),
+            };
+            if (status) status.textContent = "Отправка…";
+            if (btn) btn.disabled = true;
+            fetch("/api/v1/public/contact", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            })
+                .then(function (r) {
+                    return r.json().then(function (b) {
+                        return { ok: r.ok, body: b };
+                    });
+                })
+                .then(function (res) {
+                    if (res.ok) {
+                        if (status) status.textContent = "Спасибо! Сообщение отправлено.";
+                        form.reset();
+                    } else if (status) {
+                        status.textContent = (res.body && (res.body.message || res.body.error)) || "Не удалось отправить.";
+                    }
+                })
+                .catch(function () {
+                    if (status) status.textContent = "Ошибка сети.";
+                })
+                .finally(function () {
+                    if (btn) btn.disabled = false;
+                });
+        });
+    }
+
     document.addEventListener("DOMContentLoaded", function () {
+        if (document.getElementById("latest-posts")) renderLatest();
+        bindContact();
         if (location.pathname.indexOf("blog-single") !== -1) renderSingle();
-        else renderList();
+        else if (document.querySelector("#content .blog-regular")) renderList();
     });
 })();

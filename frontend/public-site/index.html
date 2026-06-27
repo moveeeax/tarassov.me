@@ -129,23 +129,14 @@
                                         <!-- open link -->
                                         
                                         
-                                        <!-- latest-from-blog -->
+                                        <!-- latest-from-blog (filled by js/blog.js from /api/v1/public/posts) -->
                                         <div class="latest-from-blog">
-                                        	<h3>Latest From The Blog 
-                                            	<a class="button2" href="blog.html">All Posts</a></h3>
-                                            <div class="blog-bar">
-                                            	<h2><a href="blog-single.html">Runaway A Road Adventure</a></h2>
-                                            </div>
+                                        	<h3>Из блога
+                                            	<a class="button2" href="blog.html">Все записи</a></h3>
+                                            <div class="blog-bar" id="latest-posts"></div>
                                         </div>
                                         <!-- latest-from-blog -->
-                                        
-                                        <!-- widget : twitter -->
-                                        <aside class="widget widget-twitter">
-                                        	<a href="https://twitter.com/envato" class="twitter-link" target="_blank" ></a>
-                                            <div id="twitter-list"></div>
-                                        </aside>
-                                        <!-- widget : twitter -->
-                                        
+
                                         
                                     </div>
                                     <!-- COVER IMAGE -->
@@ -803,47 +794,37 @@
                                                     </div>
                                                   
                                                     <div class="letter-info">
-                                                    	<h4>Johhny Doe</h4>
-                                                        <p><a href="#"><i>johhny@gmail.com</i></a></p>
-                                                        <p> - Planet Earth</p>
+                                                    	<h4>Михаил Тарасов</h4>
+                                                        <p>tarassov.me</p>
                                                     </div>
-                                                    
-                                                  </div>    
+
+                                                  </div>
                                                   <!-- LETTER -->
-                                                   
-                                                
-                                                  <form id="contact-form" action="send-mail.php" method="post">
-                                                    
-                                                    <!-- enter your e-mail address here -->
-                                                    <input type="hidden" id="to" name="to" value="jonhdoeeee@jonhdoe.com">
-                                                    
+
+                                                  <!-- Posts JSON to /api/v1/public/contact (js/blog.js bindContact) -->
+                                                  <form id="contact-form">
                                                     <p>
-                                                      <label for="name">Name</label>
-                                                      <input type="text" name="name" id="name" class="required">
+                                                      <label for="cf-name">Имя</label>
+                                                      <input type="text" id="cf-name" name="name" required maxlength="120">
                                                     </p>
-                                                    
                                                     <p>
-                                                      <label for="email">Email</label>
-                                                      <input type="text" name="email" id="email" class="required email">
+                                                      <label for="cf-email">Email</label>
+                                                      <input type="email" id="cf-email" name="email" required>
                                                     </p>
-                                                    
                                                     <p>
-                                                      <label for="subject">Subject</label>
-                                                      <input type="text" name="subject" id="subject" class="required">
+                                                      <label for="cf-subject">Тема</label>
+                                                      <input type="text" id="cf-subject" name="subject" maxlength="200">
                                                     </p>
-                                                    
                                                     <p>
-                                                      <label for="message">Message</label>
-                                                      <textarea name="message" id="message" class="required"></textarea>
+                                                      <label for="cf-message">Сообщение</label>
+                                                      <textarea id="cf-message" name="message" required maxlength="5000"></textarea>
                                                     </p>
-                                                   
                                                     <p>
-                                                      <img class="ajax-loader" src="images/bckg/loader_light.gif" alt="Sending ...">
-                                                      <input type="submit" class="btn submit" value="SEND">
+                                                      <button type="submit" class="btn submit">Отправить</button>
+                                                      <span class="contact-status" id="cf-status" aria-live="polite"></span>
                                                     </p>
-                                                    
                                                   </form>
-                                                  
+
                                               </div>
                                               <!-- .contact-form -->
                                 		
@@ -922,7 +903,8 @@
         <script src="js/jquery.validate.min.js"></script>
         <script src="js/jquery.fancybox-1.3.4.pack.js"></script>
         <script src="js/main.js"></script>
+        <script src="js/blog.js"></script>
 
-	
+
     </body>
 </html>
