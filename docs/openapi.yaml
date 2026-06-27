@@ -949,3 +949,21 @@ paths:
         '200': { description: Sent }
         '400': { description: Validation failed }
         '503': { description: Contact form not configured }
+  /api/v1/admin/uploads:
+    post:
+      summary: Upload an image (admin) → { key, url }
+      tags: [uploads]
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201': { description: "Stored — { data: { key, url } }" }
+        '400': { description: Missing/unsupported/oversized file }
+        '403': { description: Not an admin }
+        '503': { description: Storage backend not configured }

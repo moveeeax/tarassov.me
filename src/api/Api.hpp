@@ -29,6 +29,7 @@
 #include "api/JobsController.hpp"
 #include "api/Middleware.hpp"
 #include "api/PostsController.hpp"
+#include "api/UploadController.hpp"
 
 namespace Api {
 

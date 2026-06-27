@@ -219,6 +219,28 @@ function PostFormCard({ title, initial, submitting, onSubmit, onCancel }: PostFo
   const [status, setStatus] = useState<PostForm['status']>(initial.status);
   // Auto-fill the slug from the title only while creating (empty initial slug).
   const [slugTouched, setSlugTouched] = useState(initial.slug !== '');
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState('');
+
+  // Multipart upload to /api/v1/admin/uploads (raw fetch: FormData, cookie auth
+  // is same-origin). On success, append the returned URL as a Markdown image.
+  async function handleUpload(f: File) {
+    setUploading(true);
+    setUploadErr('');
+    try {
+      const fd = new FormData();
+      fd.append('file', f);
+      const r = await fetch('/api/v1/admin/uploads', { method: 'POST', body: fd });
+      const b = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(b?.message || b?.error || 'Upload failed');
+      const url: string = b?.data?.url ?? '';
+      setBody((prev) => prev + (prev && !prev.endsWith('\n') ? '\n\n' : '') + `![](${url})\n`);
+    } catch (e) {
+      setUploadErr(e instanceof Error ? e.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -283,13 +305,30 @@ function PostFormCard({ title, initial, submitting, onSubmit, onCancel }: PostFo
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="post-body">Body (Markdown)</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="post-body">Body (Markdown)</Label>
+              <label className="cursor-pointer text-xs text-primary hover:underline">
+                {uploading ? 'Uploading…' : '+ Image'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleUpload(f);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
             <textarea
               id="post-body"
               className={textareaClass}
               value={body}
               onChange={(e) => setBody(e.target.value)}
             />
+            {uploadErr && <p className="text-xs text-destructive">{uploadErr}</p>}
           </div>
 
           <div className="space-y-1">
