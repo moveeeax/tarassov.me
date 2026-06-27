@@ -246,7 +246,7 @@ function readCookie(name: string): string | undefined {
   return undefined;
 }
 
-function csrfHeader(method: string): Record<string, string> {
+export function csrfHeader(method: string): Record<string, string> {
   if (!UNSAFE_METHODS.has(method.toUpperCase())) return {};
   const token = readCookie(CSRF_COOKIE);
   return token ? { [CSRF_HEADER]: token } : {};

@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { useErrorToast } from '@/hooks/useErrorToast';
-import { api } from '@/lib/api/client';
+import { api, csrfHeader } from '@/lib/api/client';
 
 /**
  * AdminPostsPage — blog CMS. Lists every post (drafts included), creates,
@@ -230,7 +230,14 @@ function PostFormCard({ title, initial, submitting, onSubmit, onCancel }: PostFo
     try {
       const fd = new FormData();
       fd.append('file', f);
-      const r = await fetch('/api/v1/admin/uploads', { method: 'POST', body: fd });
+      // FormData sets its own multipart Content-Type; only add cookie auth +
+      // the double-submit CSRF header (no-op when CSRF is disabled).
+      const r = await fetch('/api/v1/admin/uploads', {
+        method: 'POST',
+        credentials: 'include',
+        headers: csrfHeader('POST'),
+        body: fd,
+      });
       const b = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(b?.message || b?.error || 'Upload failed');
       const url: string = b?.data?.url ?? '';

@@ -313,6 +313,15 @@ spec:
             - name: MAIL_SUBJECT_PREFIX
               value: {{ .Values.mail.subjectPrefix | quote }}
             {{- end }}
+            # Object storage: non-secret config is rendered into the ConfigMap;
+            # only the S3 secret key is injected here from the Secret.
+            {{- if .Values.storage.s3.secretKey }}
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tarassov-me.fullname" . }}
+                  key: s3-secret-key
+            {{- end }}
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false

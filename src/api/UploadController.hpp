@@ -55,11 +55,12 @@ public:
             {"png", "image/png"},
             {"gif", "image/gif"},
             {"webp", "image/webp"},
-            {"svg", "image/svg+xml"},
+            // SVG intentionally excluded: it can carry inline <script> → stored
+            // XSS when served same-origin. Raster only.
         };
         const auto type_it = kTypes.find(ext);
         if (type_it == kTypes.end()) {
-            callback(ErrorResponse::bad_request("unsupported_type", "Allowed: jpg, jpeg, png, gif, webp, svg"));
+            callback(ErrorResponse::bad_request("unsupported_type", "Allowed: jpg, jpeg, png, gif, webp"));
             return;
         }
 

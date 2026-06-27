@@ -45,6 +45,9 @@ public:
         Validation::string_length(errs, body, "name", 1, 120);
         Validation::string_length(errs, body, "subject", 0, 200);
         Validation::string_length(errs, body, "message", 1, 5000);
+        // name/subject can reach an email header → reject CR/LF (header injection).
+        Validation::no_crlf(errs, body, "name");
+        Validation::no_crlf(errs, body, "subject");
         if (errs.any()) {
             callback(Validation::response_400(errs));
             return;
