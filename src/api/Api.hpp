@@ -26,6 +26,7 @@
 #include "api/AuthController.hpp"
 #include "api/HealthController.hpp"
 #include "api/JobsController.hpp"
+#include "api/PostsController.hpp"
 #include "api/Middleware.hpp"
 
 namespace Api {

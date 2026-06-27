@@ -837,3 +837,95 @@ paths:
         '200': { description: Requeued }
         '404': { description: Not found or not in DLQ }
 
+
+  /api/v1/posts:
+    get:
+      summary: List posts (admin; offset-paginated)
+      tags: [posts]
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: limit,  in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        '200': { description: "{ data, total, limit, offset }" }
+        '403': { description: Not an admin }
+    post:
+      summary: Create post (admin)
+      tags: [posts]
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slug, title]
+              properties:
+                slug:    { type: string, minLength: 1, maxLength: 160 }
+                title:   { type: string, minLength: 1, maxLength: 255 }
+                summary: { type: string }
+                body:    { type: string }
+                status:  { type: string, enum: [draft, published], default: draft }
+      responses:
+        '201': { description: Created }
+        '400': { description: Validation failed }
+        '403': { description: Not an admin }
+        '409': { description: Slug already exists }
+  /api/v1/posts/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Get post (admin)
+      tags: [posts]
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200': { description: OK }
+        '404': { description: Not found }
+    put:
+      summary: Update post (admin)
+      tags: [posts]
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slug, title]
+              properties:
+                slug:    { type: string, minLength: 1, maxLength: 160 }
+                title:   { type: string, minLength: 1, maxLength: 255 }
+                summary: { type: string }
+                body:    { type: string }
+                status:  { type: string, enum: [draft, published] }
+      responses:
+        '200': { description: Updated }
+        '400': { description: Validation failed }
+        '403': { description: Not an admin }
+        '404': { description: Not found }
+        '409': { description: Slug already exists }
+    delete:
+      summary: Delete post (admin)
+      tags: [posts]
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200': { description: Deleted }
+        '404': { description: Not found }
+  /api/v1/public/posts:
+    get:
+      summary: List published posts (public, no auth)
+      tags: [posts]
+      parameters:
+        - { name: limit,  in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        '200': { description: "{ data, limit, offset } — published posts, newest first" }
+  /api/v1/public/posts/{slug}:
+    parameters:
+      - { name: slug, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Get a published post by slug (public, no auth)
+      tags: [posts]
+      responses:
+        '200': { description: OK }
+        '404': { description: Not found or not published }
