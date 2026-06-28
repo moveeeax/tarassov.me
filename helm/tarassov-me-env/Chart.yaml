@@ -6,7 +6,7 @@ description: >-
   and Jaeger — auto-configured, with *.<env>.example.com ingress.
 type: application
 version: 0.1.0
-appVersion: "1.4.0"
+appVersion: "1.5.0"
 maintainers:
   - name: tarassov-me-team
 # Subcharts are wired entirely from this chart's values (fixed in-namespace

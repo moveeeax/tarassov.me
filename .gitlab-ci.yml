@@ -93,19 +93,19 @@ build:arm64:
       -t $IMAGE_NAME-worker:$CI_COMMIT_SHORT_SHA-arm64 --push .
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
 # amd64 runtime + worker, built natively on the dedicated amd64 runner
 # (tags: [amd64], run_untagged=false). Only the published manifest needs amd64,
-# so this is master-only. One compile, its own per-arch buildcache.
+# so this is main-only. One compile, its own per-arch buildcache.
 build:amd64:
   extends: .buildx
   stage: build
   tags:
     - amd64
   rules:
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
   script:
     - >
       docker buildx build --platform linux/amd64 --target runtime -f docker/Dockerfile
@@ -117,14 +117,14 @@ build:amd64:
       --cache-from type=registry,ref=$IMAGE_NAME:buildcache-amd64
       -t $IMAGE_NAME-worker:$CI_COMMIT_SHORT_SHA-amd64 --push .
 
-# Frontend images (node build + nginx) — light, per-arch native, master-only
+# Frontend images (node build + nginx) — light, per-arch native, main-only
 # (only the manifest needs them). arm64 on the default runner, amd64 on the
 # tagged runner (node's npm ci deadlocks under QEMU, so never emulate).
 build:frontend:arm64:
   extends: .buildx
   stage: build
   rules:
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
   script:
     - >
       docker buildx build --platform linux/arm64 -f frontend/Dockerfile
@@ -138,7 +138,7 @@ build:frontend:amd64:
   tags:
     - amd64
   rules:
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
   script:
     - >
       docker buildx build --platform linux/amd64 -f frontend/Dockerfile
@@ -161,7 +161,7 @@ docs:generate:
       - docs/html/
     expire_in: 1 month
   rules:
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
 
 # ──────────────────────────────────────────────
 # Test stage — run the already-built arm64 images
@@ -199,7 +199,7 @@ test:unit:
     expire_in: 1 week
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
 # Integration tests — full stack with Docker Compose.
@@ -251,7 +251,7 @@ test:integration:
     - cd docker && docker compose --env-file .env --profile test down -v || true
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
 # Image security scan — Trivy fails the pipeline on CRITICAL+HIGH CVEs (with a known fix).
@@ -295,7 +295,7 @@ scan:image:
     - trivy image --platform linux/arm64 --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed $IMAGE_NAME-worker:$CI_COMMIT_SHORT_SHA-arm64
 
     # ── frontend ─────────────────────────────────────────────────────────────
-    # frontend is master-only (build:frontend:arm64 rule); on MR/develop the
+    # frontend is main-only (build:frontend:arm64 rule); on MR/develop the
     # image doesn't exist — skip gracefully with exit-code 0 + || true so the
     # job doesn't fail on branches where the image was never built.
     - trivy image --platform linux/arm64 --exit-code 0 --severity HIGH,CRITICAL --format table $IMAGE_NAME-frontend:$CI_COMMIT_SHORT_SHA-arm64 | tee scan-results/trivy-frontend-report.txt || true
@@ -309,7 +309,7 @@ scan:image:
     expire_in: 1 week
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
 # Sanitizer build — AddressSanitizer + UndefinedBehaviorSanitizer. The ASan
@@ -342,7 +342,7 @@ test:sanitizers:
   allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
 # Coverage — build with gcov instrumentation and run all test buckets against
@@ -433,7 +433,7 @@ test:coverage:
   allow_failure: true  # TODO: remove once coverage job is confirmed stable on runner
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
 # Frontend gate: typecheck + unit tests + production build (node image,
@@ -462,7 +462,7 @@ test:frontend:
     - npm run build
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
 # ──────────────────────────────────────────────
@@ -481,7 +481,7 @@ lint:openapi-drift:
     - ./scripts/check-test-buckets.sh
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
 # Render the tarassov-me-env umbrella with CI values and assert deploy-path invariants
@@ -497,7 +497,7 @@ helm:validate:
     - ./scripts/check-helm-render.sh
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
 lint:shellcheck:
@@ -510,7 +510,7 @@ lint:shellcheck:
     - shellcheck -f gcc --severity=warning scripts/*.sh docker/*.sh
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
 lint:gitleaks:
@@ -529,7 +529,7 @@ lint:gitleaks:
     - gitleaks detect --source . --log-opts="HEAD" --no-banner --redact
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
 # clang-format check — fails if any file drifts from .clang-format.
@@ -542,7 +542,7 @@ lint:clang-format:
       -exec clang-format --dry-run --Werror --style=file {} +
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
 # Static analysis with cppcheck — run inside the builder image which has all headers.
@@ -586,7 +586,7 @@ lint:cppcheck:
   allow_failure: true  # TODO: flip to false once baseline is confirmed clean
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
 # clang-tidy — structural and API-usage lint. Uses compile_commands.json.
@@ -631,7 +631,7 @@ lint:clang-tidy:
   allow_failure: true  # TODO: flip to false once baseline is clean
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "develop"
 
 # ──────────────────────────────────────────────
@@ -649,7 +649,7 @@ manifest:multiarch:
   variables:
     DOCKER_TLS_CERTDIR: ""
   rules:
-    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "main"
   before_script:
     - echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
   script:
@@ -671,7 +671,7 @@ manifest:multiarch:
 
 # Tag-driven release: PROMOTE the per-arch images that build:{arm64,amd64} and
 # build:frontend:* already pushed natively for this commit (a tag is always cut
-# from a built master commit, so the :<sha>-{amd64,arm64} images exist) into
+# from a built main commit, so the :<sha>-{amd64,arm64} images exist) into
 # :$CI_COMMIT_TAG manifests — the same digest-only imagetools approach as
 # manifest:multiarch. No QEMU rebuild: emulating amd64 segfaulted cmake (exit
 # 139). MANUAL so a tag push never fails the pipeline when docker creds are absent.

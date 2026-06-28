@@ -108,7 +108,7 @@ intentionally one-sided).
 
 ## Release
 
-Semver, tagged on `master`. A tag that matches `v*.*.*` triggers
+Semver, tagged on `main`. A tag that matches `v*.*.*` triggers
 `.github/workflows/release.yml`, which builds multi-arch images for both
 the app and worker targets, pushes them to `ghcr.io/<owner>/<repo>` (and
 `-worker`), and opens a draft GitHub Release seeded from auto-generated

@@ -6,6 +6,42 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-06-28
+
+First production release of the personal site (tarassov.me): the public
+BookCard vCard + blog, a working contact form, and admin image uploads.
+
+### Added
+- **Public site** (`/`): the BookCard vCard with real CV content, an "Опыт/стек"
+  block, a real "Проекты" block (demo portfolio removed), and a live
+  latest-posts widget backed by `GET /api/v1/public/posts`.
+- **Contact form**: `POST /api/v1/public/contact` → email via SMTP (Mailer),
+  wired through `CONTACT_EMAIL`.
+- **Image storage**: S3/MinIO backend + an authenticated admin upload endpoint
+  for post images (local disk backend stays the dev default).
+
+### Changed
+- README rewritten for the personal site; the Posts query key is centralized on
+  the frontend.
+- `values-prod.example` carries the storage + contact settings; demo comments
+  dropped. Helm prod wiring filled in for a real deploy.
+
+### Security
+- Strict CSP for the `/admin` + `/auth` paths (#16).
+- Upload hardening: magic-number content-type check, plus upload/contact
+  endpoint hardening from the pre-launch review.
+- Nav a11y fix; Helm config guard.
+
+### Fixed
+- Post create/update no longer reuses the `status` param inside a `CASE`;
+  `PostRepository` status param type clash resolved.
+- Upload build: correct Drogon multipart header.
+
+### CI
+- Retry the buildx + coverage jobs on transient vcpkg fetch failures.
+- Image build/publish jobs now gate on `main` (the repo's release branch)
+  instead of the non-existent `master`, so tagged releases actually publish.
+
 ## [1.4.0] — 2026-06-26
 
 Fork-readiness hardening + API versioning. Prepares the template to be made
