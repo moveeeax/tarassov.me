@@ -31,6 +31,11 @@ RUN npm run build
 # podSecurityContext (runAsNonRoot) without a privileged port or root pidfile.
 FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
 
+# The base image drops to the non-root "nginx" user (uid 101). Become root for
+# the file-staging steps below — the webroot is root-owned, so the in-place
+# `mv` needs write on the directory — then drop back to nginx for runtime.
+USER root
+
 # React SPA (auth / account / admin). Its index.html is renamed to app.html so
 # it can act as the SPA fallback for /login, /account/*, /admin/* WITHOUT
 # clobbering the public BookCard index.html that owns /. Vite assets live under
@@ -40,6 +45,9 @@ RUN mv /usr/share/nginx/html/index.html /usr/share/nginx/html/app.html
 # Public BookCard static site at /: index.html (vCard) + blog + css/js/images.
 COPY frontend/public-site /usr/share/nginx/html
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+
+# Back to the unprivileged runtime user.
+USER nginx
 
 EXPOSE 8080
 
