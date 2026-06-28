@@ -48,6 +48,16 @@ variables:
   variables:
     DOCKER_TLS_CERTDIR: ""
   timeout: 8h
+  # vcpkg fetches dependency tarballs from GitHub, which intermittently returns
+  # HTTP 400 and aborts the build (vcpkg mis-classifies it as non-transient and
+  # won't retry itself). Retry the job so a flaky network fetch doesn't red the
+  # pipeline; real compile failures are caught locally + reproduce on retry.
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
   before_script:
     - echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
     - docker buildx create --use --name builder --driver docker-container --bootstrap
@@ -360,6 +370,14 @@ test:coverage:
   variables:
     DOCKER_TLS_CERTDIR: ""
     COVERAGE_MIN: "40"
+  # Recompiles a coverage-instrumented build → re-runs vcpkg, so it hits the
+  # same flaky GitHub tarball fetches. Retry transient failures.
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
   needs:
     - build:arm64
   before_script:
