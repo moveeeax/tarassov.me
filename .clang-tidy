@@ -1,0 +1,64 @@
+---
+# Enterprise baseline for a C++20 service template.
+# Philosophy: catch real bugs + modernize idioms, avoid pedantic noise.
+# Tighten the ignore list over time; errors-as-warnings should shrink toward zero.
+Checks: >
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-exception-escape,
+  -bugprone-narrowing-conversions,
+  -bugprone-unchecked-optional-access,
+  performance-*,
+  -performance-unnecessary-value-param,
+  -performance-avoid-endl,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  -modernize-pass-by-value,
+  -modernize-use-nodiscard,
+  -modernize-use-designated-initializers,
+  cert-*,
+  -cert-err33-c,
+  -cert-err58-cpp,
+  -cert-msc30-c,
+  -cert-msc50-cpp,
+  -cert-msc51-cpp,
+  misc-*,
+  -misc-non-private-member-variables-in-classes,
+  -misc-include-cleaner,
+  -misc-use-anonymous-namespace,
+  -misc-no-recursion,
+  -misc-const-correctness,
+  readability-*,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -readability-uppercase-literal-suffix,
+  -readability-braces-around-statements,
+  -readability-implicit-bool-conversion,
+  -readability-function-cognitive-complexity,
+  -readability-convert-member-functions-to-static,
+  -readability-named-parameter,
+  portability-*,
+  clang-analyzer-*,
+  -clang-analyzer-optin.performance.Padding
+
+# Nothing is an error yet — the gating happens in CI via `-warnings-as-errors`
+# once the baseline is clean. Keep this list conservative in CI.
+WarningsAsErrors: ''
+
+# Only lint our own headers, skip vendored and third-party.
+HeaderFilterRegex: '^.*(src|tests)/.*\.(h|hpp)$'
+
+FormatStyle: file
+
+CheckOptions:
+  - key: readability-identifier-naming.NamespaceCase
+    value: CamelCase
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.FunctionCase
+    value: lower_case
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: readability-identifier-naming.PrivateMemberSuffix
+    value: _

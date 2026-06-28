@@ -1,0 +1,183 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+# Publishes multi-arch images on tags matching v<semver>. Uses the repo's
+# existing multi-stage Dockerfile — runtime is the default final stage,
+# worker-runtime is the worker image. Both get tagged with the git tag and
+# :latest.
+#
+# Registry: Docker Hub `docker.io/resert/tarassov-me{,-worker}` — this MUST
+# match what the runtime actually pulls. docker/docker-compose.yml and
+# helm/*/values-prod.yaml both deploy `your-registry/your-project/…` from Docker Hub, and GitLab CI
+# (.gitlab-ci.yml, IMAGE_NAME) publishes there too. Pushing to GHCR here would
+# produce images nothing deploys. Requires repo secrets DOCKER_USERNAME /
+# DOCKER_PASSWORD (same names GitLab CI uses).
+#
+# Build order (mirrors GitLab CI pattern):
+#   1. build-staging  — push multi-arch under :<version>-staging (no :latest yet)
+#   2. scan           — Trivy gates on the staging tags; fails release on fixable CRITICAL
+#   3. promote        — imagetools create stitches staging digest into :<version>/:latest
+#   4. github-release — GitHub Release notes (needs: promote)
+#
+# Least privilege: no workflow-wide token scope. Each job declares only the
+# permissions it actually needs.
+permissions: {}
+
+env:
+  # Single source of truth for the published image namespace; mirrors
+  # .gitlab-ci.yml's IMAGE_NAME.
+  IMAGE_NAME: docker.io/resert/tarassov-me
+
+jobs:
+  build-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read   # checkout
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Extract version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130  # v3.7.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
+
+      # Push under a staging tag so Trivy can scan before :latest/:version are published.
+      # The promote job (needs: scan) will move these digests into the final tags via
+      # imagetools create (no rebuild — digest-level operation).
+      - name: Build and push app image (multi-arch, staging tag)
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: runtime
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }}-staging
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          sbom: true
+          provenance: mode=max
+
+      - name: Build and push worker image (multi-arch, staging tag)
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: worker-runtime
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.IMAGE_NAME }}-worker:${{ steps.ver.outputs.version }}-staging
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          sbom: true
+          provenance: mode=max
+
+  scan:
+    runs-on: ubuntu-latest
+    needs: build-staging
+    permissions:
+      contents: read
+    steps:
+      - name: Extract version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Vulnerability gate — scan the staging tags before they get promoted to
+      # :latest/:version. Fails on a fixable CRITICAL so nothing broken ships.
+      # platform: linux/amd64 matches the most common deployment target; the
+      # multi-arch manifest index requires an explicit platform hint for Trivy.
+      - name: Scan app image (Trivy)
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2  # v0.28.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }}-staging
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          image-config-scanners: ''
+          scan-type: image
+          platform: linux/amd64
+
+      - name: Scan worker image (Trivy)
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2  # v0.28.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}-worker:${{ steps.ver.outputs.version }}-staging
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          image-config-scanners: ''
+          scan-type: image
+          platform: linux/amd64
+
+  promote:
+    runs-on: ubuntu-latest
+    needs: scan
+    permissions:
+      contents: read
+    steps:
+      - name: Extract version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
+
+      # Promote by digest — imagetools create stitches the already-pushed staging
+      # digest into the final public tags without any layer re-pull or rebuild.
+      - name: Promote app image to version + latest
+        run: |
+          docker buildx imagetools create \
+            -t ${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }} \
+            -t ${{ env.IMAGE_NAME }}:latest \
+            ${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }}-staging
+
+      - name: Promote worker image to version + latest
+        run: |
+          docker buildx imagetools create \
+            -t ${{ env.IMAGE_NAME }}-worker:${{ steps.ver.outputs.version }} \
+            -t ${{ env.IMAGE_NAME }}-worker:latest \
+            ${{ env.IMAGE_NAME }}-worker:${{ steps.ver.outputs.version }}-staging
+
+  github-release:
+    runs-on: ubuntu-latest
+    needs: promote
+    permissions:
+      contents: write  # create the GitHub Release + tag notes
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0  # needed for CHANGELOG parsing
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2.6.2
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}

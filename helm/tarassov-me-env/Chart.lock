@@ -1,0 +1,12 @@
+dependencies:
+- name: tarassov-me
+  repository: file://../tarassov-me
+  version: 0.1.0
+- name: tarassov-me-worker
+  repository: file://../tarassov-me-worker
+  version: 0.1.0
+- name: tarassov-me-frontend
+  repository: file://../tarassov-me-frontend
+  version: 0.1.0
+digest: sha256:a142fdc7a9a1e2783d77bf1a9f2cc6a9140e2963b0d2c680430400e3452fef24
+generated: "2026-06-27T00:26:21.919616+03:00"

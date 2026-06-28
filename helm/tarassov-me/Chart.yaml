@@ -1,0 +1,8 @@
+apiVersion: v2
+name: tarassov-me
+description: A Helm chart for deploying the C++ REST API application
+type: application
+version: 0.1.0
+appVersion: "1.5.0"
+maintainers:
+  - name: tarassov-me-team

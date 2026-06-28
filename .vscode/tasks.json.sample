@@ -1,0 +1,29 @@
+{
+  "// note": "Copy to tasks.json. The launch configurations call these via preLaunchTask.",
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "make: build-local",
+      "type": "shell",
+      "command": "make build-local",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "make: test-local",
+      "type": "shell",
+      "command": "make test-local",
+      "group": { "kind": "test", "isDefault": true }
+    },
+    {
+      "label": "make: up",
+      "type": "shell",
+      "command": "make up"
+    },
+    {
+      "label": "make: down",
+      "type": "shell",
+      "command": "make down"
+    }
+  ]
+}

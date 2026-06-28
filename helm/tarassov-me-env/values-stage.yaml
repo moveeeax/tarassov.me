@@ -1,0 +1,43 @@
+# ═══════════════════════════════════════════════════════════════
+# STAGE preset for the tarassov-me-env umbrella → *.stage.tarassov.me
+#
+# Snapshot of the live `stage` release (ns env-stage) taken with
+# `helm get values stage -n env-stage`. The umbrella keeps the chart-default
+# (test) credentials in-namespace, so there are NO real secrets here and this
+# file is safe to commit (unlike the gitignored helm/**/values-prod.yaml).
+#
+# Deploy:
+#   helm dependency build ./helm/tarassov-me-env
+#   helm upgrade --install stage ./helm/tarassov-me-env -n env-stage --create-namespace \
+#     -f helm/tarassov-me-env/values-stage.yaml
+#
+# NOTE: image tags below are pinned to the v1.3.3 release. Bump the three
+# `image.tag` values to roll a newer one.
+# ═══════════════════════════════════════════════════════════════
+
+env: stage
+baseDomain: tarassov.me
+
+tarassov-me:
+  image:
+    tag: v1.4.0
+
+tarassov-me-frontend:
+  image:
+    tag: v1.4.0
+
+tarassov-me-worker:
+  image:
+    tag: v1.4.0
+  app:
+    baseUrl: https://app.stage.tarassov.me
+  worker:
+    types: account_email,email.send,webhook.deliver
+
+# Stage exposes the dev mailbox + traces (same as demo) for QA walkthroughs.
+jaeger:
+  ingress:
+    enabled: true
+mailpit:
+  ingress:
+    enabled: true

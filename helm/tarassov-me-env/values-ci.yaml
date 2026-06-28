@@ -1,0 +1,23 @@
+# CI rendering values for `make helm-validate` / the helm-charts CI job.
+# NOT a deployable config — placeholder credentials, no cluster-specific
+# resources. Its only job is to make `helm template` deterministic so the
+# rendered output can be asserted on (port consistency, required env, host
+# expansion). The real per-env values live in --set flags at deploy time.
+env: ci
+baseDomain: ci.example.test
+credentials:
+  dbPassword: "ci-db-pass"
+  redisPassword: "ci-redis-pass"
+  jwtSecret: "ci-jwt-secret-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+tarassov-me:
+  mail:
+    enabled: true # force the {{- if .Values.mail.enabled }} branch so MAIL_VIA_JOBS renders
+    viaJobs: true
+  auth:
+    mode: jwt
+    jwtSecret: "ci-jwt-secret-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+tarassov-me-worker:
+  app:
+    baseUrl: "https://app.ci.ci.example.test"
+  auth:
+    jwtSecret: "ci-jwt-secret-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"

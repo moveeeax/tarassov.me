@@ -1,0 +1,129 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tarassov-me.fullname" . }}
+  labels:
+    {{- include "tarassov-me.labels" . | nindent 4 }}
+data:
+  # NOTE: secrets (DB / Redis passwords) are NOT inlined here — a ConfigMap is
+  # world-readable in the cluster. The app expands ${DATABASE_PASSWORD} /
+  # ${REDIS_PASSWORD} at startup from env vars the Deployment injects via
+  # secretKeyRef (see deployment.yaml / templates/secret.yaml).
+  config.json: |
+    {
+      "app": {
+        "name": {{ .Values.app.name | quote }},
+        "base_url": {{ .Values.app.baseUrl | quote }}
+      },
+      "server": {
+        "host": "0.0.0.0",
+        "port": {{ .Values.service.httpPort }},
+        "threads": {{ .Values.server.threads }}
+      },
+      "logging": {
+        "name": {{ .Values.logging.name | quote }},
+        "file": "logs/app.log",
+        "level": {{ .Values.logging.level | quote }},
+        "format": {{ .Values.logging.format | quote }}
+      },
+      "observability": {
+        "metrics_address": "0.0.0.0:{{ .Values.service.metricsPort }}",
+        "service_name": {{ .Values.logging.serviceName | quote }},
+        "otlp_endpoint": {{ if .Values.tracing.enabled }}{{ .Values.tracing.otlpEndpoint | quote }}{{ else }}""{{ end }}
+      },
+      "database": {
+        "primary": "postgresql://{{ .Values.externalDatabase.user }}:${DATABASE_PASSWORD}@{{ .Values.externalDatabase.host }}:{{ .Values.externalDatabase.port }}/{{ .Values.externalDatabase.name }}",
+        "replicas": [
+          {{- if .Values.externalDatabase.replicaHost }}
+          "postgresql://{{ .Values.externalDatabase.user }}:${DATABASE_PASSWORD}@{{ .Values.externalDatabase.replicaHost }}:{{ .Values.externalDatabase.port }}/{{ .Values.externalDatabase.name }}"
+          {{- end }}
+        ],
+        "pool_size": {{ .Values.externalDatabase.poolSize }}
+      },
+      "cache": {
+        "use_sentinel": {{ .Values.externalRedis.useSentinel }},
+        "url": {{ .Values.externalRedis.url | quote }},
+        "password": "${REDIS_PASSWORD:-}",
+        "pool_size": {{ .Values.externalRedis.poolSize }},
+        "sentinel": {
+          "master_name": {{ .Values.externalRedis.masterName | quote }},
+          "nodes": [
+            {{- if .Values.externalRedis.useSentinel }}
+            {{- $nodes := splitList "," .Values.externalRedis.sentinelNodes }}
+            {{- range $i, $node := $nodes }}
+            {{- $parts := splitList ":" $node }}
+            {{- if gt $i 0 }},{{ end }}
+            { "host": {{ index $parts 0 | quote }}, "port": {{ index $parts 1 }} }
+            {{- end }}
+            {{- end }}
+          ]
+        }
+      },
+      "jobs": {
+        "enabled": {{ .Values.jobs.enabled }},
+        "result_ttl": {{ .Values.jobs.resultTtl }},
+        "max_retries": {{ .Values.jobs.maxRetries }}
+      },
+      "api": {
+        "public_paths": {{ .Values.api.publicPaths | quote }}
+      },
+      "rate_limit": {
+        "enabled": {{ .Values.rateLimit.enabled }},
+        "requests": {{ .Values.rateLimit.requests }},
+        "window_sec": {{ .Values.rateLimit.windowSec }},
+        "scope": {{ .Values.rateLimit.scope | quote }},
+        "trust_proxy": {{ .Values.rateLimit.trustProxy }},
+        "trusted_proxy_count": {{ .Values.rateLimit.trustedProxyCount }},
+        "fail_open": {{ .Values.rateLimit.failOpen }},
+        "whitelist": {{ .Values.rateLimit.whitelist | quote }},
+        "protected_paths": {{ .Values.rateLimit.protectedPaths | quote }}
+      },
+      "idempotency": {
+        "enabled": {{ .Values.idempotency.enabled }},
+        "ttl_sec": {{ .Values.idempotency.ttlSec }},
+        "lock_ttl_sec": {{ .Values.idempotency.lockTtlSec }},
+        "max_body_kb": {{ .Values.idempotency.maxBodyKb }},
+        "max_response_kb": {{ .Values.idempotency.maxResponseKb }}
+      },
+      "mail": {
+        "enabled": {{ .Values.mail.enabled }},
+        "via_jobs": {{ .Values.mail.viaJobs }},
+        "smtp_host": {{ .Values.mail.smtpHost | quote }},
+        "smtp_port": {{ .Values.mail.smtpPort }},
+        "smtp_username": {{ .Values.mail.smtpUsername | quote }},
+        "smtp_password": "${MAIL_SMTP_PASSWORD:-}",
+        "smtp_use_tls": {{ .Values.mail.smtpUseTls }},
+        "from": {{ .Values.mail.from | quote }},
+        "from_name": {{ .Values.mail.fromName | quote }},
+        "subject_prefix": {{ .Values.mail.subjectPrefix | quote }},
+        "contact_to": {{ .Values.mail.contactTo | quote }},
+        "timeout_sec": 30
+      },
+      "storage": {
+        "backend": {{ .Values.storage.backend | quote }},
+        "public_base_url": {{ .Values.storage.publicBaseUrl | quote }},
+        "local": { "root": "data/uploads" },
+        "s3": {
+          "endpoint": {{ .Values.storage.s3.endpoint | quote }},
+          "region": {{ .Values.storage.s3.region | quote }},
+          "bucket": {{ .Values.storage.s3.bucket | quote }},
+          "access_key": {{ .Values.storage.s3.accessKey | quote }},
+          "secret_key": "${S3_SECRET_KEY:-}"
+        }
+      },
+      "messaging": {
+        "enabled": {{ .Values.externalKafka.enabled }},
+        "kafka": {
+          "brokers": {{ .Values.externalKafka.brokers | quote }},
+          "producer": {
+            "enabled": {{ .Values.externalKafka.producerEnabled }},
+            "client_id": {{ .Values.externalKafka.producerId | quote }}
+          },
+          "consumer": {
+            "enabled": {{ .Values.externalKafka.consumerEnabled }},
+            "group_id": {{ .Values.externalKafka.consumerGroupId | quote }},
+            "topics": ["default_topic"]
+          }
+        }
+      }
+    }

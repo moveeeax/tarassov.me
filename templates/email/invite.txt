@@ -1,0 +1,14 @@
+Hello,
+
+You've been invited to join {{ app_name }}.
+
+To accept the invitation and set your password, click the following link
+(valid for 7 days):
+
+{{ invite_link }}
+
+If you weren't expecting this invitation, you can safely ignore this email.
+
+Sincerely,
+
+The {{ app_name }} Team

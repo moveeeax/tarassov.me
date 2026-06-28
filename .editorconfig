@@ -1,0 +1,35 @@
+# EditorConfig — applied automatically by most editors so contributors don't
+# need to memorize the project's whitespace rules. Mirrors .clang-format for
+# C/C++ and uses sensible defaults for everything else.
+# https://editorconfig.org/
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# YAML wants 2 spaces by convention.
+[*.{yml,yaml}]
+indent_size = 2
+
+# JSON also uses 2 in this repo (matches jq -S output).
+[*.json]
+indent_size = 2
+
+# Markdown trailing whitespace is meaningful (line break) — don't trim.
+[*.md]
+trim_trailing_whitespace = false
+
+# Makefiles require literal tabs.
+[Makefile]
+indent_style = tab
+indent_size = 4
+
+# Shell scripts: 4 spaces.
+[*.sh]
+indent_size = 4

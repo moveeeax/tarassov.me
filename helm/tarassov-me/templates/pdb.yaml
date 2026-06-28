@@ -1,0 +1,13 @@
+{{- if and .Values.pdb.enabled (gt (int .Values.replicaCount) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "tarassov-me.fullname" . }}
+  labels:
+    {{- include "tarassov-me.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "tarassov-me.selectorLabels" . | nindent 6 }}
+{{- end }}

@@ -1,0 +1,363 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tarassov-me.fullname" . }}
+  labels:
+    {{- include "tarassov-me.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "tarassov-me.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "tarassov-me.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsUser: 1000
+        runAsNonRoot: true
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      {{- if .Values.migrations.runAsInitContainer }}
+      initContainers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: RUN_MIGRATIONS_ONLY
+              value: "true"
+            {{- if .Values.externalDatabase.password }}
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tarassov-me.fullname" . }}
+                  key: database-password
+            {{- end }}
+            {{- include "tarassov-me.databaseEnv" . | nindent 12 }}
+            - name: DB_MIGRATIONS_ENABLED
+              value: "true"
+            # Clear the per-statement timeout for the migrate step: the runtime
+            # default (30s) cancels the first non-trivial production migration
+            # (a large index/backfill) mid-flight. This is a dedicated init
+            # process that exits, so a long-running statement here is safe.
+            - name: DB_STATEMENT_TIMEOUT_MS
+              value: "0"
+            - name: LOG_LEVEL
+              value: {{ .Values.logging.level | quote }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            - name: logs
+              mountPath: /app/logs
+            - name: tmp
+              mountPath: /tmp
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.shutdown.terminationGracePeriodSeconds | default 30 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          # preStop hook gives the kube-proxy / endpoint controller time to
+          # propagate the pod removal across the cluster before the process
+          # starts its in-app drain.
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep {{ .Values.shutdown.preStopDelay | default 5 }}"]
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.startupProbe.path }}
+              port: http
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          env:
+            # Database password — injected from Secret. The binary assembles the
+            # DSN from the discrete DATABASE_* parts below, so the password is
+            # never embedded in a URL env var.
+            {{- if .Values.externalDatabase.password }}
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tarassov-me.fullname" . }}
+                  key: database-password
+            {{- end }}
+            # Database (discrete parts → DSN built in code)
+            {{- include "tarassov-me.databaseEnv" . | nindent 12 }}
+            - name: DB_POOL_SIZE
+              value: {{ .Values.externalDatabase.poolSize | quote }}
+            - name: DB_MIGRATIONS_ENABLED
+              # ternary, not `default true`: Helm's `default` treats an explicit
+              # `false` as empty and would flip it back to true, making every
+              # replica race for the migration advisory lock.
+              value: {{ ternary "true" "false" (.Values.externalDatabase.migrationsEnabled | default false) | quote }}
+            # Redis / Cache
+            {{- if .Values.externalRedis.password }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tarassov-me.fullname" . }}
+                  key: redis-password
+            {{- end }}
+            - name: REDIS_URL
+              value: {{ .Values.externalRedis.url | quote }}
+            - name: REDIS_USE_SENTINEL
+              value: {{ .Values.externalRedis.useSentinel | quote }}
+            {{- if .Values.externalRedis.useSentinel }}
+            - name: REDIS_MASTER_NAME
+              value: {{ .Values.externalRedis.masterName | quote }}
+            - name: REDIS_SENTINEL_NODES
+              value: {{ .Values.externalRedis.sentinelNodes | quote }}
+            {{- end }}
+            - name: CACHE_POOL_SIZE
+              value: {{ .Values.externalRedis.poolSize | quote }}
+            # Kafka / Messaging
+            - name: MESSAGING_ENABLED
+              value: {{ .Values.externalKafka.enabled | quote }}
+            {{- if .Values.externalKafka.enabled }}
+            - name: KAFKA_BROKERS
+              value: {{ .Values.externalKafka.brokers | quote }}
+            - name: KAFKA_PRODUCER_ENABLED
+              value: {{ .Values.externalKafka.producerEnabled | quote }}
+            - name: KAFKA_PRODUCER_ID
+              value: {{ .Values.externalKafka.producerId | quote }}
+            - name: KAFKA_CONSUMER_ENABLED
+              value: {{ .Values.externalKafka.consumerEnabled | quote }}
+            - name: KAFKA_GROUP_ID
+              value: {{ .Values.externalKafka.consumerGroupId | quote }}
+            {{- end }}
+            # Jobs
+            - name: JOBS_ENABLED
+              value: {{ .Values.jobs.enabled | quote }}
+            - name: JOBS_RESULT_TTL
+              value: {{ .Values.jobs.resultTtl | quote }}
+            - name: JOBS_MAX_RETRIES
+              value: {{ .Values.jobs.maxRetries | quote }}
+            # Rate limiting — code defaults RATE_LIMIT_ENABLED to false, so a
+            # prod pod without this runs /api/auth/login unthrottled. Inject
+            # explicitly. fail_open=true means Redis outages don't block traffic.
+            - name: RATE_LIMIT_ENABLED
+              value: {{ .Values.rateLimit.enabled | quote }}
+            # trust_proxy / trusted_proxy_count describe the proxy topology (how
+            # to derive the real client IP). The audit trail and any IP logging
+            # use them too — not only the limiter — so render them regardless of
+            # whether rate limiting itself is enabled.
+            - name: RATE_LIMIT_TRUST_PROXY
+              value: {{ .Values.rateLimit.trustProxy | quote }}
+            - name: RATE_LIMIT_TRUSTED_PROXY_COUNT
+              value: {{ .Values.rateLimit.trustedProxyCount | quote }}
+            {{- if .Values.rateLimit.enabled }}
+            - name: RATE_LIMIT_REQUESTS
+              value: {{ .Values.rateLimit.requests | quote }}
+            - name: RATE_LIMIT_WINDOW_SEC
+              value: {{ .Values.rateLimit.windowSec | quote }}
+            - name: RATE_LIMIT_SCOPE
+              value: {{ .Values.rateLimit.scope | quote }}
+            - name: RATE_LIMIT_FAIL_OPEN
+              value: {{ .Values.rateLimit.failOpen | quote }}
+            {{- with .Values.rateLimit.whitelist }}
+            - name: RATE_LIMIT_WHITELIST
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            # Idempotency — code defaults IDEMPOTENCY_ENABLED to false; inject
+            # explicitly so retried mutating requests are de-duplicated in prod.
+            - name: IDEMPOTENCY_ENABLED
+              value: {{ .Values.idempotency.enabled | quote }}
+            {{- if .Values.idempotency.enabled }}
+            - name: IDEMPOTENCY_TTL_SEC
+              value: {{ .Values.idempotency.ttlSec | quote }}
+            - name: IDEMPOTENCY_LOCK_TTL_SEC
+              value: {{ .Values.idempotency.lockTtlSec | quote }}
+            - name: IDEMPOTENCY_MAX_BODY_KB
+              value: {{ .Values.idempotency.maxBodyKb | quote }}
+            - name: IDEMPOTENCY_MAX_RESPONSE_KB
+              value: {{ .Values.idempotency.maxResponseKb | quote }}
+            {{- end }}
+            # Logging / Observability
+            - name: LOG_LEVEL
+              value: {{ .Values.logging.level | quote }}
+            - name: LOG_NAME
+              value: {{ .Values.logging.name | quote }}
+            - name: LOG_FORMAT
+              value: {{ .Values.logging.format | quote }}
+            - name: SERVICE_NAME
+              value: {{ .Values.logging.serviceName | quote }}
+            # Tracing / OTLP
+            {{- if .Values.tracing.enabled }}
+            - name: OTLP_ENDPOINT
+              value: {{ .Values.tracing.otlpEndpoint | quote }}
+            {{- end }}
+            # Server
+            - name: SERVER_THREADS
+              value: {{ .Values.server.threads | quote }}
+            - name: SHUTDOWN_PRE_STOP_DELAY_SEC
+              value: {{ .Values.shutdown.shutdownPreStopDelaySec | default 5 | quote }}
+            # Auth — login (mint_session) needs JWT_SECRET set regardless of
+            # mode; mode=jwt also enforces auth on protected routes. Keep the
+            # secret/issuer/audience in sync with the tarassov-me-worker chart.
+            - name: APP_ENV
+              value: {{ .Values.app.env | default "production" | quote }}
+            - name: AUTH_MODE
+              value: {{ .Values.auth.mode | quote }}
+            {{- if .Values.auth.jwtSecret }}
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tarassov-me.fullname" . }}
+                  key: jwt-secret
+            {{- end }}
+            {{- with .Values.auth.jwtIssuer }}
+            - name: JWT_ISSUER
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.auth.jwtAudience }}
+            - name: JWT_AUDIENCE
+              value: {{ . | quote }}
+            {{- end }}
+            - name: AUTH_COOKIES_ENABLED
+              value: {{ .Values.auth.cookies.enabled | quote }}
+            - name: AUTH_COOKIE_SECURE
+              value: {{ .Values.auth.cookies.secure | quote }}
+            - name: AUTH_COOKIE_SAMESITE
+              value: {{ .Values.auth.cookies.samesite | quote }}
+            # Cookie names — the SPA expects the __Host-* prefix, which is only
+            # honored by the browser when AUTH_COOKIE_SECURE=true. Set these
+            # explicitly so they don't fall back to a name that mismatches the
+            # secure flag (a __Host- cookie under secure=false is silently dropped).
+            - name: AUTH_COOKIE_ACCESS
+              value: {{ .Values.auth.cookies.access | quote }}
+            - name: AUTH_COOKIE_REFRESH
+              value: {{ .Values.auth.cookies.refresh | quote }}
+            # Public base URL / name the API renders into transactional email
+            # links when it sends inline (jobs disabled).
+            - name: APP_BASE_URL
+              value: {{ .Values.app.baseUrl | quote }}
+            - name: APP_NAME
+              value: {{ .Values.app.name | quote }}
+            # Mail — with jobs disabled the API sends transactional email inline,
+            # so it needs SMTP config. With mail.viaJobs=true it enqueues instead
+            # (the tarassov-me-worker chart then performs delivery).
+            - name: MAIL_ENABLED
+              value: {{ .Values.mail.enabled | quote }}
+            {{- if .Values.mail.enabled }}
+            - name: MAIL_VIA_JOBS
+              value: {{ .Values.mail.viaJobs | quote }}
+            - name: MAIL_SMTP_HOST
+              value: {{ .Values.mail.smtpHost | quote }}
+            - name: MAIL_SMTP_PORT
+              value: {{ .Values.mail.smtpPort | quote }}
+            {{- if .Values.mail.smtpUsername }}
+            - name: MAIL_SMTP_USERNAME
+              value: {{ .Values.mail.smtpUsername | quote }}
+            {{- end }}
+            {{- if .Values.mail.smtpPassword }}
+            - name: MAIL_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tarassov-me.fullname" . }}
+                  key: mail-smtp-password
+            {{- end }}
+            - name: MAIL_SMTP_USE_TLS
+              value: {{ .Values.mail.smtpUseTls | quote }}
+            - name: MAIL_FROM
+              value: {{ .Values.mail.from | quote }}
+            - name: MAIL_FROM_NAME
+              value: {{ .Values.mail.fromName | quote }}
+            - name: MAIL_SUBJECT_PREFIX
+              value: {{ .Values.mail.subjectPrefix | quote }}
+            {{- end }}
+            # Object storage: non-secret config is rendered into the ConfigMap;
+            # only the S3 secret key is injected here from the Secret.
+            {{- if .Values.storage.s3.secretKey }}
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tarassov-me.fullname" . }}
+                  key: s3-secret-key
+            {{- end }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            - name: logs
+              mountPath: /app/logs
+            - name: tmp
+              mountPath: /tmp
+            - name: uploads
+              mountPath: /app/uploads
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "tarassov-me.fullname" . }}
+        - name: logs
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: uploads
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,23 @@
+apiVersion: 1
+
+# Nuke any stale datasources from a previous chart version so a re-provision
+# of a persistent Grafana volume doesn't fail with "data source not found".
+deleteDatasources:
+  - name: Prometheus
+    orgId: 1
+
+datasources:
+  - name: Prometheus
+    orgId: 1
+    # Pinned UID — dashboards reference this exact value. Without it Grafana
+    # assigns a random UID on first boot and all panels show "datasource not
+    # found" until the user manually re-links them.
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      httpMethod: POST
+      timeInterval: 15s

@@ -1,0 +1,729 @@
+stages:
+  - build
+  - test
+  - lint
+  - publish
+
+variables:
+  # Image path comes from the CI_IMAGE_NAME project CI/CD variable
+  # (e.g. resert/tarassov-me). GitLab does not support ${VAR:-default}
+  # in this block, so set CI_IMAGE_NAME in Settings → CI/CD → Variables.
+  IMAGE_NAME: $CI_IMAGE_NAME
+  DOCKER_DRIVER: overlay2
+  DOCKER_BUILDKIT: 1
+  GIT_SUBMODULE_STRATEGY: recursive
+  # Per-commit image tags. The SHA images are built+pushed up front; the test
+  # and lint stages run against them; manifest:multiarch promotes them to
+  # :latest at the end WITHOUT rebuilding (imagetools, by digest).
+  BUILDER_IMAGE: $IMAGE_NAME:builder-$CI_COMMIT_SHORT_SHA
+  TEST_IMAGE: $IMAGE_NAME:test-$CI_COMMIT_SHORT_SHA
+  RUNTIME_IMAGE: $IMAGE_NAME:$CI_COMMIT_SHORT_SHA-arm64
+
+# ──────────────────────────────────────────────
+# Pipeline shape
+# ──────────────────────────────────────────────
+# build → test → lint → publish, with ONE compile per architecture:
+#   build : compile each arch once with buildx, push the SHA-tagged images
+#           (builder / test-runner / runtime / worker, and the frontend image).
+#           Everything shares the per-arch registry buildcache, so the heavy
+#           builder layer is compiled a single time and the cheap runtime/worker/
+#           test layers reuse it.
+#   test  : pull the already-built arm64 images and run them — no recompilation.
+#   lint  : static analysis inside the already-built builder image.
+#   publish: imagetools stitches :sha-amd64 + :sha-arm64 into the :latest and
+#           :sha manifests. Pure promotion — no build. Has no `needs:`, so it
+#           waits for every build/test/lint job; a red pipeline never tags :latest.
+
+# Shared buildx scaffolding: dind + a registry login + a docker-container builder
+# (required for registry cache export). Native single-arch — no QEMU.
+.buildx:
+  # Pinned by digest (supply-chain): the docker:24.0.7 client + its dind
+  # share ONE multi-arch manifest index, so both pin to the same digest.
+  # Resolved 2026-06-25 via `docker buildx imagetools inspect docker:24.0.7`
+  # (and `...-dind` → identical index digest). Bump tag comments with the digest.
+  image: docker@sha256:52459560108c9833c5ae0ffb998fc2677616ffb7f759177cd8b8b4cf2cb8f157  # docker:24.0.7
+  services:
+    - name: docker@sha256:52459560108c9833c5ae0ffb998fc2677616ffb7f759177cd8b8b4cf2cb8f157  # docker:24.0.7-dind
+      alias: docker
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  timeout: 8h
+  # vcpkg fetches dependency tarballs from GitHub, which intermittently returns
+  # HTTP 400 and aborts the build (vcpkg mis-classifies it as non-transient and
+  # won't retry itself). Retry the job so a flaky network fetch doesn't red the
+  # pipeline; real compile failures are caught locally + reproduce on retry.
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
+  before_script:
+    - echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
+    - docker buildx create --use --name builder --driver docker-container --bootstrap
+
+# ──────────────────────────────────────────────
+# Build stage — one compile per arch, SHA-tagged
+# ──────────────────────────────────────────────
+# arm64 is the test/lint arch: build the builder once (cache-to buildcache-arm64),
+# then derive test-runner / runtime / worker from that same cached layer (cheap).
+# Runs on MR/develop too — the test + lint stages depend on these images.
+build:arm64:
+  extends: .buildx
+  stage: build
+  script:
+    # Compile once → export the builder layer to the registry buildcache.
+    - >
+      docker buildx build --platform linux/arm64 --target builder -f docker/Dockerfile
+      --cache-from type=registry,ref=$IMAGE_NAME:buildcache-arm64
+      --cache-to type=registry,ref=$IMAGE_NAME:buildcache-arm64,mode=max
+      -t $BUILDER_IMAGE --push .
+    # test-runner / runtime / worker reuse the cached builder — no recompile.
+    - >
+      docker buildx build --platform linux/arm64 --target test-runner -f docker/Dockerfile
+      --cache-from type=registry,ref=$IMAGE_NAME:buildcache-arm64
+      -t $TEST_IMAGE --push .
+    - >
+      docker buildx build --platform linux/arm64 --target runtime -f docker/Dockerfile
+      --cache-from type=registry,ref=$IMAGE_NAME:buildcache-arm64
+      -t $IMAGE_NAME:$CI_COMMIT_SHORT_SHA-arm64 --push .
+    - >
+      docker buildx build --platform linux/arm64 --target worker-runtime -f docker/Dockerfile
+      --cache-from type=registry,ref=$IMAGE_NAME:buildcache-arm64
+      -t $IMAGE_NAME-worker:$CI_COMMIT_SHORT_SHA-arm64 --push .
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+# amd64 runtime + worker, built natively on the dedicated amd64 runner
+# (tags: [amd64], run_untagged=false). Only the published manifest needs amd64,
+# so this is main-only. One compile, its own per-arch buildcache.
+build:amd64:
+  extends: .buildx
+  stage: build
+  tags:
+    - amd64
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  script:
+    - >
+      docker buildx build --platform linux/amd64 --target runtime -f docker/Dockerfile
+      --cache-from type=registry,ref=$IMAGE_NAME:buildcache-amd64
+      --cache-to type=registry,ref=$IMAGE_NAME:buildcache-amd64,mode=max
+      -t $IMAGE_NAME:$CI_COMMIT_SHORT_SHA-amd64 --push .
+    - >
+      docker buildx build --platform linux/amd64 --target worker-runtime -f docker/Dockerfile
+      --cache-from type=registry,ref=$IMAGE_NAME:buildcache-amd64
+      -t $IMAGE_NAME-worker:$CI_COMMIT_SHORT_SHA-amd64 --push .
+
+# Frontend images (node build + nginx) — light, per-arch native, main-only
+# (only the manifest needs them). arm64 on the default runner, amd64 on the
+# tagged runner (node's npm ci deadlocks under QEMU, so never emulate).
+build:frontend:arm64:
+  extends: .buildx
+  stage: build
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  script:
+    - >
+      docker buildx build --platform linux/arm64 -f frontend/Dockerfile
+      --cache-from type=registry,ref=$IMAGE_NAME-frontend:buildcache-arm64
+      --cache-to type=registry,ref=$IMAGE_NAME-frontend:buildcache-arm64,mode=max
+      -t $IMAGE_NAME-frontend:$CI_COMMIT_SHORT_SHA-arm64 --push .
+
+build:frontend:amd64:
+  extends: .buildx
+  stage: build
+  tags:
+    - amd64
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  script:
+    - >
+      docker buildx build --platform linux/amd64 -f frontend/Dockerfile
+      --cache-from type=registry,ref=$IMAGE_NAME-frontend:buildcache-amd64
+      --cache-to type=registry,ref=$IMAGE_NAME-frontend:buildcache-amd64,mode=max
+      -t $IMAGE_NAME-frontend:$CI_COMMIT_SHORT_SHA-amd64 --push .
+
+# Documentation (main branch only) — independent of the image builds.
+docs:generate:
+  stage: build
+  image: ubuntu:22.04
+  needs: []
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y doxygen graphviz
+  script:
+    - doxygen docs/Doxyfile
+  artifacts:
+    paths:
+      - docs/html/
+    expire_in: 1 month
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# ──────────────────────────────────────────────
+# Test stage — run the already-built arm64 images
+# ──────────────────────────────────────────────
+
+# Unit tests — run inside the test-runner image (no external services needed).
+test:unit:
+  stage: test
+  image: docker:24.0.7
+  services:
+    - docker:24.0.7-dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  needs:
+    - build:arm64
+  before_script:
+    - echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
+    - docker pull $TEST_IMAGE
+  script:
+    # Run unit tests only (no Postgres/Redis). Classification by binary name,
+    # not by gtest_filter — any file under tests/unit/ is compiled into this binary.
+    - >
+      docker run --rm
+      -v $CI_PROJECT_DIR/test-results:/results
+      -e TEST_BINARY=tarassov_me_tests_unit
+      $TEST_IMAGE
+      --gtest_color=yes
+      --gtest_output=xml:/results/test-results.xml
+  after_script:
+    - ls -la test-results/ || true
+  artifacts:
+    when: always
+    reports:
+      junit: test-results/test-results.xml
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+# Integration tests — full stack with Docker Compose.
+test:integration:
+  stage: test
+  image: docker:24.0.7
+  services:
+    - docker:24.0.7-dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  needs:
+    - build:arm64
+  before_script:
+    - echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
+    # Reuse the test-runner image build:arm64 already compiled+pushed. The
+    # compose service resolves ${TEST_IMAGE}; with the image present locally,
+    # `up` runs it instead of recompiling the whole project (~45 min saved).
+    - docker pull $TEST_IMAGE
+  script:
+    - cd docker
+    # Start infrastructure services and wait for health checks
+    # Explicit --env-file: after `cd docker`, compose would silently
+    # auto-load ./.env — make the dependency visible.
+    - docker compose --env-file .env --profile test up -d test-postgres test-redis
+    - |
+      echo "Waiting for services to become healthy..."
+      for i in $(seq 1 30); do
+        if docker compose --profile test ps test-postgres | grep -q "healthy" && \
+           docker compose --profile test ps test-redis | grep -q "healthy"; then
+          echo "All services healthy after ${i}s"
+          break
+        fi
+        if [ "$i" -eq 30 ]; then
+          echo "ERROR: Services did not become healthy in time"
+          docker compose logs
+          exit 1
+        fi
+        sleep 1
+      done
+    # Unit tests first (fast, no infra — but infra is already up so run in same job
+    # to avoid a second image pull)
+    - docker compose --env-file .env --profile test run --rm -e TEST_BINARY=tarassov_me_tests_unit test-runner
+    # Integration tests — need Postgres + Redis (already up above). CI_REQUIRE_INFRA
+    # makes a missing dependency FAIL instead of silently skipping every suite.
+    - docker compose --env-file .env --profile test run --rm -e CI_REQUIRE_INFRA=1 -e TEST_BINARY=tarassov_me_tests_integration test-runner
+    # E2E binary: real Drogon server + HTTP client (middleware chain on the wire)
+    - docker compose --env-file .env --profile test run --rm -e CI_REQUIRE_INFRA=1 -e TEST_BINARY=tarassov_me_e2e test-runner
+  after_script:
+    - cd docker && docker compose --env-file .env --profile test down -v || true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+# Image security scan — Trivy fails the pipeline on CRITICAL+HIGH CVEs (with a known fix).
+# Scans all three arm64 images: api-runtime, worker-runtime, and frontend.
+# The SARIF report (api only) goes to the security dashboard; per-image table
+# reports and the gating call are repeated for worker and frontend.
+scan:image:
+  stage: test
+  # Use Trivy's own multi-arch image — it runs natively on the arm64
+  # self-hosted runner and pulls the (public) target image from Docker Hub
+  # itself, so no dind / docker login / binary install dance is needed.
+  image:
+    name: aquasec/trivy:0.58.2
+    entrypoint: [""]
+  variables:
+    TRIVY_NO_PROGRESS: "true"
+    TRIVY_CACHE_DIR: ".trivycache/"
+  # Persist the vulnerability DB between runs so it isn't re-downloaded
+  # (and re-extracted) on every pipeline.
+  cache:
+    key: trivy-db
+    paths:
+      - .trivycache/
+  needs:
+    - build:arm64
+  script:
+    - mkdir -p scan-results
+    # buildx pushes single-arch images wrapped in a manifest index, so Trivy's
+    # remote scanner must be told which platform to pull (it defaults to amd64).
+
+    # ── api-runtime ──────────────────────────────────────────────────────────
+    # Human-readable report of HIGH/CRITICAL issues; never fails on its own.
+    - trivy image --platform linux/arm64 --exit-code 0 --severity HIGH,CRITICAL --format table $RUNTIME_IMAGE | tee scan-results/trivy-api-report.txt
+    # SARIF artefact for the security dashboard (api image only — one report per pipeline).
+    - trivy image --platform linux/arm64 --exit-code 0 --format sarif --output scan-results/trivy.sarif $RUNTIME_IMAGE
+    # Fail the job on CRITICAL or HIGH with a known fix.
+    - trivy image --platform linux/arm64 --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed $RUNTIME_IMAGE
+
+    # ── worker-runtime ───────────────────────────────────────────────────────
+    - trivy image --platform linux/arm64 --exit-code 0 --severity HIGH,CRITICAL --format table $IMAGE_NAME-worker:$CI_COMMIT_SHORT_SHA-arm64 | tee scan-results/trivy-worker-report.txt
+    - trivy image --platform linux/arm64 --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed $IMAGE_NAME-worker:$CI_COMMIT_SHORT_SHA-arm64
+
+    # ── frontend ─────────────────────────────────────────────────────────────
+    # frontend is main-only (build:frontend:arm64 rule); on MR/develop the
+    # image doesn't exist — skip gracefully with exit-code 0 + || true so the
+    # job doesn't fail on branches where the image was never built.
+    - trivy image --platform linux/arm64 --exit-code 0 --severity HIGH,CRITICAL --format table $IMAGE_NAME-frontend:$CI_COMMIT_SHORT_SHA-arm64 | tee scan-results/trivy-frontend-report.txt || true
+    - trivy image --platform linux/arm64 --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed $IMAGE_NAME-frontend:$CI_COMMIT_SHORT_SHA-arm64 || true
+  artifacts:
+    when: always
+    paths:
+      - scan-results/
+    reports:
+      sast: scan-results/trivy.sarif
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+# Sanitizer build — AddressSanitizer + UndefinedBehaviorSanitizer. The ASan
+# binary is a genuinely separate compile (different flags), but it reuses the
+# builder layer from buildcache-arm64 (no Release recompile) and its own
+# buildcache-san-arm64 so an unchanged tree skips the ASan recompile too.
+test:sanitizers:
+  extends: .buildx
+  stage: test
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+    SAN_IMAGE: $IMAGE_NAME:san-$CI_COMMIT_SHORT_SHA
+  needs:
+    - build:arm64
+  script:
+    - >
+      docker buildx build --platform linux/arm64 --target sanitizer-builder -f docker/Dockerfile
+      --cache-from type=registry,ref=$IMAGE_NAME:buildcache-arm64
+      --cache-from type=registry,ref=$IMAGE_NAME:buildcache-san-arm64
+      --cache-to type=registry,ref=$IMAGE_NAME:buildcache-san-arm64,mode=max
+      --load -t $SAN_IMAGE .
+    # export (not a one-line prefix): keeps the sanitizer options reaching the
+    # binary regardless of how YAML folds the block.
+    - |
+      docker run --rm --entrypoint /bin/bash $SAN_IMAGE -c '
+        export ASAN_OPTIONS=halt_on_error=1:detect_leaks=1
+        export UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
+        /app/build-san/tarassov_me_tests_unit --gtest_color=yes
+      '
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+# Coverage — build with gcov instrumentation and run all test buckets against
+# live Postgres + Redis, INSIDE the test-runner compose service so it shares
+# app-network and reaches the sidecars by name (exactly like test:integration; a
+# raw `docker run --network host` can't, which silently tanked the number).
+#
+# Notes:
+#   • Integration + e2e buckets need Postgres + Redis; they run with || true so a
+#     missing sidecar degrades the number instead of failing outright. On CI the
+#     sidecars are up, so all three buckets run.
+#   • No artifacts: the run lives inside the compose-networked container (no host
+#     bind-mount works reliably under dind), so the gate is the in-container
+#     `gcovr --fail-under-line` and the badge comes from the `coverage:` regex
+#     over the job log — NOT a Cobertura/HTML artifact.
+#   • COVERAGE_MIN is passed in; defaults to 40 (matches Makefile).
+#
+# TODO: confirm gcovr version on the arm64 runner image before treating the
+#       badge number as authoritative.
+test:coverage:
+  stage: test
+  image: docker:24.0.7
+  services:
+    - docker:24.0.7-dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+    COVERAGE_MIN: "40"
+  # Recompiles a coverage-instrumented build → re-runs vcpkg, so it hits the
+  # same flaky GitHub tarball fetches. Retry transient failures.
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
+  needs:
+    - build:arm64
+  before_script:
+    - echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
+    - docker pull $TEST_IMAGE
+  script:
+    - cd docker
+    # Start test infrastructure (Postgres + Redis), same as test:integration.
+    - docker compose --env-file .env --profile test up -d test-postgres test-redis
+    - |
+      echo "Waiting for services to become healthy..."
+      for i in $(seq 1 30); do
+        if docker compose --profile test ps test-postgres | grep -q "healthy" &&            docker compose --profile test ps test-redis | grep -q "healthy"; then
+          echo "All services healthy after ${i}s"
+          break
+        fi
+        if [ "$i" -eq 30 ]; then
+          echo "ERROR: Services did not become healthy in time"
+          docker compose logs
+          exit 1
+        fi
+        sleep 1
+      done
+    # Coverage build + run INSIDE the test-runner compose service so it shares
+    # the app-network and reaches test-postgres/test-redis by name
+    # (TEST_PG_HOST=test-postgres is baked into the service). A raw
+    # `docker run --network host` can't see the compose services, so every
+    # integration suite fails fast and tanks the number. The coverage preset adds
+    # -O0 -g --coverage. gcovr MUST stay on one line: in a folded YAML scalar,
+    # more-indented continuation lines keep their newline and would each run as a
+    # separate command (the previous exit-127 bug).
+    - >
+      docker compose --env-file .env --profile test run --rm
+      --entrypoint /bin/bash
+      -e CI_REQUIRE_INFRA=1
+      test-runner -c "
+        apt-get update -qq && apt-get install -y -qq gcovr > /dev/null 2>&1 &&
+        cd /app &&
+        cmake --preset coverage &&
+        cmake --build --preset coverage -j\$(nproc) &&
+        (./build/coverage/tarassov_me_tests_unit --gtest_color=yes || true) &&
+        (./build/coverage/tarassov_me_tests_integration --gtest_color=yes || true) &&
+        (./build/coverage/tarassov_me_e2e --gtest_color=yes || true) &&
+        gcovr -r . --filter 'src/.*' --print-summary --fail-under-line ${COVERAGE_MIN}
+      "
+  after_script:
+    - cd docker && docker compose --env-file .env --profile test down -v || true
+  # GitLab parses coverage: regex from the job log to populate the pipeline badge.
+  # gcovr --print-summary emits: "lines: 42.3% (1234 out of 2916)". No artifacts:
+  # the run is inside the compose-networked test-runner (no host bind-mount in
+  # dind), so the gate is the in-container --fail-under-line + the badge regex.
+  coverage: '/lines:\s+(\d+\.\d+)%/'
+  allow_failure: true  # TODO: remove once coverage job is confirmed stable on runner
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+# Frontend gate: typecheck + unit tests + production build (node image,
+# no docker-in-docker needed). Independent of the image builds.
+test:frontend:
+  stage: test
+  # Pinned by digest (supply-chain): node:20-alpine resolved 2026-06-25 via
+  # `docker buildx imagetools inspect node:20-alpine`. Bump the tag comment
+  # together with the digest when upgrading.
+  image: node@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293  # node:20-alpine
+  needs: []
+  before_script:
+    - cd frontend
+    - npm ci --no-audit --no-fund
+  script:
+    # Snapshot the committed client, regenerate, and compare. If they differ the
+    # spec changed without running `make frontend-gen-api` — fail so the stale
+    # file can't ride green (mirrors GH Actions, but node:alpine has no git, so
+    # compare the files directly instead of `git diff`).
+    - cp src/lib/api/schema.gen.ts /tmp/schema.gen.committed.ts
+    - npm run gen:api
+    - cmp src/lib/api/schema.gen.ts /tmp/schema.gen.committed.ts || { echo "schema.gen.ts is stale — run 'make frontend-gen-api' and commit"; exit 1; }
+    - npm run typecheck
+    - npm test
+    - npm run lint  # flat config, zero-warning baseline (mirrors GitHub Actions)
+    - npm run build
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+# ──────────────────────────────────────────────
+# Lint stage — static analysis in the built builder image
+# ──────────────────────────────────────────────
+
+lint:openapi-drift:
+  stage: lint
+  image: alpine:3.19
+  needs: []
+  before_script:
+    - apk add --no-cache bash gawk
+  script:
+    - ./scripts/check-openapi-drift.sh
+    - ./scripts/check-routes-registered.sh
+    - ./scripts/check-test-buckets.sh
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+# Render the tarassov-me-env umbrella with CI values and assert deploy-path invariants
+# (ingress<->service port, MAIL_VIA_JOBS, baseDomain expansion, no null ports).
+# Pure template smoke test — catches the helm bug class compile+tests can't.
+helm:validate:
+  stage: lint
+  image: alpine:3.19
+  needs: []
+  before_script:
+    - apk add --no-cache bash helm yq
+  script:
+    - ./scripts/check-helm-render.sh
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+lint:shellcheck:
+  stage: lint
+  image: koalaman/shellcheck-alpine:v0.10.0
+  needs: []
+  script:
+    # -f gcc: ASCII output (alpine's C locale chokes printing em-dashes in
+    # source lines); warning severity matches the GitHub action's config.
+    - shellcheck -f gcc --severity=warning scripts/*.sh docker/*.sh
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+lint:gitleaks:
+  stage: lint
+  image:
+    name: zricethezav/gitleaks:v8.21.2
+    entrypoint: [""]
+  needs: []
+  variables:
+    # Full clone so gitleaks scans the entire commit history, not just the
+    # working tree. Mirrors the GitHub Actions job (fetch-depth: 0).
+    GIT_DEPTH: 0
+  script:
+    # --log-opts passes args to git log: scan all reachable commits, not just
+    # the current tree snapshot. Requires a full clone (GIT_DEPTH: 0 above).
+    - gitleaks detect --source . --log-opts="HEAD" --no-banner --redact
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+# clang-format check — fails if any file drifts from .clang-format.
+lint:clang-format:
+  stage: lint
+  image: silkeh/clang:17
+  needs: []
+  script:
+    - find src tests -type f \( -name '*.hpp' -o -name '*.cpp' -o -name '*.h' \)
+      -exec clang-format --dry-run --Werror --style=file {} +
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+# Static analysis with cppcheck — run inside the builder image which has all headers.
+# allow_failure: true because we cannot verify the baseline output without running
+# the actual runner. cppcheck --enable=warning,performance,portability is a
+# reasonable default with no false suppressions beyond missingIncludeSystem.
+# TODO: flip allow_failure to false once confirmed clean on the real runner.
+lint:cppcheck:
+  stage: lint
+  image: docker:24.0.7
+  services:
+    - docker:24.0.7-dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  needs:
+    - build:arm64
+  before_script:
+    - echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
+    - docker pull $BUILDER_IMAGE
+  script:
+    # Install cppcheck in builder and run with compile database
+    - >
+      docker run --rm
+      -v $CI_PROJECT_DIR/lint-results:/results
+      --entrypoint /bin/bash
+      $BUILDER_IMAGE -c "
+        apt-get update -qq && apt-get install -y -qq cppcheck > /dev/null 2>&1 &&
+        cppcheck
+          --enable=warning,performance,portability
+          --suppress=missingIncludeSystem
+          --project=/app/build/compile_commands.json
+          --xml --xml-version=2
+          /app/src/ 2>/results/cppcheck-report.xml;
+        echo \"cppcheck exit code: \$?\"
+      "
+  artifacts:
+    when: always
+    paths:
+      - lint-results/cppcheck-report.xml
+    expire_in: 1 week
+  allow_failure: true  # TODO: flip to false once baseline is confirmed clean
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+# clang-tidy — structural and API-usage lint. Uses compile_commands.json.
+# Checks: bugprone-*, performance-*, portability-*, clang-analyzer-* cover real
+# bug classes without being as noisy as modernize-* or readability-*.
+# -checks=-* WAS HERE — removed (it disabled ALL checks, making this a no-op).
+# TODO: flip allow_failure to false once the baseline is clean.
+lint:clang-tidy:
+  stage: lint
+  image: docker:24.0.7
+  services:
+    - docker:24.0.7-dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  needs:
+    - build:arm64
+  before_script:
+    - echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
+    - docker pull $BUILDER_IMAGE
+  script:
+    - mkdir -p lint-results
+    - >
+      docker run --rm
+      -v $CI_PROJECT_DIR/lint-results:/results
+      -v $CI_PROJECT_DIR/.clang-tidy:/app/.clang-tidy:ro
+      --entrypoint /bin/bash
+      $BUILDER_IMAGE -c "
+        apt-get update -qq && apt-get install -y -qq clang-tidy > /dev/null 2>&1 &&
+        cd /app &&
+        run-clang-tidy -p build -quiet
+          -header-filter='src/.*'
+          -checks='-*,bugprone-*,performance-*,portability-*,clang-analyzer-*'
+          src/ 2>&1 | tee /results/clang-tidy.log;
+        status=\${PIPESTATUS[0]};
+        echo \"clang-tidy exit: \$status\"
+      "
+  artifacts:
+    when: always
+    paths:
+      - lint-results/clang-tidy.log
+    expire_in: 1 week
+  allow_failure: true  # TODO: flip to false once baseline is clean
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+# ──────────────────────────────────────────────
+# Publish stage — promote the SHA images to :latest (no rebuild)
+# ──────────────────────────────────────────────
+# Fan-in: stitch the per-arch app/worker/frontend tags into the published
+# manifest lists (:latest + :sha). imagetools works by digest — no layer pulls,
+# no rebuild. No `needs:` → waits for every build/test/lint job, so a red
+# pipeline never tags :latest.
+manifest:multiarch:
+  stage: publish
+  image: docker:24.0.7
+  services:
+    - docker:24.0.7-dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  before_script:
+    - echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
+  script:
+    - >
+      docker buildx imagetools create
+      -t $IMAGE_NAME:latest -t $IMAGE_NAME:$CI_COMMIT_SHORT_SHA
+      $IMAGE_NAME:$CI_COMMIT_SHORT_SHA-amd64
+      $IMAGE_NAME:$CI_COMMIT_SHORT_SHA-arm64
+    - >
+      docker buildx imagetools create
+      -t $IMAGE_NAME-worker:latest -t $IMAGE_NAME-worker:$CI_COMMIT_SHORT_SHA
+      $IMAGE_NAME-worker:$CI_COMMIT_SHORT_SHA-amd64
+      $IMAGE_NAME-worker:$CI_COMMIT_SHORT_SHA-arm64
+    - >
+      docker buildx imagetools create
+      -t $IMAGE_NAME-frontend:latest -t $IMAGE_NAME-frontend:$CI_COMMIT_SHORT_SHA
+      $IMAGE_NAME-frontend:$CI_COMMIT_SHORT_SHA-amd64
+      $IMAGE_NAME-frontend:$CI_COMMIT_SHORT_SHA-arm64
+
+# Tag-driven release: PROMOTE the per-arch images that build:{arm64,amd64} and
+# build:frontend:* already pushed natively for this commit (a tag is always cut
+# from a built main commit, so the :<sha>-{amd64,arm64} images exist) into
+# :$CI_COMMIT_TAG manifests — the same digest-only imagetools approach as
+# manifest:multiarch. No QEMU rebuild: emulating amd64 segfaulted cmake (exit
+# 139). MANUAL so a tag push never fails the pipeline when docker creds are absent.
+release:images:
+  extends: .buildx
+  stage: publish
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: manual
+  script:
+    - >
+      docker buildx imagetools create -t $IMAGE_NAME:$CI_COMMIT_TAG
+      $IMAGE_NAME:$CI_COMMIT_SHORT_SHA-amd64
+      $IMAGE_NAME:$CI_COMMIT_SHORT_SHA-arm64
+    - >
+      docker buildx imagetools create -t $IMAGE_NAME-worker:$CI_COMMIT_TAG
+      $IMAGE_NAME-worker:$CI_COMMIT_SHORT_SHA-amd64
+      $IMAGE_NAME-worker:$CI_COMMIT_SHORT_SHA-arm64
+    - >
+      docker buildx imagetools create -t $IMAGE_NAME-frontend:$CI_COMMIT_TAG
+      $IMAGE_NAME-frontend:$CI_COMMIT_SHORT_SHA-amd64
+      $IMAGE_NAME-frontend:$CI_COMMIT_SHORT_SHA-arm64
+
+# Auto-create a GitLab Release object on every vX.Y.Z tag, with notes pulled
+# from the matching CHANGELOG section. A git tag alone does NOT create a Release
+# (the /-/releases page entry) — this closes that gap so a tag can't ship without
+# one (v1.3.4 was missed when releases were created by hand).
+release:gitlab:
+  stage: publish
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs: []
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+  script:
+    # Extract the "## [X.Y.Z]" section from CHANGELOG.md into release_notes.md.
+    # Falls back to a generic note if no section exists, so the Release is always
+    # created.
+    - |
+      VER="${CI_COMMIT_TAG#v}"
+      awk -v ver="$VER" '
+        $0 ~ "^## \\[" ver "\\]" {f=1; next}
+        f && /^## \[/ {exit}
+        f {print}
+      ' CHANGELOG.md > release_notes.md
+      if [ ! -s release_notes.md ]; then
+        echo "Release $CI_COMMIT_TAG. See CHANGELOG.md for details." > release_notes.md
+      fi
+      echo "--- release notes ---"; cat release_notes.md
+  release:
+    tag_name: "$CI_COMMIT_TAG"
+    name: "Release $CI_COMMIT_TAG"
+    description: ./release_notes.md
+  allow_failure: true  # a Release hiccup must never red the tag pipeline

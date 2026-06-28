@@ -1,0 +1,118 @@
+# Alert rules for the metrics the template already exports. Wired into
+# prometheus.yml via rule_files; in a real deployment route them through
+# Alertmanager. Thresholds are deliberately conservative starting points —
+# tune per service.
+groups:
+  - name: api-availability
+    rules:
+      - alert: ApiTargetDown
+        expr: up{job="tarassov_me"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#targetdown"
+          summary: "API metrics endpoint is unreachable"
+          description: "Prometheus has not scraped {{ $labels.instance }} for 2 minutes — the process is down or wedged."
+
+      - alert: WorkerTargetDown
+        expr: up{job="tarassov_me_worker"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#targetdown"
+          summary: "Worker metrics endpoint is unreachable"
+          description: "Background jobs are not being processed if the worker is down."
+
+  - name: api-errors
+    rules:
+      - alert: High5xxRate
+        # >5% of requests answering 5xx over 5 minutes.
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_requests_total[5m])), 1e-9) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#high5xx"
+          summary: "More than 5% of HTTP responses are 5xx"
+          description: "Current 5xx ratio: {{ $value | humanizePercentage }}."
+
+      - alert: HighP99Latency
+        expr: |
+          histogram_quantile(0.99,
+            sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#p99"
+          summary: "p99 HTTP latency above 1s for 10 minutes"
+          description: "p99 = {{ $value }}s — check DB pool saturation and slow queries first."
+
+  - name: replication
+    rules:
+      - alert: ReplicationLagHigh
+        # Measured on the replica's exporter; absent metric (no replica
+        # profile) simply never fires.
+        expr: pg_replication_lag_seconds{role="replica"} > 60
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#replag"
+          summary: "Read replica is more than 60s behind the primary"
+          description: "Lag {{ $value }}s — stale reads are being served; check replica I/O and WAL volume."
+
+  - name: jobs
+    rules:
+      - alert: DeadLetterQueueGrowing
+        # Any DLQ backlog that sticks around means jobs are permanently failing.
+        expr: jobs_dlq_depth{type="_total"} > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#dlq"
+          summary: "Jobs dead-letter queue is non-empty for 15 minutes"
+          description: "{{ $value }} job(s) in the DLQ. Inspect /api/jobs/dlq and requeue or fix the handler."
+
+      - alert: RetriesExhaustedSpike
+        expr: sum(rate(retries_total{outcome="exhausted"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#retries"
+          summary: "Transient-error retries are being exhausted"
+          description: "Downstream (DB/Redis) is failing past the retry budget — check dependency health."
+
+      - alert: JobsQueueBacklog
+        # Leading indicator: a waiting queue that stays deep means submitters
+        # are outrunning the worker pool. Tune the threshold to your throughput.
+        expr: jobs_queue_depth{type="_total"} > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#queuebacklog"
+          summary: "Jobs waiting-queue backlog above 100 for 10 minutes"
+          description: "{{ $value }} job(s) queued and not draining — scale workers or check for a stuck handler before jobs age into the DLQ."
+
+  - name: saturation
+    rules:
+      - alert: DbPoolSaturationHigh
+        # active / size approaching 1.0 means acquire() is about to start
+        # timing out — the cause HighP99Latency tells you to check first.
+        expr: |
+          max by (pool) (db_pool_active_connections)
+            / clamp_min(max by (pool) (db_pool_size), 1) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#dbpool"
+          summary: "DB connection pool {{ $labels.pool }} over 90% utilized for 5 minutes"
+          description: "Pool {{ $labels.pool }} saturation {{ $value | humanizePercentage }} — connections are about to time out on acquire. Raise pool size or shed load."

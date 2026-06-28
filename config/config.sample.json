@@ -1,0 +1,162 @@
+{
+  "app": {
+    "name": "${APP_NAME:-App}",
+    "base_url": "${APP_BASE_URL:-http://localhost:8080}"
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8080,
+    "threads": 4,
+    "max_body_bytes": 10485760,
+    "ssl": {
+      "enabled": false
+    }
+  },
+  "shutdown": {
+    "pre_stop_delay_sec": 5
+  },
+  "logging": {
+    "name": "tarassov_me",
+    "file": "logs/app.log",
+    "level": "info",
+    "format": "${LOG_FORMAT:-text}"
+  },
+  "observability": {
+    "metrics_address": "0.0.0.0:9090",
+    "service_name": "tarassov_me_service"
+  },
+  "database": {
+    "primary": "postgresql://${DATABASE_USER:-postgres}:${DATABASE_PASSWORD}@${DATABASE_HOST:-localhost}:${DATABASE_PORT:-5432}/${DATABASE_NAME:-appdb}",
+    "replicas": [],
+    "pool_size": 10,
+    "acquire_timeout_ms": 5000,
+    "statement_timeout_ms": 30000,
+    "migrations_enabled": true,
+    "migrations_dir": "migrations"
+  },
+  "cache": {
+    "use_sentinel": false,
+    "url": "tcp://${REDIS_HOST:-127.0.0.1}:${REDIS_PORT:-6379}",
+    "password": "${REDIS_PASSWORD:-}",
+    "pool_size": 10,
+    "sentinel": {
+      "password": "${REDIS_SENTINEL_PASSWORD:-}",
+      "master_name": "mymaster",
+      "nodes": [
+        {
+          "host": "localhost",
+          "port": 26379
+        },
+        {
+          "host": "localhost",
+          "port": 26380
+        },
+        {
+          "host": "localhost",
+          "port": 26381
+        }
+      ]
+    }
+  },
+  "mail": {
+    "enabled": "${MAIL_ENABLED:-false}",
+    "via_jobs": "${MAIL_VIA_JOBS:-true}",
+    "smtp_host": "${MAIL_SMTP_HOST:-mailpit}",
+    "smtp_port": "${MAIL_SMTP_PORT:-1025}",
+    "smtp_username": "${MAIL_SMTP_USERNAME:-}",
+    "smtp_password": "${MAIL_SMTP_PASSWORD:-}",
+    "smtp_use_tls": "${MAIL_SMTP_USE_TLS:-false}",
+    "from": "${MAIL_FROM:-noreply@example.com}",
+    "from_name": "${MAIL_FROM_NAME:-App}",
+    "subject_prefix": "${MAIL_SUBJECT_PREFIX:-[App] }",
+    "timeout_sec": 30
+  },
+  "messaging": {
+    "enabled": false,
+    "kafka": {
+      "brokers": "localhost:9092",
+      "producer": {
+        "enabled": false,
+        "client_id": "tarassov_me_producer"
+      },
+      "consumer": {
+        "enabled": false,
+        "group_id": "cpp_consumer_group",
+        "topics": [
+          "example_topic"
+        ]
+      }
+    }
+  },
+  "api": {
+    "public_paths": "/,/healthz,/ready,/health,/metrics,/api/v1/docs,/api/v1/openapi.yaml,/api/v1/auth/login,/api/v1/auth/register,/api/v1/auth/refresh,/api/v1/account/confirm/*,/api/v1/account/reset-password-request,/api/v1/account/reset-password/*,/api/v1/account/change-email/*"
+  },
+  "docs": {
+    "enabled": "${DOCS_ENABLED:-false}",
+    "openapi_path": "docs/openapi.yaml"
+  },
+  "security": {
+    "hsts": "${SECURITY_HSTS:-false}",
+    "hsts_max_age": 31536000,
+    "csrf": {
+      "enabled": "${SECURITY_CSRF_ENABLED:-false}",
+      "cookie_name": "csrf-token",
+      "header_name": "X-CSRF-Token"
+    }
+  },
+  "auth": {
+    "mode": "${AUTH_MODE:-none}",
+    "bearer_token": "${AUTH_BEARER_TOKEN:-}",
+    "cookies": {
+      "enabled": false,
+      "access_name": "__Host-access",
+      "refresh_name": "__Host-refresh",
+      "access_ttl_sec": 900,
+      "refresh_ttl_sec": 604800,
+      "secure": true,
+      "samesite": "Lax",
+      "refresh_revocation_prefix": "auth:refresh:"
+    },
+    "jwt": {
+      "secret": "${JWT_SECRET:-}",
+      "issuer": "${JWT_ISSUER:-}",
+      "audience": "${JWT_AUDIENCE:-}",
+      "leeway_sec": 30,
+      "roles_claim": "roles",
+      "scopes_claim": "scope",
+      "secrets": {}
+    }
+  },
+  "idempotency": {
+    "enabled": false,
+    "ttl_sec": 86400,
+    "lock_ttl_sec": 30,
+    "max_body_kb": 1024,
+    "max_response_kb": 256
+  },
+  "rate_limit": {
+    "enabled": false,
+    "requests": 60,
+    "window_sec": 60,
+    "protected_requests": 10,
+    "protected_window_sec": 60,
+    "scope": "ip_or_user",
+    "trust_proxy": false,
+    "fail_open": true,
+    "whitelist": ""
+  },
+  "jobs": {
+    "enabled": false,
+    "result_ttl": 86400,
+    "max_retries": 3
+  },
+  "worker": {
+    "id": "worker-1",
+    "types": [
+      "default"
+    ],
+    "concurrency": 2,
+    "health_port": 9091,
+    "brpop_timeout": 5
+  }
+}

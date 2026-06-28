@@ -1,0 +1,39 @@
+# Per-env CloudNativePG cluster → pg-rw (primary) + pg-ro (replicas). The app
+# role/password come from the pg-app secret below (mirrors credentials.dbPassword).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pg-app
+  labels:
+    {{- include "tarassov-me-env.labels" . | nindent 4 }}
+type: kubernetes.io/basic-auth
+stringData:
+  username: app
+  password: {{ .Values.credentials.dbPassword | quote }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pg
+  labels:
+    {{- include "tarassov-me-env.labels" . | nindent 4 }}
+spec:
+  instances: {{ .Values.postgres.instances }}
+  storage:
+    size: {{ .Values.postgres.storageSize }}
+    {{- with .Values.postgres.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+      secret:
+        name: pg-app
+  # Keep test clusters cheap; tune for heavier load.
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: "1", memory: 512Mi }
+  affinity:
+    nodeSelector:
+      kubernetes.io/arch: amd64

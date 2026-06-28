@@ -1,0 +1,27 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8080,
+    "threads": 4
+  },
+  "logging": {
+    "name": "tarassov_me",
+    "file": "logs/app.log",
+    "level": "warn"
+  },
+  "observability": {
+    "metrics_address": "0.0.0.0:9090",
+    "service_name": "tarassov_me_bench"
+  },
+  "database": {
+    "primary": "postgresql://postgres:postgres@postgres:5432/appdb",
+    "replicas": [],
+    "pool_size": 20
+  },
+  "cache": {
+    "use_sentinel": false,
+    "url": "tcp://redis:6379",
+    "pool_size": 20
+  },
+  "messaging": { "enabled": false }
+}

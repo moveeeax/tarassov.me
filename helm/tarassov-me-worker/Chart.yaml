@@ -1,0 +1,8 @@
+apiVersion: v2
+name: tarassov-me-worker
+description: A Helm chart for deploying the C++ background job worker
+type: application
+version: 0.1.0
+appVersion: "1.5.0"
+maintainers:
+  - name: tarassov-me-team

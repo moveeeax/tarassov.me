@@ -1,0 +1,59 @@
+{
+  "// note": "Copy to launch.json (not committed). Requires `make build-local PRESET=dev` first so build/dev/ exists with debug symbols.",
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run app (dev preset)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/dev/tarassov_me",
+      "args": ["config/config.json"],
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "MIMode": "lldb",
+      "preLaunchTask": "make: build-local",
+      "environment": [
+        { "name": "DATABASE_PRIMARY_URL", "value": "postgresql://postgres:postgres@127.0.0.1:5432/appdb" },
+        { "name": "REDIS_URL", "value": "tcp://127.0.0.1:6379" },
+        { "name": "DB_MIGRATIONS_ENABLED", "value": "false" }
+      ]
+    },
+    {
+      "name": "Run worker (dev preset)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/dev/tarassov_me_worker",
+      "args": ["config/worker.json"],
+      "cwd": "${workspaceFolder}",
+      "MIMode": "lldb",
+      "preLaunchTask": "make: build-local",
+      "environment": [
+        { "name": "DATABASE_PRIMARY_URL", "value": "postgresql://postgres:postgres@127.0.0.1:5432/appdb" },
+        { "name": "REDIS_URL", "value": "tcp://127.0.0.1:6379" },
+        { "name": "JOBS_ENABLED", "value": "true" }
+      ]
+    },
+    {
+      "name": "Run tests (filter via NAME=)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/dev/tarassov_me_tests",
+      "args": ["--gtest_color=yes", "--gtest_filter=${input:gtestFilter}"],
+      "cwd": "${workspaceFolder}",
+      "MIMode": "lldb",
+      "preLaunchTask": "make: build-local",
+      "environment": [
+        { "name": "TEST_PG_HOST", "value": "127.0.0.1" },
+        { "name": "TEST_REDIS_HOST", "value": "127.0.0.1" }
+      ]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "gtestFilter",
+      "type": "promptString",
+      "description": "gtest filter (e.g. PaginationTest.* or *)",
+      "default": "*"
+    }
+  ]
+}

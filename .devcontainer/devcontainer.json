@@ -1,0 +1,33 @@
+{
+  "name": "tarassov-me",
+  "dockerComposeFile": ["docker-compose.yml"],
+  "service": "dev",
+  "workspaceFolder": "/app",
+  "shutdownAction": "stopCompose",
+  "remoteUser": "root",
+  "// postCreateCommand": "Use the same compile-commands target as the host so clangd in the container indexes the same way. PRESET=dev is the implicit default; override via env if needed.",
+  "postCreateCommand": "bash -lc 'make compile-commands PRESET=dev'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "llvm-vs-code-extensions.vscode-clangd",
+        "ms-vscode.cmake-tools",
+        "twxs.cmake",
+        "ms-azuretools.vscode-docker",
+        "github.vscode-pull-request-github",
+        "mhutchie.git-graph",
+        "redhat.vscode-yaml"
+      ],
+      "settings": {
+        "C_Cpp.intelliSenseEngine": "disabled",
+        "clangd.path": "/usr/bin/clangd",
+        "clangd.arguments": ["--background-index", "--header-insertion=never"],
+        "cmake.buildDirectory": "${workspaceFolder}/build",
+        "cmake.configureOnOpen": false,
+        "files.associations": {
+          "*.hpp": "cpp"
+        }
+      }
+    }
+  }
+}

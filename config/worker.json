@@ -1,0 +1,71 @@
+{
+  "logging": {
+    "name": "tarassov_me_worker",
+    "file": "logs/worker.log",
+    "level": "info",
+    "format": "${LOG_FORMAT:-text}"
+  },
+  "observability": {
+    "metrics_address": "0.0.0.0:9090",
+    "service_name": "tarassov_me_worker_service"
+  },
+  "database": {
+    "primary": "postgresql://${DATABASE_USER:-postgres}:${DATABASE_PASSWORD:-postgres}@${DATABASE_HOST:-localhost}:${DATABASE_PORT:-5432}/${DATABASE_NAME:-appdb}",
+    "replicas": [],
+    "pool_size": 10
+  },
+  "cache": {
+    "use_sentinel": false,
+    "url": "tcp://${REDIS_HOST:-127.0.0.1}:${REDIS_PORT:-6379}",
+    "password": "${REDIS_PASSWORD:-}",
+    "pool_size": 10,
+    "sentinel": {
+      "password": "${REDIS_SENTINEL_PASSWORD:-}",
+      "master_name": "mymaster",
+      "nodes": [
+        {
+          "host": "localhost",
+          "port": 26379
+        },
+        {
+          "host": "localhost",
+          "port": 26380
+        },
+        {
+          "host": "localhost",
+          "port": 26381
+        }
+      ]
+    }
+  },
+  "jobs": {
+    "enabled": true,
+    "result_ttl": 86400,
+    "max_retries": 3
+  },
+  "worker": {
+    "id": "worker-1",
+    "types": [
+      "default",
+      "account_email",
+      "email.send",
+      "webhook.deliver"
+    ],
+    "concurrency": 2,
+    "health_port": 9091,
+    "brpop_timeout": 5
+  },
+  "mail": {
+    "enabled": "${MAIL_ENABLED:-false}",
+    "via_jobs": "${MAIL_VIA_JOBS:-true}",
+    "smtp_host": "${MAIL_SMTP_HOST:-mailpit}",
+    "smtp_port": "${MAIL_SMTP_PORT:-1025}",
+    "smtp_username": "${MAIL_SMTP_USERNAME:-}",
+    "smtp_password": "${MAIL_SMTP_PASSWORD:-}",
+    "smtp_use_tls": "${MAIL_SMTP_USE_TLS:-false}",
+    "from": "${MAIL_FROM:-noreply@example.com}",
+    "from_name": "${MAIL_FROM_NAME:-App}",
+    "subject_prefix": "${MAIL_SUBJECT_PREFIX:-[App] }",
+    "timeout_sec": 30
+  }
+}
