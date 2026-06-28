@@ -48,18 +48,17 @@ public:
     static constexpr const char* kOrderBy = "created_at DESC";
 
     Domain::Post create(const PostInput& in) {
+        // published_at is server-chosen (not user input), so pick the literal in
+        // C++ rather than reuse the status parameter in a CASE — Postgres rejects
+        // a parameter inferred as two types (varchar column + text comparison).
+        const char* published_expr = in.status == "published" ? "now()" : "NULL";
         return detail::translate_sql(
             [&] {
                 return Database::get().execute_write([&](auto& txn) {
-                    // published_at is stamped now() the moment a row is created
-                    // already published; drafts keep it NULL until they go live.
                     auto r = txn.exec_params(
                         std::string("INSERT INTO posts (slug, title, summary, body, status, published_at) "
-                                    "VALUES ($1, $2, $3, $4, $5, "
-                                    // $5::text disambiguates the parameter type — it's also bound as the
-                                    // varchar `status` column, and Postgres rejects two inferred types for $5.
-                                    "CASE WHEN $5::text = 'published' THEN now() ELSE NULL END) RETURNING ") +
-                            kColumns,
+                                    "VALUES ($1, $2, $3, $4, $5, ") +
+                            published_expr + ") RETURNING " + kColumns,
                         in.slug,
                         in.title,
                         in.summary,
@@ -75,21 +74,17 @@ public:
     }
 
     Domain::Post update(const std::string& id, const PostInput& in) {
+        // First publish stamps published_at; an already-published edit keeps it
+        // (COALESCE); back to draft clears it. Chosen in C++ so the status param
+        // isn't reused in a CASE (Postgres rejects a two-typed parameter).
+        const char* published_expr = in.status == "published" ? "COALESCE(published_at, now())" : "NULL";
         return detail::translate_sql(
             [&] {
                 return Database::get().execute_write([&](auto& txn) {
-                    // First publish stamps published_at; back to draft clears it;
-                    // edits to an already-published post leave it untouched.
                     auto r = txn.exec_params(
                         std::string("UPDATE posts SET slug = $2, title = $3, summary = $4, body = $5, status = $6, "
-                                    // $6::text disambiguates the parameter type (also bound as the varchar
-                                    // `status` column) so Postgres doesn't reject two inferred types for $6.
-                                    "published_at = CASE "
-                                    "WHEN $6::text = 'published' AND published_at IS NULL THEN now() "
-                                    "WHEN $6::text = 'draft' THEN NULL "
-                                    "ELSE published_at END "
-                                    "WHERE id = $1 RETURNING ") +
-                            kColumns,
+                                    "published_at = ") +
+                            published_expr + " WHERE id = $1 RETURNING " + kColumns,
                         id,
                         in.slug,
                         in.title,
