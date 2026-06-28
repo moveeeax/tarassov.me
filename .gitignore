@@ -143,3 +143,9 @@ helm/tarassov-me-env/.demo-secrets.env
 
 # Local file-storage backend (Storage::LocalStorage) — never commit uploads
 data/uploads/
+
+# Purchased frontend template archive — extracted to a scratch dir, not tracked
+BookCard*.zip
+
+# Personal CV source — content used on the vCard; not published as-is
+Michael_Tarassov_CV.pdf

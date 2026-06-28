@@ -64,6 +64,9 @@ data:
         "result_ttl": {{ .Values.jobs.resultTtl }},
         "max_retries": {{ .Values.jobs.maxRetries }}
       },
+      "api": {
+        "public_paths": {{ .Values.api.publicPaths | quote }}
+      },
       "rate_limit": {
         "enabled": {{ .Values.rateLimit.enabled }},
         "requests": {{ .Values.rateLimit.requests }},
@@ -72,7 +75,8 @@ data:
         "trust_proxy": {{ .Values.rateLimit.trustProxy }},
         "trusted_proxy_count": {{ .Values.rateLimit.trustedProxyCount }},
         "fail_open": {{ .Values.rateLimit.failOpen }},
-        "whitelist": {{ .Values.rateLimit.whitelist | quote }}
+        "whitelist": {{ .Values.rateLimit.whitelist | quote }},
+        "protected_paths": {{ .Values.rateLimit.protectedPaths | quote }}
       },
       "idempotency": {
         "enabled": {{ .Values.idempotency.enabled }},
@@ -92,7 +96,20 @@ data:
         "from": {{ .Values.mail.from | quote }},
         "from_name": {{ .Values.mail.fromName | quote }},
         "subject_prefix": {{ .Values.mail.subjectPrefix | quote }},
+        "contact_to": {{ .Values.mail.contactTo | quote }},
         "timeout_sec": 30
+      },
+      "storage": {
+        "backend": {{ .Values.storage.backend | quote }},
+        "public_base_url": {{ .Values.storage.publicBaseUrl | quote }},
+        "local": { "root": "data/uploads" },
+        "s3": {
+          "endpoint": {{ .Values.storage.s3.endpoint | quote }},
+          "region": {{ .Values.storage.s3.region | quote }},
+          "bucket": {{ .Values.storage.s3.bucket | quote }},
+          "access_key": {{ .Values.storage.s3.accessKey | quote }},
+          "secret_key": "${S3_SECRET_KEY:-}"
+        }
       },
       "messaging": {
         "enabled": {{ .Values.externalKafka.enabled }},

@@ -191,6 +191,16 @@ inline void uuid(Errors& errs, const json& body, const std::string& field) {
     regex_match(errs, body, field, re, "uuid");
 }
 
+// Reject CR/LF — defense-in-depth against header injection when a field later
+// lands in an email Subject / SMTP header. No-op if the field is absent.
+inline void no_crlf(Errors& errs, const json& body, const std::string& field) {
+    if (!body.contains(field) || !body[field].is_string())
+        return;
+    const std::string& s = body[field].get_ref<const std::string&>();
+    if (s.find('\r') != std::string::npos || s.find('\n') != std::string::npos)
+        errs.add(field, "invalid", "must not contain line breaks");
+}
+
 // ---------------------------------------------------------------------------
 // Response helper
 // ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ export const qk = {
       page === undefined ? (['admin', 'users'] as const) : (['admin', 'users', page] as const),
     user: (id: string) => ['admin', 'user', id] as const,
     roles: () => ['admin', 'roles'] as const,
+    posts: () => ['admin', 'posts'] as const,
     jobs: (filter?: string, page?: number) => {
       if (filter === undefined) return ['admin', 'jobs'] as const;
       if (page === undefined) return ['admin', 'jobs', filter] as const;

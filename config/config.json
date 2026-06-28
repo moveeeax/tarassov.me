@@ -63,6 +63,13 @@
     "public_base_url": "${STORAGE_PUBLIC_BASE_URL:-}",
     "local": {
       "root": "${STORAGE_LOCAL_ROOT:-data/uploads}"
+    },
+    "s3": {
+      "endpoint": "${S3_ENDPOINT:-}",
+      "region": "${S3_REGION:-us-east-1}",
+      "bucket": "${S3_BUCKET:-}",
+      "access_key": "${S3_ACCESS_KEY:-}",
+      "secret_key": "${S3_SECRET_KEY:-}"
     }
   },
   "mail": {
@@ -76,6 +83,7 @@
     "from": "${MAIL_FROM:-noreply@example.com}",
     "from_name": "${MAIL_FROM_NAME:-App}",
     "subject_prefix": "${MAIL_SUBJECT_PREFIX:-[App] }",
+    "contact_to": "${CONTACT_EMAIL:-}",
     "timeout_sec": 30
   },
   "messaging": {
@@ -96,7 +104,7 @@
     }
   },
   "api": {
-    "public_paths": "/,/healthz,/ready,/health,/metrics,/api/v1/docs,/api/v1/openapi.yaml,/api/v1/auth/login,/api/v1/auth/register,/api/v1/auth/refresh,/api/v1/account/confirm/*,/api/v1/account/reset-password-request,/api/v1/account/reset-password/*,/api/v1/account/change-email/*,/api/v1/account/join-from-invite/*"
+    "public_paths": "/,/healthz,/ready,/health,/metrics,/api/v1/docs,/api/v1/openapi.yaml,/api/v1/auth/login,/api/v1/auth/register,/api/v1/auth/refresh,/api/v1/account/confirm/*,/api/v1/account/reset-password-request,/api/v1/account/reset-password/*,/api/v1/account/change-email/*,/api/v1/account/join-from-invite/*,/api/v1/public/posts,/api/v1/public/posts/*,/api/v1/public/contact"
   },
   "docs": {
     "enabled": "${DOCS_ENABLED:-false}",
@@ -150,7 +158,8 @@
     "scope": "ip_or_user",
     "trust_proxy": false,
     "fail_open": true,
-    "whitelist": ""
+    "whitelist": "",
+    "protected_paths": "/api/v1/auth/login,/api/v1/auth/register,/api/v1/auth/refresh,/api/v1/account/confirm/*,/api/v1/account/reset-password-request,/api/v1/account/reset-password/*,/api/v1/account/change-email/*,/api/v1/account/join-from-invite/*,/api/v1/public/contact"
   },
   "jobs": {
     "enabled": false,

@@ -43,6 +43,21 @@ x-mail-env: &mail-env
   MAIL_SUBJECT_PREFIX: "${MAIL_SUBJECT_PREFIX:-[App] }"
   APP_NAME: ${APP_NAME:-App}
   APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+  # Where the public contact form (POST /api/v1/public/contact) sends mail.
+  # Empty → the endpoint reports the form is not configured.
+  CONTACT_EMAIL: ${CONTACT_EMAIL:-}
+
+# Object storage for uploads (post images). Defaults to the local-disk backend;
+# set STORAGE_BACKEND=s3 + the S3_* vars (e.g. in docker/.env) to use MinIO.
+# STORAGE_PUBLIC_BASE_URL must be the browser-reachable URL prefix for objects.
+x-storage-env: &storage-env
+  STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+  STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-}
+  S3_ENDPOINT: ${S3_ENDPOINT:-}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_BUCKET: ${S3_BUCKET:-}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:-}
 
 services:
   # Application service
@@ -62,7 +77,7 @@ services:
       - "8080:8080"  # API
       - "9090:9090"  # Metrics
     environment:
-      <<: [*data-env, *auth-env, *mail-env]
+      <<: [*data-env, *auth-env, *mail-env, *storage-env]
       MESSAGING_ENABLED: ${MESSAGING_ENABLED:-false}
       KAFKA_PRODUCER_ENABLED: ${KAFKA_PRODUCER_ENABLED:-false}
       KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
@@ -180,7 +195,7 @@ services:
       - "9190:9090"  # Metrics (remapped to avoid conflict with app:9090)
     environment:
       # Same data/auth/mail env as app — see the x-*-env anchors up top.
-      <<: [*data-env, *auth-env, *mail-env]
+      <<: [*data-env, *auth-env, *mail-env, *storage-env]
       JOBS_ENABLED: "true"
       WORKER_ID: ${WORKER_ID:-worker-1}
       # Production-shaped default: only the real job types the app enqueues.

@@ -64,6 +64,15 @@ inline const std::vector<EndpointInfo>& get_endpoints() {
         {"POST", "/api/v1/jobs/dlq/{id}/requeue", "Requeue a DLQ job"},
         {"GET", "/api/v1/jobs/{id}", "Get job status"},
         {"DELETE", "/api/v1/jobs/{id}", "Cancel job"},
+        {"GET", "/api/v1/posts", "List posts (admin)"},
+        {"POST", "/api/v1/posts", "Create post (admin)"},
+        {"GET", "/api/v1/posts/{id}", "Get post (admin)"},
+        {"PATCH", "/api/v1/posts/{id}", "Update post (admin)"},
+        {"DELETE", "/api/v1/posts/{id}", "Delete post (admin)"},
+        {"GET", "/api/v1/public/posts", "List published posts (public)"},
+        {"GET", "/api/v1/public/posts/{slug}", "Get published post by slug (public)"},
+        {"POST", "/api/v1/public/contact", "Send a contact message (public)"},
+        {"POST", "/api/v1/admin/uploads", "Upload an image (admin)"},
     };
     return endpoints;
 }
