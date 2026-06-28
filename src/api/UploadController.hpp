@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
+#include <initializer_list>
 #include <string>
 #include <unordered_map>
 
@@ -30,6 +31,29 @@ namespace Api {
 
 using namespace drogon;
 using json = nlohmann::json;
+
+// Cheap magic-number sniff: confirm the bytes actually match the claimed image
+// type, so a .jpg that's really HTML/script can't be stored and served back.
+inline bool image_bytes_match(const std::string& ext, const std::string& b) {
+    const auto starts = [&](std::initializer_list<unsigned char> sig) {
+        if (b.size() < sig.size())
+            return false;
+        std::size_t i = 0;
+        for (unsigned char c : sig)
+            if (static_cast<unsigned char>(b[i++]) != c)
+                return false;
+        return true;
+    };
+    if (ext == "jpg" || ext == "jpeg")
+        return starts({0xFF, 0xD8, 0xFF});
+    if (ext == "png")
+        return starts({0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A});
+    if (ext == "gif")
+        return b.size() >= 6 && (b.compare(0, 6, "GIF87a") == 0 || b.compare(0, 6, "GIF89a") == 0);
+    if (ext == "webp")
+        return b.size() >= 12 && b.compare(0, 4, "RIFF") == 0 && b.compare(8, 4, "WEBP") == 0;
+    return false;
+}
 
 class UploadController : public HttpController<UploadController> {
 public:
@@ -68,6 +92,10 @@ public:
         constexpr std::size_t kMaxBytes = 5 * 1024 * 1024;  // 5 MB
         if (bytes.empty() || bytes.size() > kMaxBytes) {
             callback(ErrorResponse::bad_request("bad_size", "File must be 1 byte – 5 MB"));
+            return;
+        }
+        if (!image_bytes_match(ext, bytes)) {
+            callback(ErrorResponse::bad_request("bad_content", "File content does not match its image type"));
             return;
         }
 

@@ -63,6 +63,16 @@ host="$(q 'select(.kind=="Ingress" and .metadata.name=="api") | .spec.rules[0].h
 nullports="$(q 'select(.kind=="Service") | .spec.ports[] | select(.port == null) | .name' | grep -c . || true)"
 [ "$nullports" = "0" ] || fail "$nullports service port(s) rendered null"
 
+# 5b. The app config must carry the storage block, the contact recipient key, and
+#     the public blog/contact paths — otherwise uploads, the contact form, or
+#     anonymous blog access silently break in prod (the auth gate 401s any path
+#     not in public_paths). Guards against a regression of the chart wiring.
+cfg="$(q 'select(.kind=="ConfigMap" and (.data | has("config.json"))) | .data."config.json"')"
+printf '%s' "$cfg" | grep -q '"storage"' || fail "config.json missing the storage block"
+printf '%s' "$cfg" | grep -q '"contact_to"' || fail "config.json missing mail.contact_to"
+printf '%s' "$cfg" | grep -q '/api/v1/public/posts' || fail "config.json public_paths missing the public blog endpoints"
+printf '%s' "$cfg" | grep -q '/api/v1/public/contact' || fail "config.json public_paths missing the contact endpoint"
+
 # 6. The minimal preset must stay minimal — render values-minimal.yaml and
 #    assert the heavy optional services are gone, so the lighter onboarding
 #    preset can't silently rot back into the kitchen sink.
