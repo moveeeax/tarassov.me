@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cover 2A — reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Cutive+Mono&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #e8dcc8; display: flex; justify-content: center; padding: 40px 0; font-family: 'Oswald', sans-serif; }
+
+  .cover {
+    position: relative;
+    width: 471px;            /* reference size; on the real site scale to the hero container */
+    height: 658px;
+    background: #14110f;
+    overflow: hidden;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Dark name plate — sits ABOVE the photo, never covers the face */
+  .cover-title {
+    padding: 20px 24px 14px;
+    text-align: center;
+    background: #14110f;
+  }
+  .cover-title h1 {
+    margin: 0;
+    font-family: 'Alfa Slab One', serif;
+    font-size: 34px;
+    line-height: 1.05;
+    color: #fff;
+    text-shadow: 2px 2px 0 #c94c43;
+    letter-spacing: 1px;
+  }
+  .cover-title p {
+    margin: 4px 0 0;
+    font-family: 'Cutive Mono', monospace;
+    font-size: 17px;
+    color: #f2ece2;
+  }
+
+  /* Photo area */
+  .cover-photo {
+    position: relative;
+    flex: 1;
+    background: url('https://tarassov.me/images/site/cover.jpg') center 22% / cover no-repeat;
+  }
+
+  /* Bottom scrim so stats stay readable over the jacket */
+  .cover-photo::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 300px;
+    background: linear-gradient(0deg, rgba(15,13,16,0.85) 30%, rgba(15,13,16,0));
+  }
+
+  /* OPEN ribbon */
+  .cover-open {
+    position: absolute;
+    right: 0;
+    top: 34%;
+    z-index: 2;
+    background: #d96459;
+    color: #7e2b24;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 2px;
+    padding: 12px 22px 12px 26px;
+    clip-path: polygon(14px 0, 100% 0, 100% 100%, 14px 100%, 0 50%);
+    text-decoration: none;
+  }
+
+  /* Stats block — anchored to the jacket, not the face */
+  .cover-stats {
+    position: absolute;
+    left: 28px; right: 28px; bottom: 22px;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .cover-stats .row { display: flex; gap: 40px; }
+  .cover-stats dt {
+    margin: 0;
+    color: #f4c430;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 2px;
+  }
+  .cover-stats dd {
+    margin: 0;
+    color: #fff;
+    font-size: 22px;
+    font-weight: 500;
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <header class="cover-title">
+    <h1>MICHAEL TARASSOV</h1>
+    <p>Multi-Cloud DevOps Engineer</p>
+  </header>
+
+  <div class="cover-photo">
+    <a class="cover-open" href="#/resume">OPEN</a>
+
+    <div class="cover-stats">
+      <dl style="margin:0">
+        <dt>STACK</dt>
+        <dd>Terraform · Kubernetes</dd>
+      </dl>
+      <div class="row">
+        <dl style="margin:0">
+          <dt>CLOUDS</dt>
+          <dd>AWS · Azure · GCP</dd>
+        </dl>
+        <dl style="margin:0">
+          <dt>EXPERIENCE</dt>
+          <dd>10+ years</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
