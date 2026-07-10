@@ -25,7 +25,7 @@
     function fmtDate(iso) {
         if (!iso) return "";
         try {
-            return new Date(iso).toLocaleDateString("ru-RU", { year: "numeric", month: "long", day: "numeric" });
+            return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
         } catch (e) {
             return iso;
         }
@@ -53,7 +53,7 @@
             .then(function (res) {
                 var posts = (res && res.data) || [];
                 if (!posts.length) {
-                    notice(container, "Пока нет записей.");
+                    notice(container, "No posts yet.");
                     return;
                 }
                 posts.forEach(function (post) {
@@ -67,12 +67,12 @@
                         esc(post.published_at || "") + '">' + esc(fmtDate(post.published_at)) + "</time></span></div>" +
                         "</header>" +
                         '<div class="entry-summary"><p>' + esc(post.summary) + "</p></div>" +
-                        '<footer class="entry-footer"><a class="more-link" href="' + href + '">Читать →</a></footer>';
+                        '<footer class="entry-footer"><a class="more-link" href="' + href + '">Read →</a></footer>';
                     container.appendChild(art);
                 });
             })
             .catch(function () {
-                notice(container, "Не удалось загрузить записи.");
+                notice(container, "Failed to load posts.");
             });
     }
 
@@ -85,8 +85,8 @@
 
         var slug = new URLSearchParams(location.search).get("slug");
         if (!slug) {
-            if (titleEl) titleEl.textContent = "Запись не найдена";
-            if (contentEl) contentEl.innerHTML = "<p>Не указан адрес записи.</p>";
+            if (titleEl) titleEl.textContent = "Post not found";
+            if (contentEl) contentEl.innerHTML = "<p>No post specified.</p>";
             return;
         }
 
@@ -98,7 +98,7 @@
             .then(function (res) {
                 var post = res && res.data;
                 if (!post) throw new Error("not found");
-                document.title = post.title + " — Михаил Тарасов";
+                document.title = post.title + " — Michael Tarassov";
                 if (titleEl) titleEl.textContent = post.title;
                 if (metaEl) {
                     metaEl.innerHTML =
@@ -112,8 +112,8 @@
                 }
             })
             .catch(function () {
-                if (titleEl) titleEl.textContent = "Запись не найдена";
-                if (contentEl) contentEl.innerHTML = "<p>Эта запись не существует или ещё не опубликована.</p>";
+                if (titleEl) titleEl.textContent = "Post not found";
+                if (contentEl) contentEl.innerHTML = "<p>This post does not exist or has not been published yet.</p>";
             });
     }
 
@@ -139,7 +139,7 @@
                               );
                           })
                           .join("")
-                    : '<p class="blog-notice">Пока нет записей.</p>';
+                    : '<p class="blog-notice">No posts yet.</p>';
             })
             .catch(function () {});
     }
@@ -159,7 +159,7 @@
                 subject: form.elements["subject"] ? form.elements["subject"].value.trim() : "",
                 message: form.elements["message"].value.trim(),
             };
-            if (status) status.textContent = "Отправка…";
+            if (status) status.textContent = "Sending…";
             if (btn) btn.disabled = true;
             fetch("/api/v1/public/contact", {
                 method: "POST",
@@ -173,14 +173,14 @@
                 })
                 .then(function (res) {
                     if (res.ok) {
-                        if (status) status.textContent = "Спасибо! Сообщение отправлено.";
+                        if (status) status.textContent = "Thanks! Your message has been sent.";
                         form.reset();
                     } else if (status) {
-                        status.textContent = (res.body && (res.body.message || res.body.error)) || "Не удалось отправить.";
+                        status.textContent = (res.body && (res.body.message || res.body.error)) || "Failed to send.";
                     }
                 })
                 .catch(function () {
-                    if (status) status.textContent = "Ошибка сети.";
+                    if (status) status.textContent = "Network error.";
                 })
                 .finally(function () {
                     if (btn) btn.disabled = false;
