@@ -120,25 +120,9 @@ body, input, textarea, select, button, input[type="button"], input[type="reset"]
 /* Desktop corner nav on the CLOSED cover. The template only ever showed this
    menu in safe-mod/mobile — on desktop the cover had no visible navigation at
    all. Hidden again once the book opens (the panels own the navigation then). */
-/* Desktop text navigation under the closed cover (cover 2A) — replaces the old
-   icon strip. Reuses the #header markup: icons off, the .visually-hidden link
-   text un-hidden and styled. Hidden once the book opens (panels own nav then).
-   Anchored to #rm-container's bottom — its perspective makes it the containing
-   block anyway, and the row lands centered under the book. */
-html:not(.safe-mod) .rm-closed #header { display: block; position: absolute; bottom: 4px; left: 0; right: 0; z-index: 1100; width: auto; text-align: center; }
-html:not(.safe-mod) .rm-closed #header nav ul { display: inline-block; font-size: 0; }
-html:not(.safe-mod) .rm-closed #header nav ul li { float: none; display: inline-block; width: auto; }
-html:not(.safe-mod) .rm-closed #header nav ul li + li::before { content: "\00B7"; color: #4a4038; font-size: 14px; vertical-align: middle; padding: 0 12px; }
-html:not(.safe-mod) .rm-closed #header nav ul a {
-	display: inline-block; vertical-align: middle; line-height: 1; padding: 10px 2px;
-	font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 2px; text-transform: uppercase;
-	color: #4a4038; background: none; border: none; box-shadow: none; text-shadow: none;
-	}
-html:not(.safe-mod) .rm-closed #header nav ul a:hover { color: #b33a3a; background: none; }
-html:not(.safe-mod) .rm-closed #header nav ul a:before { content: none; }
-html:not(.safe-mod) .rm-closed #header nav ul a .visually-hidden {
-	position: static !important; width: auto; height: auto; margin: 0; padding: 0; overflow: visible; clip: auto; white-space: nowrap;
-	} 
+/* No visible navigation on the desktop cover (owner's call): #header keeps its
+   template default (display:none outside safe-mod); the OPEN ribbon is the
+   entry point. The markup stays for the safe-mod/mobile menu. */ 
 #header nav ul a:hover { color: #eee; background: #222; }
 /* Menu Icons */
 #header ul li:nth-child(1) a:before { content: "\f104"; } /* Home */
@@ -541,9 +525,11 @@ a.ribbon:hover { color: #000; }
    Name plate above the photo (face never covered), photo as its own area,
    stats on the jacket over a bottom scrim, clip-path OPEN ribbon.
    Reference: cover-2a-reference.html (repo root of public-site). */
-/* height:auto: the template's `.cover{height:100%}` resolves in safe-mod's
-   static flow and would stretch the card with a black tail below the photo. */
-.cover-2a { display: flex; flex-direction: column; height: auto !important; background-color: #14110f; background-image: none !important; }
+/* Desktop: fill the whole book page (the page paper is window-height driven;
+   a shorter card left a white strip below the photo). Safe-mod/mobile flows
+   statically, where height:100% would instead stretch a black tail — keep auto. */
+.cover-2a { display: flex; flex-direction: column; height: 100% !important; background-color: #14110f; background-image: none !important; }
+.safe-mod .cover-2a { height: auto !important; }
 
 .cover-2a .cover-plaque { padding: 20px 24px 14px; text-align: center; background: #14110f; }
 /* !important: fitText (main.js) sets inline font-size on .cover h1/h2 — the
@@ -560,8 +546,10 @@ a.ribbon:hover { color: #000; }
 
 /* Photo area: aspect from the 2A reference (471x560 under a ~98px plate);
    the card heights here are content-driven, so the ratio must be explicit. */
+/* aspect-ratio is the preferred (minimum) size; flex-grow lets the photo take
+   whatever page height remains so the card always reaches the page bottom. */
 .cover-2a .cover-photo {
-	position: relative; aspect-ratio: 471 / 560;
+	position: relative; flex: 1 0 auto; aspect-ratio: 471 / 560;
 	background: url(../images/site/cover.jpg) center 22% / cover no-repeat;
 	}
 .cover-2a .cover-photo::after {
