@@ -372,6 +372,10 @@ box-shadow: 0 0 10px #555;
 .social { padding:0; margin:2em 0; list-style:none; text-align: center; }
 .social li { display:inline-block; padding:0; margin-bottom: -3px; }
 .social li a { display:block; float:left; margin: 0 .1em .2em 0; line-height:100%; text-align:center; font-family: 'JustVectorRegular'; font-size:21px; padding: 9px 8px 7px 8px; min-width:21px; max-height:24px; color:#444; border-radius: 50%; border: 1px solid #ddd; }
+/* Same round buttons for networks the JustVector icon font doesn't cover
+   (GitLab, plain email) — inline SVG inherits color via currentColor. */
+.social li a.svg-icon { padding: 8px; }
+.social li a.svg-icon svg { display: block; width: 21px; height: 21px; }
 
 .social li a.facebook:before { content: 'X'; }
 .social li a.twitter:before { content: '_'; }
