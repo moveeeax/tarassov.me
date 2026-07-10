@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="94" height="114" viewBox="0 0 94 114">
+  <!-- Neutral postage-stamp inner image: cream paper, thin frame, MT monogram.
+       The perforated outer frame + shading come from the template's
+       bckg/stamp.png / stamp-mask.png, so this only draws the inside. -->
+  <rect width="94" height="114" fill="#f1ead9"/>
+  <!-- subtle engraved background lines -->
+  <g stroke="#d8cfb8" stroke-width="1">
+    <path d="M-10 20 L104 66"/>
+    <path d="M-10 34 L104 80"/>
+    <path d="M-10 48 L104 94"/>
+    <path d="M-10 62 L104 108"/>
+    <path d="M-10 6 L104 52"/>
+  </g>
+  <!-- inner frame -->
+  <rect x="6" y="6" width="82" height="102" fill="none" stroke="#8a7d5c" stroke-width="1.5"/>
+  <rect x="10" y="10" width="74" height="94" fill="none" stroke="#b3a781" stroke-width="0.75"/>
+  <!-- monogram -->
+  <text x="47" y="66" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="34" font-weight="bold" fill="#5d5138" letter-spacing="2">MT</text>
+  <!-- denomination corners, like a real stamp -->
+  <text x="16" y="24" font-family="Georgia, serif" font-size="11" fill="#8a7d5c">1</text>
+  <text x="78" y="24" text-anchor="end" font-family="Georgia, serif" font-size="11" fill="#8a7d5c">1</text>
+  <!-- bottom caption -->
+  <text x="47" y="96" text-anchor="middle" font-family="Georgia, serif" font-size="8" fill="#8a7d5c" letter-spacing="3">TARASSOV.ME</text>
+</svg>
