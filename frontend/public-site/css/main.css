@@ -81,7 +81,9 @@ body, input, textarea, select, button, input[type="button"], input[type="reset"]
   -moz-transition: linear 300ms opacity;
   -o-transition: linear 300ms opacity;
 }
-.antiscroll-scrollbar-shown { opacity: .3; filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=30); }
+/* Scrollbar stays visible (data-autoHideScrollbar="false"): panels taller than
+   the page must LOOK scrollable, or nobody finds the CV button and the form. */
+.antiscroll-scrollbar-shown { opacity: .45; filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=45); }
 .antiscroll-scrollbar-horizontal { height: 7px; margin-left: 2px; bottom: 2px; left: 0; }
 .antiscroll-scrollbar-vertical { width: 7px; margin-top: 2px; right: 2px; top: 0; }
 .antiscroll-scrollbar-vertical:active { opacity: .5; filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=50); }
