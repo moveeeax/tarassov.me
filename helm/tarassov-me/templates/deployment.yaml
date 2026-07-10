@@ -275,6 +275,10 @@ spec:
               value: {{ .Values.auth.cookies.access | quote }}
             - name: AUTH_COOKIE_REFRESH
               value: {{ .Values.auth.cookies.refresh | quote }}
+            # CSRF double-submit protection; required alongside cookie auth in
+            # production (the app warns at boot when cookies are on and this is off).
+            - name: SECURITY_CSRF_ENABLED
+              value: {{ .Values.auth.csrf.enabled | quote }}
             # Public base URL / name the API renders into transactional email
             # links when it sends inline (jobs disabled).
             - name: APP_BASE_URL

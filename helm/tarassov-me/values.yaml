@@ -320,6 +320,11 @@ auth:
     # dev, rename these (e.g. "access" / "refresh") AND set secure=false together.
     access: __Host-access
     refresh: __Host-refresh
+  # CSRF double-submit token (SECURITY_CSRF_ENABLED). Enable together with
+  # cookies in production — the app warns at boot when cookies are on and this
+  # is off. The admin SPA already echoes the csrf-token cookie on mutations.
+  csrf:
+    enabled: false
 
 # ---------------------------------------------------------------
 # Application — public URL/name the API renders into transactional email links
