@@ -1,0 +1,16 @@
+# Database for tarassov.me on the shared CNPG cluster (ns db).
+# The owner role `tarassov-me` is declared in the Cluster CR's
+# spec.managed.roles (password from secret postgresql-tarassov-me,
+# created out-of-band — not committed).
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: tarassov-me-db
+  namespace: db
+spec:
+  cluster:
+    name: postgresql
+  name: tarassov-me
+  owner: tarassov-me
+  ensure: present
+  databaseReclaimPolicy: retain

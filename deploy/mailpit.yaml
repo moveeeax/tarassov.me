@@ -1,0 +1,74 @@
+# MailPit — dev/staging SMTP sink for tarassov.me (ns www).
+# Worker delivers transactional + contact-form mail here (SMTP :1025);
+# the web UI (mail.tarassov.me, :8025) is behind HTTP basic auth.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailpit
+  namespace: www
+  labels: { app: mailpit }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: mailpit } }
+  template:
+    metadata:
+      labels: { app: mailpit }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: mailpit
+          image: axllent/mailpit:v1.20.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          env:
+            - name: MP_UI_AUTH
+              valueFrom: { secretKeyRef: { name: mailpit-auth, key: ui-auth } }
+            - name: MP_SMTP_AUTH_ALLOW_INSECURE
+              value: "true"
+          ports:
+            - { name: smtp, containerPort: 1025 }
+            - { name: http, containerPort: 8025 }
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            initialDelaySeconds: 5
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailpit
+  namespace: www
+spec:
+  selector: { app: mailpit }
+  ports:
+    - { name: smtp, port: 1025, targetPort: smtp }
+    - { name: http, port: 8025, targetPort: http }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mailpit
+  namespace: www
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    external-dns.alpha.kubernetes.io/hostname: mail.tarassov.me
+    external-dns.alpha.kubernetes.io/target: "46.225.37.165"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [mail.tarassov.me]
+      secretName: mailpit-tls
+  rules:
+    - host: mail.tarassov.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: mailpit, port: { number: 8025 } } }
