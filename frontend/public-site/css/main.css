@@ -839,15 +839,20 @@ a.button.small {
 
 
 /* ----- 4.1 HEADER ----- */
+/* Blog hero: capped height (~50vh) so content starts on the first screen,
+   a real darkening overlay for text contrast, and the portrait crop shifted
+   down so the title doesn't sit across the eyes. */
 .header {
 	max-width: 1040px; margin: 0 auto;
-	position: relative; display: flex; align-items: center; justify-content: center; text-align: center; padding: 10% 0; background-size: cover; background-position: center; background-color: #fff;
+	position: relative; display: flex; align-items: center; justify-content: center; text-align: center;
+	padding: 0; min-height: 300px; height: 50vh; max-height: 520px;
+	background-size: cover; background-position: center 45%; background-color: #fff;
 	}
 .header::before {
-    display: block; content: ''; position: absolute; top: 0; left: 0; height: 100%; width: 100%; background-color: rgba(39, 97, 99, 0.13); opacity: 1; -webkit-transition: opacity 0.5s 0.4s, visibility 0s 0.9s; transition: opacity 0.5s 0.4s, visibility 0s 0.9s;
+    display: block; content: ''; position: absolute; top: 0; left: 0; height: 100%; width: 100%; background-color: rgba(0, 0, 0, 0.45); opacity: 1; -webkit-transition: opacity 0.5s 0.4s, visibility 0s 0.9s; transition: opacity 0.5s 0.4s, visibility 0s 0.9s;
 	}
 .header .site-title {
-	font-size: 44px; font-size: 10vw; letter-spacing: 0; font-weight: 100; color: #fff; line-height: 1; padding: 0; margin: 0;
+	font-size: 44px; font-size: clamp(40px, 7vw, 84px); letter-spacing: 0; font-weight: 100; color: #fff; line-height: 1; padding: 0; margin: 0;
 	}
 .header-title-link + .site-title { margin: 30px 0; font-size: 64px;
 	}
