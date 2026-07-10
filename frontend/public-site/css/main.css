@@ -222,6 +222,23 @@ img.ajax-loader { display: none; float: left; margin-top:34px; }
 
 /* Portfolio Items */
 .portfolio-items { min-height: 200px; width: 106%; margin-left: -3%; }
+
+/* PROJECT LINK CARDS — the Projects column holds three external links, not a
+   portfolio grid; full-width cards + vertical centering kill the empty look. */
+#portfolio .content { display: flex; flex-direction: column; min-height: 100%; -moz-box-sizing: border-box; -webkit-box-sizing: border-box; box-sizing: border-box; }
+.portfolio-items.project-links { width: 100%; margin: auto 0; min-height: 0; }
+.project-card {
+	display: flex; align-items: center; gap: 16px; width: 100%; margin: 0 0 14px;
+	padding: 16px 18px; -moz-box-sizing: border-box; -webkit-box-sizing: border-box; box-sizing: border-box;
+	border: 1px solid #b5ab96; border-radius: 6px; color: #444; text-decoration: none;
+	background: rgba(255,255,255,.35);
+	}
+.project-card:hover { border-color: #444; color: #111; background: rgba(255,255,255,.7); }
+.project-card svg { flex: 0 0 auto; }
+.project-card-text { display: flex; flex-direction: column; text-align: left; min-width: 0; }
+.project-card-text strong { font-size: 15px; letter-spacing: 1px; }
+.project-card-text em { font-style: normal; font-size: 12.5px; color: #6b6151; }
+.project-card:hover .project-card-text em { color: #444; }
 .portfolio-items .hentry { float:left; width: 40%; padding: 10px 15px; margin-bottom: 0; text-align: center; -moz-box-sizing:border-box;-webkit-box-sizing:border-box;-ms-box-sizing:border-box;box-sizing:border-box; }
 .portfolio-items .hentry.x2 { width: 80%; }
 .portfolio-items .hentry img { display: block; }
