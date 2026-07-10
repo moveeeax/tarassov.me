@@ -12,6 +12,9 @@ MAIN STYLE FILE */
 /* BASE */
 html, body { width:100%; height:100%; }
 body { overflow: hidden; -webkit-text-size-adjust:none; }
+/* The blog pages are ordinary documents — the global overflow:hidden exists
+   for the book mechanics on index.html and killed native scrolling here. */
+body.blog-page { overflow: visible; overflow-y: auto; overflow-x: hidden; }
 .safe-mod body { overflow: visible; overflow-x: hidden; display: block !important; }
 .p-overlay-on body { overflow: visible; }
 .p-overlay-on.safe-mod .main { display: none; }
