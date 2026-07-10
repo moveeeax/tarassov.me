@@ -1871,3 +1871,54 @@ body.post-1a { font-family: 'PT Serif', serif; color: #2b2622; padding: 40px 16p
 	.post-pager a { padding: 16px 20px; }
 	.post-pager a + a { border-left: none; border-top: 1px solid #c9b99d; text-align: left; }
 	}
+
+
+/* ═══ BLOG LIST PAGE (layout 2A — docs/design/blog-list-2a-reference.html)
+   Shares the sheet/topbar/footer/tokens with the article page above. ═══ */
+
+.blog-title {
+	font-family: 'Alfa Slab One', serif; font-weight: 400;
+	font-size: 44px; color: #14110f; margin: 0 0 10px; padding: 0; text-align: left; text-shadow: none; letter-spacing: 0;
+	}
+.blog-title-dot { color: #c94c43; }
+.blog-subtitle { font-family: 'Cutive Mono', monospace; font-size: 15px; color: #7a6f60; margin: 0 0 28px; }
+
+/* Tag filter (hidden until any post carries tags) */
+.blog-tag-filter { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 40px; }
+.blog-tag-filter a {
+	font-family: 'Cutive Mono', monospace; font-size: 14px;
+	color: #b33a3a; border: 1px solid #c9b99d; padding: 2px 10px; text-decoration: none;
+	}
+.blog-tag-filter a:hover { border-color: #b33a3a; }
+.blog-tag-filter a.active { color: #efe7d6; background: #b33a3a; border-color: #b33a3a; }
+
+/* Post list: the whole card is one link */
+.post-item { display: block; text-decoration: none; padding: 26px 0; border-top: 1px solid #c9b99d; }
+.post-item > span { display: block; }
+.post-item-meta { font-family: 'Cutive Mono', monospace; font-size: 14px; color: #7a6f60; }
+.post-item-title {
+	font-family: 'Alfa Slab One', serif; font-weight: 400;
+	font-size: 25px; line-height: 1.25; color: #14110f; margin: 8px 0 10px;
+	}
+.post-item:hover .post-item-title { color: #b33a3a; }
+.post-item-excerpt { font-family: 'PT Serif', serif; font-size: 17px; line-height: 1.6; color: #2b2622; }
+.post-item-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.post-item-tags span { font-family: 'Cutive Mono', monospace; font-size: 13px; color: #b33a3a; }
+
+/* Pagination bar */
+.blog-pager {
+	display: flex; justify-content: space-between; align-items: baseline;
+	border-top: 3px solid #c94c43; padding: 18px 40px;
+	}
+.blog-pager a {
+	font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 12px;
+	letter-spacing: 2px; text-decoration: none; color: #4a4038;
+	}
+.blog-pager a:hover { color: #b33a3a; }
+.blog-pager a.disabled { color: #b0a48e; pointer-events: none; cursor: default; }
+.blog-pager-page { font-family: 'Cutive Mono', monospace; font-size: 14px; color: #7a6f60; }
+
+@media (max-width: 679px) {
+	.blog-title { font-size: 36px; }
+	.blog-pager { padding: 16px 20px; }
+	}

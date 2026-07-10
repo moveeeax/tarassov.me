@@ -22,57 +22,145 @@
         return d.innerHTML;
     }
 
-    function fmtDate(iso) {
-        if (!iso) return "";
-        try {
-            return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-        } catch (e) {
-            return iso;
-        }
+    function readMins(body) {
+        var words = (body || "").trim() ? (body || "").trim().split(/\s+/).length : 0;
+        return Math.max(1, Math.ceil(words / 200));
     }
 
-    function notice(container, text) {
-        var p = document.createElement("p");
-        p.className = "blog-notice";
-        p.textContent = text;
-        container.appendChild(p);
+    function postTags(p) {
+        return Array.isArray(p.tags) ? p.tags : [];
     }
 
+    // blog.html (layout 2A): tag filter + post list + client-side pagination.
+    // The tag row stays hidden until some post actually carries tags.
     function renderList() {
-        var container = document.querySelector("#content .blog-regular") || document.querySelector("#content");
-        if (!container) return;
-        // Drop the template's demo articles + static pagination.
-        container.querySelectorAll(".hentry, .navigation, .pagination").forEach(function (n) {
-            n.remove();
-        });
+        var listEl = document.getElementById("blog-posts");
+        if (!listEl) return;
+        var tagsEl = document.getElementById("blog-tags");
+        var pager = {
+            bar: document.getElementById("blog-pager"),
+            newer: document.getElementById("blog-pager-newer"),
+            older: document.getElementById("blog-pager-older"),
+            page: document.getElementById("blog-pager-page"),
+        };
+        var PAGE_SIZE = 10;
+        var state = { posts: [], tag: null, page: 1 };
 
-        fetch(API)
+        fetch(API + "?limit=100")
             .then(function (r) {
                 return r.json();
             })
             .then(function (res) {
-                var posts = (res && res.data) || [];
-                if (!posts.length) {
-                    notice(container, "No posts yet.");
-                    return;
-                }
-                posts.forEach(function (post) {
-                    var href = "blog-single.html?slug=" + encodeURIComponent(post.slug);
-                    var art = document.createElement("article");
-                    art.className = "hentry post";
-                    art.innerHTML =
-                        '<header class="entry-header">' +
-                        '<h2 class="entry-title"><a href="' + href + '">' + esc(post.title) + "</a></h2>" +
-                        '<div class="entry-meta"><span class="entry-date"><time class="entry-date" datetime="' +
-                        esc(post.published_at || "") + '">' + esc(fmtDate(post.published_at)) + "</time></span></div>" +
-                        "</header>" +
-                        '<div class="entry-summary"><p>' + esc(post.summary) + "</p></div>" +
-                        '<footer class="entry-footer"><a class="more-link" href="' + href + '">Read →</a></footer>';
-                    container.appendChild(art);
-                });
+                state.posts = (res && res.data) || [];
+                renderTagFilter();
+                draw();
             })
             .catch(function () {
-                notice(container, "Failed to load posts.");
+                listEl.innerHTML = '<p class="post-loading">Failed to load posts.</p>';
+            });
+
+        function renderTagFilter() {
+            if (!tagsEl) return;
+            var tags = [];
+            state.posts.forEach(function (p) {
+                postTags(p).forEach(function (t) {
+                    if (tags.indexOf(t) === -1) tags.push(t);
+                });
+            });
+            if (!tags.length) return;
+            tagsEl.innerHTML = ['<a href="#" class="active" data-tag="">all</a>']
+                .concat(
+                    tags.map(function (t) {
+                        return '<a href="#" data-tag="' + esc(t) + '">' + esc(t) + "</a>";
+                    })
+                )
+                .join("");
+            tagsEl.addEventListener("click", function (e) {
+                var a = e.target.closest("a[data-tag]");
+                if (!a) return;
+                e.preventDefault();
+                state.tag = a.getAttribute("data-tag") || null;
+                state.page = 1;
+                tagsEl.querySelectorAll("a").forEach(function (el) {
+                    el.classList.toggle("active", el === a);
+                });
+                draw();
+            });
+            tagsEl.removeAttribute("hidden");
+        }
+
+        function filtered() {
+            if (!state.tag) return state.posts;
+            return state.posts.filter(function (p) {
+                return postTags(p).indexOf(state.tag) !== -1;
+            });
+        }
+
+        function draw() {
+            var posts = filtered();
+            if (!posts.length) {
+                listEl.innerHTML =
+                    '<p class="post-loading">' +
+                    (state.tag ? "no posts tagged #" + esc(state.tag) + " yet" : "No posts yet.") +
+                    "</p>";
+                pager.bar.setAttribute("hidden", "");
+                return;
+            }
+            var pages = Math.ceil(posts.length / PAGE_SIZE);
+            if (state.page > pages) state.page = pages;
+            var slice = posts.slice((state.page - 1) * PAGE_SIZE, state.page * PAGE_SIZE);
+
+            listEl.innerHTML = slice
+                .map(function (p) {
+                    var tags = postTags(p)
+                        .map(function (t) {
+                            return "<span>#" + esc(t) + "</span>";
+                        })
+                        .join("");
+                    return (
+                        '<a class="post-item" href="blog-single.html?slug=' + encodeURIComponent(p.slug) + '">' +
+                        '<span class="post-item-meta">' +
+                        esc((p.published_at || "").slice(0, 10)) + " · " + readMins(p.body) + " min read" +
+                        "</span>" +
+                        '<span class="post-item-title">' + esc(p.title) + "</span>" +
+                        (p.summary ? '<span class="post-item-excerpt">' + esc(p.summary) + "</span>" : "") +
+                        (tags ? '<span class="post-item-tags">' + tags + "</span>" : "") +
+                        "</a>"
+                    );
+                })
+                .join("");
+            drawPager(pages);
+        }
+
+        function drawPager(pages) {
+            if (!pager.bar) return;
+            if (pages <= 1) {
+                pager.bar.setAttribute("hidden", "");
+                return;
+            }
+            pager.page.textContent = "page " + state.page + " / " + pages;
+            pager.newer.classList.toggle("disabled", state.page <= 1);
+            pager.older.classList.toggle("disabled", state.page >= pages);
+            pager.bar.removeAttribute("hidden");
+        }
+
+        function step(delta) {
+            var pages = Math.ceil(filtered().length / PAGE_SIZE);
+            var next = state.page + delta;
+            if (next < 1 || next > pages) return;
+            state.page = next;
+            draw();
+            window.scrollTo(0, 0);
+        }
+        if (pager.newer)
+            pager.newer.addEventListener("click", function (e) {
+                e.preventDefault();
+                step(-1);
+            });
+        if (pager.older)
+            pager.older.addEventListener("click", function (e) {
+                e.preventDefault();
+                step(1);
             });
     }
 
@@ -110,10 +198,8 @@
                 document.title = post.title + " — Michael Tarassov";
 
                 var body = post.body || "";
-                var words = body.trim() ? body.trim().split(/\s+/).length : 0;
-                var minutes = Math.max(1, Math.ceil(words / 200));
                 if (meta) {
-                    meta.textContent = (post.published_at || "").slice(0, 10) + " · " + minutes + " min read";
+                    meta.textContent = (post.published_at || "").slice(0, 10) + " · " + readMins(body) + " min read";
                     meta.removeAttribute("hidden");
                 }
                 if (titleEl) {
@@ -265,6 +351,6 @@
         if (document.getElementById("latest-posts")) renderLatest();
         bindContact();
         if (location.pathname.indexOf("blog-single") !== -1) renderSingle();
-        else if (document.querySelector("#content .blog-regular")) renderList();
+        else if (document.getElementById("blog-posts")) renderList();
     });
 })();
