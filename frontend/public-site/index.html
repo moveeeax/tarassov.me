@@ -27,6 +27,7 @@
     <link href='https://fonts.googleapis.com/css?family=Lato:100,300,400,700,900,100italic,300italic,400italic,700italic,900italic' rel='stylesheet' type='text/css'>
     <link href='https://fonts.googleapis.com/css?family=Alfa+Slab+One|Nixie+One|Raleway:200,800' rel='stylesheet' type='text/css'>
     <link href='https://fonts.googleapis.com/css?family=Tulpen+One|Sacramento' rel='stylesheet' type='text/css'>
+    <link href='https://fonts.googleapis.com/css2?family=Cutive+Mono&family=Oswald:wght@500;600&display=swap' rel='stylesheet' type='text/css'>
         
     <!-- STYLES -->
     <link rel="stylesheet" type="text/css" media="print" href="css/print.css">
@@ -96,50 +97,57 @@
                                     
                                     
                                     
-                                    <!-- COVER IMAGE -->
-                                    <div class="cover">
+                                    <!-- COVER (variant 2A: name plate above the photo, stats on the jacket) -->
+                                    <div class="cover cover-2a">
                                         
-                                        <!-- cover-image-holder -->
+                                        <!-- kept for the template's JS bg hook; 2A paints the photo on .cover-photo
+                                             via CSS instead (and neutralizes the JS-set background) -->
                                         <div class="cover-image-holder">
                                         	<img src="images/site/cover.jpg" alt="Portrait of Michael Tarassov">
                                         </div>
-                                        <!-- cover-image-holder -->
                                         
-                                        <!-- title -->
-                                        <h1>MICHAEL TARASSOV</h1>
-                                        <!-- title -->
-
-                                        <!-- slogan -->
-                                        <h2>Multi-Cloud DevOps Engineer</h2>
-                                        <!-- slogan -->
-
-                                        <!-- extra titles -->
-                                        <h3><span>STACK</span> Terraform&nbsp;·&nbsp;Kubernetes</h3>
-                                        <h3><span>CLOUDS</span> AWS&nbsp;·&nbsp;Azure&nbsp;·&nbsp;GCP</h3>
-                                        <h3><span>EXPERIENCE</span> 10+ years</h3>
-                                        <!-- extra titles -->
+                                        <!-- name plate — sits ABOVE the photo so the face stays clear -->
+                                        <header class="cover-plaque">
+                                            <h1>MICHAEL TARASSOV</h1>
+                                            <h2>Multi-Cloud DevOps Engineer</h2>
+                                        </header>
                                         
-                                        <!-- open link -->
-                                        <a href="#/resume" class="rm-button-open ribbon">
-                                            <span class="ribbon-stitches-top"></span>
-                                            <strong class="ribbon-content">OPEN</strong>
-                                            <span class="ribbon-stitches-bottom"></span>
-                                        </a>
-                                        <!-- open link -->
-                                        
-                                        
-                                        <!-- latest-from-blog (filled by js/blog.js from /api/v1/public/posts;
-                                             stays hidden unless the API returns at least one post) -->
-                                        <div class="latest-from-blog" hidden>
-                                        	<h3>From the blog
-                                            	<a class="button2" href="blog.html">All posts</a></h3>
-                                            <div class="blog-bar" id="latest-posts"></div>
+                                        <!-- photo area -->
+                                        <div class="cover-photo">
+                                            
+                                            <a href="#/resume" class="rm-button-open cover-open">OPEN</a>
+                                            
+                                            <!-- stats anchored to the jacket, under the bottom scrim -->
+                                            <div class="cover-stats">
+                                                <dl>
+                                                    <dt>STACK</dt>
+                                                    <dd>Terraform&nbsp;·&nbsp;Kubernetes</dd>
+                                                </dl>
+                                                <div class="cover-stats-row">
+                                                    <dl>
+                                                        <dt>CLOUDS</dt>
+                                                        <dd>AWS&nbsp;·&nbsp;Azure&nbsp;·&nbsp;GCP</dd>
+                                                    </dl>
+                                                    <dl>
+                                                        <dt>EXPERIENCE</dt>
+                                                        <dd>10+&nbsp;years</dd>
+                                                    </dl>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- latest-from-blog (filled by js/blog.js from /api/v1/public/posts;
+                                                 stays hidden unless the API returns at least one post) -->
+                                            <div class="latest-from-blog" hidden>
+                                            	<h3>From the blog
+                                                	<a class="button2" href="blog.html">All posts</a></h3>
+                                                <div class="blog-bar" id="latest-posts"></div>
+                                            </div>
+                                            <!-- latest-from-blog -->
+                                            
                                         </div>
-                                        <!-- latest-from-blog -->
-
                                         
                                     </div>
-                                    <!-- COVER IMAGE -->
+                                    <!-- COVER (2A) -->
                                     
                                     
                                     

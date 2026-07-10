@@ -120,18 +120,25 @@ body, input, textarea, select, button, input[type="button"], input[type="reset"]
 /* Desktop corner nav on the CLOSED cover. The template only ever showed this
    menu in safe-mod/mobile — on desktop the cover had no visible navigation at
    all. Hidden again once the book opens (the panels own the navigation then). */
-/* Viewport-fixed (not book-anchored): the book's on-screen position depends on
-   window height and open/close animations, so corner-of-the-cover pinning is
-   unstable. Hidden once the book opens (the panels own navigation then). */
-html:not(.safe-mod) .rm-closed #header { display: block; position: fixed; top: 16px; right: 16px; z-index: 1100; width: auto; }
-html:not(.safe-mod) .rm-closed #header nav ul li { float: left; width: auto; }
+/* Desktop text navigation under the closed cover (cover 2A) — replaces the old
+   icon strip. Reuses the #header markup: icons off, the .visually-hidden link
+   text un-hidden and styled. Hidden once the book opens (panels own nav then).
+   Anchored to #rm-container's bottom — its perspective makes it the containing
+   block anyway, and the row lands centered under the book. */
+html:not(.safe-mod) .rm-closed #header { display: block; position: absolute; bottom: 4px; left: 0; right: 0; z-index: 1100; width: auto; text-align: center; }
+html:not(.safe-mod) .rm-closed #header nav ul { display: inline-block; font-size: 0; }
+html:not(.safe-mod) .rm-closed #header nav ul li { float: none; display: inline-block; width: auto; }
+html:not(.safe-mod) .rm-closed #header nav ul li + li::before { content: "\00B7"; color: #4a4038; font-size: 14px; vertical-align: middle; padding: 0 12px; }
 html:not(.safe-mod) .rm-closed #header nav ul a {
-	line-height: 40px; min-width: 40px; padding: 0 12px; font-size: 15px;
-	color: #fff; background: rgba(17,17,17,.75); border-left-color: rgba(255,255,255,.15); border-right-color: transparent; box-shadow: none;
+	display: inline-block; vertical-align: middle; line-height: 1; padding: 10px 2px;
+	font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 2px; text-transform: uppercase;
+	color: #4a4038; background: none; border: none; box-shadow: none; text-shadow: none;
 	}
-html:not(.safe-mod) .rm-closed #header nav ul li:first-child a { border-radius: 4px 0 0 4px; }
-html:not(.safe-mod) .rm-closed #header nav ul li:last-child a { border-radius: 0 4px 4px 0; }
-html:not(.safe-mod) .rm-closed #header nav ul a:hover { background: rgba(17,17,17,.95); color: #fff; } 
+html:not(.safe-mod) .rm-closed #header nav ul a:hover { color: #b33a3a; background: none; }
+html:not(.safe-mod) .rm-closed #header nav ul a:before { content: none; }
+html:not(.safe-mod) .rm-closed #header nav ul a .visually-hidden {
+	position: static !important; width: auto; height: auto; margin: 0; padding: 0; overflow: visible; clip: auto; white-space: nowrap;
+	} 
 #header nav ul a:hover { color: #eee; background: #222; }
 /* Menu Icons */
 #header ul li:nth-child(1) a:before { content: "\f104"; } /* Home */
@@ -529,6 +536,71 @@ a.ribbon:hover { color: #000; }
 .rm-close:before { border-right: 25px solid transparent; left: -4px; }
 
 
+
+/* ── COVER VARIANT 2A ─────────────────────────────────────────────
+   Name plate above the photo (face never covered), photo as its own area,
+   stats on the jacket over a bottom scrim, clip-path OPEN ribbon.
+   Reference: cover-2a-reference.html (repo root of public-site). */
+/* height:auto: the template's `.cover{height:100%}` resolves in safe-mod's
+   static flow and would stretch the card with a black tail below the photo. */
+.cover-2a { display: flex; flex-direction: column; height: auto !important; background-color: #14110f; background-image: none !important; }
+
+.cover-2a .cover-plaque { padding: 20px 24px 14px; text-align: center; background: #14110f; }
+/* !important: fitText (main.js) sets inline font-size on .cover h1/h2 — the
+   plaque sizes itself instead: ≈7.2% of the 32vw card, capped for max-width 560. */
+.cover-2a .cover-plaque h1 {
+	margin: 0; padding: 0; width: auto; line-height: 1.05; letter-spacing: 1px; color: #fff;
+	font-size: min(2.3vw, 40px) !important; white-space: nowrap;
+	text-shadow: 2px 2px 0 #c94c43;
+	}
+.cover-2a .cover-plaque h2 {
+	margin: 4px 0 0; padding: 0; width: auto; line-height: 1.2; letter-spacing: normal; color: #f2ece2;
+	font-family: 'Cutive Mono', monospace; font-size: min(1.16vw, 20px) !important; text-shadow: none;
+	}
+
+/* Photo area: aspect from the 2A reference (471x560 under a ~98px plate);
+   the card heights here are content-driven, so the ratio must be explicit. */
+.cover-2a .cover-photo {
+	position: relative; aspect-ratio: 471 / 560;
+	background: url(../images/site/cover.jpg) center 22% / cover no-repeat;
+	}
+.cover-2a .cover-photo::after {
+	content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 300px; max-height: 60%;
+	background: linear-gradient(0deg, rgba(15,13,16,.85) 30%, rgba(15,13,16,0));
+	}
+
+/* OPEN ribbon (still the template's book-open trigger via .rm-button-open) */
+.cover-2a .cover-open {
+	position: absolute; right: 0; top: 34%; z-index: 2;
+	background: #d96459; color: #7e2b24; text-decoration: none;
+	font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 2px;
+	padding: 12px 22px 12px 26px;
+	-webkit-clip-path: polygon(14px 0, 100% 0, 100% 100%, 14px 100%, 0 50%);
+	clip-path: polygon(14px 0, 100% 0, 100% 100%, 14px 100%, 0 50%);
+	}
+.cover-2a .cover-open:hover { background: #c94c43; color: #fff; }
+
+/* Stats on the jacket */
+.cover-2a .cover-stats {
+	position: absolute; left: 28px; right: 28px; bottom: 22px; z-index: 2;
+	display: flex; flex-direction: column; gap: 14px; text-align: left;
+	}
+.cover-2a .cover-stats dl { margin: 0; }
+.cover-2a .cover-stats-row { display: flex; gap: 40px; flex-wrap: wrap; }
+.cover-2a .cover-stats dt { margin: 0; color: #f4c430; font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 2px; }
+.cover-2a .cover-stats dd { margin: 0; color: #fff; font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 22px; }
+
+/* Blog widget now lives inside .cover-photo — keep it clear of the stats block */
+.cover-2a .latest-from-blog { margin: 0; bottom: 158px; z-index: 3; }
+
+/* Safe-mod / narrow screens: card is full-width, name may wrap to two lines */
+@media (max-width: 959px) {
+	.cover-2a .cover-plaque h1 { font-size: 7.2vw !important; white-space: normal; }
+	.cover-2a .cover-plaque h2 { font-size: 3.6vw !important; }
+	.cover-2a .cover-stats { left: 18px; right: 18px; bottom: 16px; }
+	.cover-2a .cover-stats-row { gap: 24px; }
+	.cover-2a .cover-stats dd { font-size: 18px; }
+	}
 
 /* HOMEPAGE COVER BLOG LINK */
 .latest-from-blog {
