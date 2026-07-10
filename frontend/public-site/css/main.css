@@ -1758,3 +1758,116 @@ blockquote cite {
         padding-top: 2em;
         }	
 }
+
+/* ═══ BLOG ARTICLE PAGE (layout 1A — docs/design/blog-article-1a-reference.html)
+   One quiet readable column on a light sheet; no portrait, no sidebar.
+   Everything is scoped under body.post-1a (blog-single.html only). ═══ */
+
+body.post-1a { font-family: 'PT Serif', serif; color: #2b2622; padding: 40px 16px; -moz-box-sizing: border-box; -webkit-box-sizing: border-box; box-sizing: border-box; }
+/* [hidden] must always win: several 1A blocks set display:flex/block, which
+   would otherwise override the UA's hidden=display:none. */
+.post-1a [hidden] { display: none !important; }
+.post-1a a { color: #b33a3a; }
+.post-1a a:hover { color: #8f2b2b; }
+
+.post-sheet { width: 100%; max-width: 760px; margin: 0 auto; background: #efe7d6; box-shadow: 0 12px 32px rgba(0,0,0,0.25); }
+
+/* ── Top bar ── */
+.post-topbar {
+	display: flex; align-items: baseline; justify-content: space-between;
+	padding: 22px 40px 18px; border-bottom: 3px solid #c94c43;
+	}
+.post-wordmark {
+	font-family: 'Alfa Slab One', serif; font-size: 20px; letter-spacing: .5px;
+	color: #14110f !important; text-decoration: none;
+	}
+.post-topbar nav { display: flex; gap: 28px; font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 2px; }
+.post-topbar nav a { color: #4a4038; text-decoration: none; }
+.post-topbar nav a.active, .post-topbar nav a:hover { color: #b33a3a; }
+
+/* ── Article column ── */
+.post-article { max-width: 620px; margin: 0 auto; padding: 48px 20px 56px; }
+
+.post-meta, .post-loading { font-family: 'Cutive Mono', monospace; font-size: 15px; color: #7a6f60; }
+.post-loading { text-align: center; margin: 48px 0; }
+
+.post-title {
+	font-family: 'Alfa Slab One', serif; font-weight: 400;
+	font-size: 38px; line-height: 1.15; color: #14110f;
+	margin: 12px 0 20px; padding: 0; text-align: left; text-shadow: none; letter-spacing: 0;
+	}
+
+.post-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 36px; }
+.post-tags a {
+	font-family: 'Cutive Mono', monospace; font-size: 14px;
+	color: #b33a3a; border: 1px solid #c9b99d; padding: 2px 10px; text-decoration: none;
+	}
+.post-tags a:hover { border-color: #b33a3a; }
+
+/* ── Markdown body typography ── */
+.post-body p { font-size: 18px; line-height: 1.75; color: #2b2622; margin: 0 0 22px; }
+/* Markdown h1 in a body is authoring noise, but style it anyway */
+.post-body h1 {
+	font-family: 'Oswald', sans-serif; font-weight: 600;
+	font-size: 28px; letter-spacing: 1px; color: #14110f; margin: 36px 0 14px; padding: 0; text-align: left; text-shadow: none;
+	}
+.post-body h2 {
+	font-family: 'Oswald', sans-serif; font-weight: 600;
+	font-size: 24px; letter-spacing: 1px; color: #14110f; margin: 36px 0 14px; text-align: left;
+	}
+.post-body h3 {
+	font-family: 'Oswald', sans-serif; font-weight: 600;
+	font-size: 20px; letter-spacing: 1px; color: #14110f; margin: 30px 0 12px; text-align: left;
+	}
+.post-body ul, .post-body ol { font-size: 18px; line-height: 1.75; color: #2b2622; margin: 0 0 22px; padding-left: 1.4em; }
+.post-body blockquote { margin: 0 0 22px; padding: 2px 0 2px 18px; border-left: 3px solid #c94c43; font-style: italic; }
+
+.post-body pre {
+	background: #14110f; color: #e8dcc8;
+	font-family: 'Cutive Mono', monospace; font-size: 15px; line-height: 1.6;
+	padding: 20px 24px; overflow-x: auto; margin: 0 0 28px; border: none; border-radius: 0;
+	white-space: pre; /* normalize.css sets pre-wrap; long code must scroll, not wrap */
+	}
+.post-body code { font-family: 'Cutive Mono', monospace; background: none; }
+.post-body p code, .post-body li code { background: #e5dbc6; padding: 1px 6px; font-size: 16px; }
+
+.post-table-scroll { overflow-x: auto; margin: 0 0 28px; }
+.post-body table { width: 100%; border-collapse: collapse; font-size: 16px; margin: 0; }
+.post-body th {
+	font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 2px;
+	color: #7a6f60; text-align: left; padding: 8px 12px; border-bottom: 2px solid #14110f;
+	}
+.post-body td { padding: 10px 12px; border-bottom: 1px solid #c9b99d; color: #2b2622; }
+.post-body th:first-child, .post-body td:first-child { padding-left: 0; }
+.post-body th:last-child, .post-body td:last-child { padding-right: 0; }
+
+.post-body img { max-width: 100%; width: 100%; display: block; }
+.post-body figure { margin: 0 0 28px; }
+.post-body figcaption { font-family: 'Cutive Mono', monospace; font-size: 14px; color: #7a6f60; margin-top: 8px; }
+
+/* ── Prev / next ── */
+.post-pager { display: flex; border-top: 3px solid #c94c43; }
+.post-pager a { flex: 1; padding: 20px 40px; text-decoration: none; display: block; }
+.post-pager a + a { border-left: 1px solid #c9b99d; text-align: right; }
+.post-pager-label { display: block; font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: 2px; color: #7a6f60; }
+.post-pager-title { display: block; font-family: 'PT Serif', serif; font-size: 16px; color: #14110f; margin-top: 4px; }
+.post-pager a:hover .post-pager-title { color: #b33a3a; }
+/* single neighbour: the remaining link takes the full width, no divider */
+.post-pager-single a + a { border-left: none; }
+
+.post-footer {
+	padding: 16px 40px 20px; text-align: center;
+	font-family: 'Cutive Mono', monospace; font-size: 13px; color: #7a6f60;
+	border-top: 1px solid #c9b99d;
+	}
+
+/* ── Narrow screens ── */
+@media (max-width: 679px) {
+	body.post-1a { padding: 16px 0; }
+	.post-topbar { padding: 18px 20px 14px; }
+	.post-article { padding: 32px 20px 40px; }
+	.post-title { font-size: 30px; }
+	.post-pager { flex-direction: column; }
+	.post-pager a { padding: 16px 20px; }
+	.post-pager a + a { border-left: none; border-top: 1px solid #c9b99d; text-align: left; }
+	}

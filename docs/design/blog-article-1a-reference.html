@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blog article — reference (1A)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Cutive+Mono&family=Oswald:wght@500;600&family=PT+Serif:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #d8cbb4; font-family: 'PT Serif', serif; display: flex; justify-content: center; padding: 40px 16px; }
+  a { color: #b33a3a; }
+  a:hover { color: #8f2b2b; }
+
+  .sheet { width: 100%; max-width: 760px; background: #efe7d6; box-shadow: 0 12px 32px rgba(0,0,0,0.25); }
+
+  /* ── Top bar ── */
+  .topbar {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 22px 40px 18px;
+    border-bottom: 3px solid #c94c43;
+  }
+  .topbar .wordmark {
+    font-family: 'Alfa Slab One', serif; font-size: 20px;
+    color: #14110f; text-decoration: none; letter-spacing: 0.5px;
+  }
+  .topbar nav { display: flex; gap: 28px; font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 2px; }
+  .topbar nav a { color: #4a4038; text-decoration: none; }
+  .topbar nav a.active, .topbar nav a:hover { color: #b33a3a; }
+
+  /* ── Article ── */
+  article { max-width: 620px; margin: 0 auto; padding: 48px 20px 56px; }
+
+  .meta { font-family: 'Cutive Mono', monospace; font-size: 15px; color: #7a6f60; }
+
+  article h1 {
+    font-family: 'Alfa Slab One', serif; font-weight: 400;
+    font-size: 38px; line-height: 1.15; color: #14110f;
+    margin: 12px 0 20px;
+  }
+
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 36px; }
+  .tags a {
+    font-family: 'Cutive Mono', monospace; font-size: 14px;
+    color: #b33a3a; border: 1px solid #c9b99d; padding: 2px 10px;
+    text-decoration: none;
+  }
+  .tags a:hover { border-color: #b33a3a; }
+
+  article p { font-size: 18px; line-height: 1.75; color: #2b2622; margin: 0 0 22px; }
+
+  article h2 {
+    font-family: 'Oswald', sans-serif; font-weight: 600;
+    font-size: 24px; letter-spacing: 1px; color: #14110f;
+    margin: 36px 0 14px;
+  }
+
+  /* Code blocks */
+  article pre {
+    background: #14110f; color: #e8dcc8;
+    font-family: 'Cutive Mono', monospace; font-size: 15px; line-height: 1.6;
+    padding: 20px 24px; overflow-x: auto; margin: 0 0 28px;
+  }
+  article code { font-family: 'Cutive Mono', monospace; }
+  article p code { background: #e5dbc6; padding: 1px 6px; font-size: 16px; }
+
+  /* Tables */
+  article table { width: 100%; border-collapse: collapse; font-size: 16px; margin: 0 0 28px; }
+  article th {
+    font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 2px;
+    color: #7a6f60; text-align: left;
+    padding: 8px 12px; border-bottom: 2px solid #14110f;
+  }
+  article td { padding: 10px 12px; border-bottom: 1px solid #c9b99d; color: #2b2622; }
+  article th:first-child, article td:first-child { padding-left: 0; }
+  article th:last-child, article td:last-child { padding-right: 0; }
+
+  /* Figures */
+  article figure { margin: 0 0 28px; }
+  article figure img { width: 100%; display: block; }
+  article figcaption { font-family: 'Cutive Mono', monospace; font-size: 14px; color: #7a6f60; margin-top: 8px; }
+
+  /* ── Prev / next ── */
+  .pager { display: flex; border-top: 3px solid #c94c43; }
+  .pager a { flex: 1; padding: 20px 40px; text-decoration: none; }
+  .pager a:first-child { border-right: 1px solid #c9b99d; }
+  .pager a:last-child { text-align: right; }
+  .pager .label { font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: 2px; color: #7a6f60; }
+  .pager .title { font-family: 'PT Serif', serif; font-size: 16px; color: #14110f; margin-top: 4px; }
+  .pager a:hover .title { color: #b33a3a; }
+</style>
+</head>
+<body>
+
+<div class="sheet">
+  <header class="topbar">
+    <a class="wordmark" href="/">M. TARASSOV</a>
+    <nav>
+      <a href="/">HOME</a>
+      <a class="active" href="/blog.html">BLOG</a>
+    </nav>
+  </header>
+
+  <article>
+    <div class="meta">2026-06-14 · 7 min read</div>
+    <h1>Zero-downtime Kubernetes upgrades on three clouds</h1>
+    <div class="tags">
+      <a href="#">kubernetes</a>
+      <a href="#">terraform</a>
+      <a href="#">sre</a>
+    </div>
+
+    <p>Upgrading a cluster that serves live traffic is mostly a matter of ordering. The control plane goes first, then node pools — one surge node at a time, with pod disruption budgets doing the actual safety work.</p>
+
+    <h2>1. Drain with a budget</h2>
+    <p>A PodDisruptionBudget is the only thing standing between a rolling node upgrade and a full outage of a two-replica service:</p>
+    <pre><code>apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: api</code></pre>
+
+    <h2>2. Provider differences</h2>
+    <table>
+      <thead>
+        <tr><th>CLOUD</th><th>SURGE UPGRADE</th><th>GOTCHA</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>EKS</td><td>maxUnavailable in ASG</td><td>addons pin to minor version</td></tr>
+        <tr><td>AKS</td><td>maxSurge per pool</td><td>B-series nodes throttle drains</td></tr>
+        <tr><td>GKE</td><td>surge built-in, default 1</td><td>release channels auto-bump</td></tr>
+      </tbody>
+    </table>
+
+    <figure>
+      <div style="width:100%; height:260px; background:#ddd2bd; border:1px dashed #a89878; display:flex; align-items:center; justify-content:center; font-family:'Cutive Mono',monospace; font-size:14px; color:#7a6f60;">[ image placeholder ]</div>
+      <figcaption>Fig. 1 — surge node lifecycle during a pool upgrade</figcaption>
+    </figure>
+
+    <p>Run the whole thing from Terraform and the upgrade becomes a pull request — reviewable, revertible, boring. Boring is the goal.</p>
+  </article>
+
+  <nav class="pager">
+    <a href="#">
+      <div class="label">← PREVIOUS</div>
+      <div class="title">Terraform state surgery without tears</div>
+    </a>
+    <a href="#">
+      <div class="label">NEXT →</div>
+      <div class="title">Cutting cloud bills with spot node pools</div>
+    </a>
+  </nav>
+</div>
+
+</body>
+</html>

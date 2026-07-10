@@ -76,17 +76,26 @@
             });
     }
 
+    // blog-single.html (layout 1A): meta line with reading time, optional
+    // tags, Markdown body, prev/next neighbours from the public posts index.
     function renderSingle() {
-        var article = document.querySelector("#content .hentry") || document.querySelector("#content");
-        if (!article) return;
-        var titleEl = article.querySelector(".entry-title");
-        var metaEl = article.querySelector(".entry-meta");
-        var contentEl = article.querySelector(".entry-content");
+        var meta = document.getElementById("post-meta");
+        var titleEl = document.getElementById("post-title");
+        var tagsEl = document.getElementById("post-tags");
+        var contentEl = document.getElementById("post-content");
+        if (!contentEl) return;
+
+        function fail(msg) {
+            if (titleEl) {
+                titleEl.textContent = "Post not found";
+                titleEl.removeAttribute("hidden");
+            }
+            contentEl.innerHTML = '<p class="post-loading">' + esc(msg) + "</p>";
+        }
 
         var slug = new URLSearchParams(location.search).get("slug");
         if (!slug) {
-            if (titleEl) titleEl.textContent = "Post not found";
-            if (contentEl) contentEl.innerHTML = "<p>No post specified.</p>";
+            fail("No post specified.");
             return;
         }
 
@@ -99,22 +108,81 @@
                 var post = res && res.data;
                 if (!post) throw new Error("not found");
                 document.title = post.title + " — Michael Tarassov";
-                if (titleEl) titleEl.textContent = post.title;
-                if (metaEl) {
-                    metaEl.innerHTML =
-                        '<span class="entry-date"><time class="entry-date" datetime="' +
-                        esc(post.published_at || "") + '">' + esc(fmtDate(post.published_at)) + "</time></span>";
+
+                var body = post.body || "";
+                var words = body.trim() ? body.trim().split(/\s+/).length : 0;
+                var minutes = Math.max(1, Math.ceil(words / 200));
+                if (meta) {
+                    meta.textContent = (post.published_at || "").slice(0, 10) + " · " + minutes + " min read";
+                    meta.removeAttribute("hidden");
                 }
-                if (contentEl) {
-                    // Body is Markdown; marked sanitizes structure but not raw HTML,
-                    // so authoring is trusted (admin-only). Good enough for a personal blog.
-                    contentEl.innerHTML = window.marked ? window.marked.parse(post.body || "") : esc(post.body);
+                if (titleEl) {
+                    titleEl.textContent = post.title;
+                    titleEl.removeAttribute("hidden");
                 }
+
+                // The backend has no tags today — render the row only if the
+                // API ever starts returning them (no empty frames otherwise).
+                if (tagsEl && Array.isArray(post.tags) && post.tags.length) {
+                    tagsEl.innerHTML = post.tags
+                        .map(function (t) {
+                            return '<a href="blog.html">' + esc(t) + "</a>";
+                        })
+                        .join("");
+                    tagsEl.removeAttribute("hidden");
+                }
+
+                // Body is Markdown; marked sanitizes structure but not raw HTML,
+                // so authoring is trusted (admin-only). Good enough for a personal blog.
+                contentEl.innerHTML = window.marked ? window.marked.parse(body) : esc(body);
+                // Wide tables must scroll inside their own wrapper, not break
+                // the 620px column.
+                contentEl.querySelectorAll("table").forEach(function (tbl) {
+                    var wrap = document.createElement("div");
+                    wrap.className = "post-table-scroll";
+                    tbl.parentNode.insertBefore(wrap, tbl);
+                    wrap.appendChild(tbl);
+                });
+
+                renderPager(slug);
             })
             .catch(function () {
-                if (titleEl) titleEl.textContent = "Post not found";
-                if (contentEl) contentEl.innerHTML = "<p>This post does not exist or has not been published yet.</p>";
+                fail("This post does not exist or has not been published yet.");
             });
+    }
+
+    // Prev (older) / next (newer): the public index is newest-first
+    // (ORDER BY published_at DESC). A side with no neighbour stays hidden;
+    // with no neighbours at all the bar never shows.
+    function renderPager(slug) {
+        var pager = document.getElementById("post-pager");
+        if (!pager) return;
+        fetch(API + "?limit=100")
+            .then(function (r) {
+                return r.json();
+            })
+            .then(function (res) {
+                var posts = (res && res.data) || [];
+                var i = posts.findIndex(function (p) {
+                    return p.slug === slug;
+                });
+                if (i === -1) return;
+                var newer = i > 0 ? posts[i - 1] : null;
+                var older = i + 1 < posts.length ? posts[i + 1] : null;
+                function side(id, post) {
+                    var a = document.getElementById(id);
+                    if (!a || !post) return false;
+                    a.href = "blog-single.html?slug=" + encodeURIComponent(post.slug);
+                    a.querySelector(".post-pager-title").textContent = post.title;
+                    a.removeAttribute("hidden");
+                    return true;
+                }
+                var hasOlder = side("pager-prev", older);
+                var hasNewer = side("pager-next", newer);
+                if (hasOlder || hasNewer) pager.removeAttribute("hidden");
+                if (hasOlder !== hasNewer) pager.className += " post-pager-single";
+            })
+            .catch(function () {});
     }
 
     // The vCard's "latest from the blog" widget (index.html #latest-posts).
