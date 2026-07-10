@@ -482,8 +482,15 @@ a.ribbon:hover { color: #000; }
 .latest-from-blog {
 	margin: 22px 0; position: absolute; bottom: 60px; right: 0; left: 0;
 	}
+/* Widget ships hidden; js/blog.js reveals it only when the API returns posts.
+   Explicit rule because the old normalize.css predates [hidden] support. */
+.latest-from-blog[hidden] {
+	display: none !important;
+	}
+/* Full-bleed plaque: the old fixed 320px width cut off mid-cover and read
+   as a rendering bug. */
 .latest-from-blog h3 {
-    width: 320px; font-size: 12px !important; padding: 6px; padding-left: 4%; background: #111; margin: 0; text-transform: uppercase;
+    width: auto; font-size: 12px !important; padding: 6px 4%; background: #111; margin: 0; text-transform: uppercase; color: #fff;
 	}
 .latest-from-blog h3 a:before {
 	content: " - ";
@@ -494,11 +501,16 @@ a.ribbon:hover { color: #000; }
 .latest-from-blog h3 a:hover {
 	opacity: .6;
 	}
+/* width:auto beats the template's `.cover h2 { width:100% }`, which ignored
+   the side margins and pushed long titles past the cover edge. */
 .latest-from-blog h2 {
-	text-align: left; margin: 0 0 0 4%; display: inline; font-size: 18px !important; text-shadow: none !important;
+	text-align: left; margin: 6px 4% 0; display: block; width: auto !important; font-size: 18px !important; text-shadow: none !important;
 	}
+/* border-box: the a's padding must stay inside max-width, or the ellipsis
+   never triggers and the chip gets clipped by the cover's overflow:hidden. */
 .latest-from-blog h2 a {
-	display: inline-block; padding: 5px; color: #111; background: #F9ED3A;
+	display: inline-block; box-sizing: border-box; max-width: 100%; padding: 5px 8px; color: #111; background: #F9ED3A;
+	overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;
 	}
 .latest-from-blog h2 a:hover {
 	background: #fff;

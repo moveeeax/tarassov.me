@@ -118,28 +118,33 @@
     }
 
     // The vCard's "latest from the blog" widget (index.html #latest-posts).
+    // The whole widget ships hidden and is only revealed when the API returns
+    // posts — an empty blog (or a failed fetch) must not leave an unreadable
+    // "No posts yet" notice sitting on the cover photo.
     function renderLatest() {
         var el = document.getElementById("latest-posts");
         if (!el) return;
-        fetch(API + "?limit=3")
+        var widget = el.closest ? el.closest(".latest-from-blog") : null;
+        // 2 posts max: the widget sits on the cover photo and must stay compact.
+        fetch(API + "?limit=2")
             .then(function (r) {
                 return r.json();
             })
             .then(function (res) {
                 var posts = (res && res.data) || [];
-                el.innerHTML = posts.length
-                    ? posts
-                          .map(function (p) {
-                              return (
-                                  '<h2><a href="blog-single.html?slug=' +
-                                  encodeURIComponent(p.slug) +
-                                  '">' +
-                                  esc(p.title) +
-                                  "</a></h2>"
-                              );
-                          })
-                          .join("")
-                    : '<p class="blog-notice">No posts yet.</p>';
+                if (!posts.length) return;
+                el.innerHTML = posts
+                    .map(function (p) {
+                        return (
+                            '<h2><a href="blog-single.html?slug=' +
+                            encodeURIComponent(p.slug) +
+                            '">' +
+                            esc(p.title) +
+                            "</a></h2>"
+                        );
+                    })
+                    .join("");
+                if (widget) widget.removeAttribute("hidden");
             })
             .catch(function () {});
     }
