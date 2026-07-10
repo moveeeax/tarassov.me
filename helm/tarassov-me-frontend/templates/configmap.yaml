@@ -10,6 +10,12 @@ data:
   # not resolve in Kubernetes — here the /api upstream points at the tarassov-me
   # Service so the SPA stays the single same-origin entry point (cookies remain
   # first-party). $-prefixed tokens are nginx variables, not Helm.
+  #
+  # KEEP THE ROUTING IN SYNC WITH frontend/nginx.conf — this file must mirror
+  # its locations (public site at /, React SPA fallback to /app.html for
+  # /login /admin /account…, hashed /assets). A stale copy of this override
+  # once shipped `try_files … /index.html` with no SPA locations, which served
+  # the BookCard cover for /login and made the admin unreachable.
   default.conf: |
     server {
         # 8080: the image is built FROM nginxinc/nginx-unprivileged, whose
@@ -17,19 +23,44 @@ data:
         listen       8080;
         server_name  _;
 
-        location = /healthz { return 200 'ok'; add_header Content-Type text/plain; }
-
         root /usr/share/nginx/html;
         index index.html;
 
-        location / {
-            try_files $uri $uri/ /index.html;
-            add_header Cache-Control "no-cache" always;
-        }
+        location = /healthz { return 200 'ok'; add_header Content-Type text/plain; }
 
-        location /assets/ {
+        # Long cache for hashed Vite assets (the React build emits /assets/*).
+        location ^~ /assets/ {
             access_log off;
             add_header Cache-Control "public, max-age=31536000, immutable" always;
+            add_header X-Content-Type-Options "nosniff" always;
+        }
+
+        # React app routes (auth/account/admin) → SPA fallback with a STRICT
+        # CSP: the Vite bundle has no inline JS, so script-src stays 'self'.
+        # Matched ahead of `location /` (regex beats prefix), so the admin
+        # never inherits the relaxed public-site policy.
+        location ~ ^/(admin|login|register|account|unconfirmed|about)(/|$) {
+            try_files $uri /app.html;
+            add_header Cache-Control "no-cache" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-Frame-Options "DENY" always;
+            add_header Referrer-Policy "no-referrer" always;
+            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
+        }
+
+        # Everything else: serve a real file if present — the BookCard vCard
+        # (index.html), blog pages, /css /js /images — otherwise fall back to
+        # the React SPA (app.html). The public template ships inline JS and
+        # Google Fonts, hence the relaxed policy here (admin stays strict).
+        location / {
+            try_files $uri $uri/ /app.html;
+            add_header Cache-Control "no-cache" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-Frame-Options "DENY" always;
+            add_header Referrer-Policy "no-referrer" always;
+            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
         }
 
         location /api/ {
