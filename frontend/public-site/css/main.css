@@ -606,9 +606,6 @@ a.ribbon:hover { color: #000; }
 .cover-blog-headline { color: #14110f; font-family: 'Cutive Mono', monospace; font-size: 15px; overflow: hidden; text-overflow: ellipsis; }
 .cover-blog-line:hover .cover-blog-headline { text-decoration: underline; }
 
-/* Mobile-only bottom navigation strip — never shown on desktop */
-.cover-nav { display: none; }
-
 /* Safe-mod / narrow screens: card is full-width, name may wrap to two lines */
 @media (max-width: 959px) {
 	.cover-2a .cover-plaque h1 { font-size: 7.2vw !important; white-space: normal; }
@@ -663,19 +660,6 @@ a.ribbon:hover { color: #000; }
 	.safe-mod .cover-2a .cover-stats dt { font-size: 15px; }
 	.safe-mod .cover-2a .cover-stats .stack-long { display: inline; }
 	.safe-mod .cover-2a .cover-stats .stack-short { display: none; }
-
-	/* Bottom text navigation on the mobile cover */
-	.safe-mod .cover-2a .cover-nav {
-		display: flex; justify-content: center; gap: 22px;
-		padding: 14px 16px; padding-bottom: calc(14px + env(safe-area-inset-bottom));
-		background: #14110f; border-top: 1px solid #2b2622;
-		}
-	.safe-mod .cover-2a .cover-nav a {
-		color: #b7ab98; text-decoration: none; padding: 8px 0;
-		font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 2px;
-		}
-	.safe-mod .cover-2a .cover-nav a.accent,
-	.safe-mod .cover-2a .cover-nav a:hover { color: #f4c430; }
 	}
 
 /* Phone sizes from the 3B reference (docs/design/cover-mobile-3b-reference.html) */
