@@ -238,8 +238,14 @@ img.ajax-loader { display: none; float: left; margin-top:34px; }
 
 /* PROJECT LINK CARDS — the Projects column holds three external links, not a
    portfolio grid; full-width cards + vertical centering kill the empty look. */
-#portfolio .content { display: flex; flex-direction: column; min-height: 100%; -moz-box-sizing: border-box; -webkit-box-sizing: border-box; box-sizing: border-box; }
-.portfolio-items.project-links { width: 100%; margin: auto 0; min-height: 0; }
+/* NOTE: the cards container must NOT carry the template's .portfolio-items
+   class — main.js hands that selector to isotope, which finds no .hentry
+   items and pins the container to an inline height:0 (on mobile the
+   overflow:hidden wrapper then clips the cards entirely). Vertical centering
+   is desktop-only; safe-mod flows the cards after the heading. */
+html:not(.safe-mod) #portfolio .content { display: flex; flex-direction: column; min-height: 100%; -moz-box-sizing: border-box; -webkit-box-sizing: border-box; box-sizing: border-box; }
+.project-links { width: 100%; margin: 0 0 1.5em; }
+html:not(.safe-mod) .project-links { margin: auto 0; }
 .project-card {
 	display: flex; align-items: center; gap: 16px; width: 100%; margin: 0 0 14px;
 	padding: 16px 18px; -moz-box-sizing: border-box; -webkit-box-sizing: border-box; box-sizing: border-box;
