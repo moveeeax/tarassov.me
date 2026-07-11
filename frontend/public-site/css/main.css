@@ -617,6 +617,20 @@ a.ribbon:hover { color: #000; }
 	.cover-2a .cover-stats-row { gap: 24px; }
 	.cover-2a .cover-stats dd { font-size: 18px; }
 
+	/* The section card must cover the whole first screen: the container goes
+	   full-viewport flex-column and the white .rm-wrapper grows into the
+	   remainder, so no wood texture shows under short sections (projects,
+	   contact). The cover page keeps its absolute wrapper — flex ignores it. */
+	.safe-mod .rm-container { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+	/* same cream-dust paper as the pages (see skins/paper-bg), so the stretched
+	   tail below short sections is seamless rather than plain white */
+	/* html. prefix outranks the template's later `.safe-mod .rm-wrapper
+	   { background:#fff }` — this media block sits earlier in the file */
+	html.safe-mod .rm-wrapper {
+		flex: 1 0 auto;
+		background: #eee url(../images/bckg/paper-bg/cream_dust.png) 0 0 repeat;
+		}
+
 	/* WebKit derives a flex item's WIDTH from aspect-ratio x stretched height
 	   (unlike Blink), which pushed the photo wider than the phone screen —
 	   the crop drifted sideways and the right-anchored OPEN ribbon went
@@ -1952,7 +1966,11 @@ body.post-1a { font-family: 'PT Serif', serif; color: #2b2622; padding: 40px 16p
 
 /* ── Narrow screens ── */
 @media (max-width: 679px) {
-	body.post-1a { padding: 16px 0; }
+	body.post-1a { padding: 0; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; -moz-box-sizing: border-box; -webkit-box-sizing: border-box; box-sizing: border-box; }
+	/* the sheet grows to the viewport bottom; the article column absorbs the
+	   slack so the footer stays pinned — no wood under short pages */
+	.post-sheet { flex: 1 0 auto; display: flex; flex-direction: column; }
+	.post-article { flex: 1 0 auto; }
 	.post-topbar { padding: 18px 20px 14px; }
 	.post-article { padding: 32px 20px 40px; }
 	.post-title { font-size: 30px; }
