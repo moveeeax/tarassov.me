@@ -5,19 +5,9 @@ import { qk } from '@/lib/api/queryKeys';
 import type { MeResponse } from '@/lib/api/types';
 
 /**
- * Pulls /api/auth/me. The TanStack Query cache (key ['me']) is the
- * single source of truth for the current session — components read
- * `useMe().data` directly.
- *
- * 401 from /me means "no valid access cookie" — we resolve to null so the
- * route guard redirects to /login. Any OTHER failure (network, 5xx) is a
- * real error: we throw so `me.isError` is true and the guard can show an
- * error/retry state instead of bouncing a logged-in user to /login.
- */
-/**
- * The query function behind useMe, exported so its 401-vs-error contract
- * can be unit-tested without rendering a React tree (the test stack has no
- * @testing-library/react). 401 → null (logged out); anything else throws.
+ * Query fn for useMe, exported for unit tests (no @testing-library).
+ * 401 → null (logged out); anything else throws so the guard can retry
+ * instead of bouncing a still-valid session to /login.
  */
 export async function fetchMe(): Promise<MeResponse['user'] | null> {
   const { data, error } = await api.GET('/api/v1/auth/me');

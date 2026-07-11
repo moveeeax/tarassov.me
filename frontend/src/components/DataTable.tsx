@@ -30,6 +30,20 @@ interface DataTableProps<Row> {
   rowProps?: (row: Row) => React.HTMLAttributes<HTMLTableRowElement>;
 }
 
+function TableHead<Row>({ columns }: { columns: Column<Row>[] }) {
+  return (
+    <thead>
+      <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+        {columns.map((c, i) => (
+          <th key={i} scope="col" className={`py-1.5 pr-4 font-medium ${c.className ?? ''}`}>
+            {c.header}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+}
+
 export function DataTable<Row>({
   columns,
   rows,
@@ -47,15 +61,7 @@ export function DataTable<Row>({
   if (isLoading && !rows) {
     return (
       <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-            {columns.map((c, i) => (
-              <th key={i} scope="col" className={`py-1.5 pr-4 font-medium ${c.className ?? ''}`}>
-                {c.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
+        <TableHead columns={columns} />
         <tbody>
           {Array.from({ length: 5 }).map((_, r) => (
             <tr key={r} className="border-b border-border last:border-0">
@@ -75,15 +81,7 @@ export function DataTable<Row>({
 
   return (
     <table className={`w-full text-sm ${isPlaceholder ? 'opacity-50' : ''}`}>
-      <thead>
-        <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-          {columns.map((c, i) => (
-            <th key={i} scope="col" className={`py-1.5 pr-4 font-medium ${c.className ?? ''}`}>
-              {c.header}
-            </th>
-          ))}
-        </tr>
-      </thead>
+      <TableHead columns={columns} />
       <tbody>
         {rows.map((row) => {
           const extra = rowProps?.(row);

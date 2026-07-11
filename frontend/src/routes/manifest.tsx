@@ -17,7 +17,6 @@ import { ChangeEmailPage } from '@/pages/ChangeEmail';
 import { RequestResetPage } from '@/pages/RequestReset';
 import { ResetPasswordPage } from '@/pages/ResetPassword';
 import { JoinFromInvitePage } from '@/pages/JoinFromInvite';
-import { AdminPostsPage } from '@/pages/admin/Posts';
 
 // Admin pages are code-split: a logged-out visitor on /login should not pull
 // the whole admin bundle. React.lazy needs a module with a `default` export,
@@ -44,6 +43,9 @@ const AdminJobsPage = lazy(() =>
 );
 const AdminAuditPage = lazy(() =>
   import('@/pages/admin/Audit').then((m) => ({ default: m.AdminAuditPage })),
+);
+const AdminPostsPage = lazy(() =>
+  import('@/pages/admin/Posts').then((m) => ({ default: m.AdminPostsPage })),
 );
 
 /**

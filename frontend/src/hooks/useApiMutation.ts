@@ -14,8 +14,8 @@ import { apiErrorMessage } from '@/lib/api/client';
  * - `error`: the latest error message (or null), reset on each mutate.
  * - `clearError`: drop the banner manually (e.g. when opening a form).
  *
- * There is no toast library in this project — surface `error` in an
- * <Alert variant="destructive">.
+ * Pair with `useErrorToast(error)` for out-of-flow toasts, or render
+ * `error` in an <Alert variant="destructive"> when inline feedback fits.
  */
 export function useApiMutation<TData, TVariables = void>(
   mutationFn: (vars: TVariables) => Promise<TData>,

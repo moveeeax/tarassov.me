@@ -29,7 +29,7 @@ export function ProfilePage() {
           </div>
         </CardContent>
       </Card>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <Button variant="outline" asChild>
           <Link to="/account/change-password">Change password</Link>
         </Button>
