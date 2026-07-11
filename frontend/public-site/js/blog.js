@@ -299,6 +299,15 @@
                     })
                     .join("");
                 if (widget) widget.removeAttribute("hidden");
+
+                // Desktop plaque line (4A): the whole strip links to the latest post.
+                var line = document.getElementById("cover-blog-line");
+                var headline = document.getElementById("cover-blog-headline");
+                if (line && headline) {
+                    line.href = "blog-single.html?slug=" + encodeURIComponent(posts[0].slug);
+                    headline.textContent = posts[0].title;
+                    line.removeAttribute("hidden");
+                }
             })
             .catch(function () {});
     }

@@ -561,8 +561,8 @@ a.ribbon:hover { color: #000; }
 	background: url(../images/site/cover.jpg) center 22% / cover no-repeat;
 	}
 .cover-2a .cover-photo::after {
-	content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 300px; max-height: 60%;
-	background: linear-gradient(0deg, rgba(15,13,16,.85) 30%, rgba(15,13,16,0));
+	content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 240px; max-height: 60%;
+	background: linear-gradient(0deg, rgba(15,13,16,.88) 25%, rgba(15,13,16,0));
 	}
 
 /* OPEN ribbon (still the template's book-open trigger via .rm-button-open) */
@@ -576,19 +576,35 @@ a.ribbon:hover { color: #000; }
 	}
 .cover-2a .cover-open:hover { background: #c94c43; color: #fff; }
 
-/* Stats on the jacket */
+/* Stats on the jacket — desktop (4A): all three in ONE row; the .cover-stats-row
+   wrapper dissolves via display:contents so the mobile (3B) markup stays intact. */
 .cover-2a .cover-stats {
-	position: absolute; left: 28px; right: 28px; bottom: 22px; z-index: 2;
-	display: flex; flex-direction: column; gap: 14px; text-align: left;
+	position: absolute; left: 28px; right: 28px; bottom: 24px; z-index: 2;
+	display: flex; justify-content: space-between; gap: 20px; text-align: left;
 	}
 .cover-2a .cover-stats dl { margin: 0; }
-.cover-2a .cover-stats-row { display: flex; gap: 40px; flex-wrap: wrap; }
-.cover-2a .cover-stats dt { margin: 0; color: #f4c430; font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 2px; }
-.cover-2a .cover-stats dd { margin: 0; color: #fff; font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 22px; }
+.cover-2a .cover-stats-row { display: contents; }
+.cover-2a .cover-stats dt { margin: 0; color: #f4c430; font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 2px; }
+.cover-2a .cover-stats dd { margin: 0; color: #fff; font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 19px; }
+/* STACK value: short on desktop so the row fits at 471px, full text on mobile */
+.cover-2a .cover-stats .stack-long { display: none; }
 
-/* Blog widget is a child of the card; on desktop the absolute offset is
-   measured from the card bottom, which coincides with the photo bottom. */
-.cover-2a .latest-from-blog { margin: 0; bottom: 158px; z-index: 3; }
+/* Desktop (4A): the old two-line ticker over the photo is gone — the blog
+   line lives in the top plaque instead. Mobile (3B) re-enables the ticker. */
+.cover-2a .latest-from-blog { display: none; }
+
+/* Blog line in the plaque — one full-width yellow strip, whole thing a link.
+   Negative margins swallow the plaque's own padding so the strip runs
+   edge-to-edge and closes the plaque right where the photo starts. */
+.cover-blog-line {
+	display: flex; align-items: baseline; gap: 10px;
+	margin: 12px -24px -14px; padding: 9px 24px;
+	background: #f4c430; text-decoration: none; overflow: hidden; white-space: nowrap;
+	}
+.cover-blog-line[hidden] { display: none !important; }
+.cover-blog-label { color: #7e2b24; font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: 2px; flex-shrink: 0; }
+.cover-blog-headline { color: #14110f; font-family: 'Cutive Mono', monospace; font-size: 15px; overflow: hidden; text-overflow: ellipsis; }
+.cover-blog-line:hover .cover-blog-headline { text-decoration: underline; }
 
 /* Mobile-only bottom navigation strip — never shown on desktop */
 .cover-nav { display: none; }
@@ -621,8 +637,18 @@ a.ribbon:hover { color: #000; }
 
 	/* Blog ticker: static strip between the photo and the nav — off the face */
 	.safe-mod .cover-2a .latest-from-blog {
-		position: static; margin: 0; padding: 0 0 8px; background: #14110f;
+		display: block; position: static; margin: 0; padding: 0 0 8px; background: #14110f;
 		}
+
+	/* the desktop plaque blog line has no place on the mobile cover */
+	.safe-mod .cover-2a .cover-blog-line { display: none !important; }
+
+	/* 3B stats layout: STACK above, CLOUDS+EXPERIENCE in a row below */
+	.safe-mod .cover-2a .cover-stats { flex-direction: column; justify-content: flex-start; gap: 14px; }
+	.safe-mod .cover-2a .cover-stats-row { display: flex; gap: 24px; flex-wrap: wrap; }
+	.safe-mod .cover-2a .cover-stats dt { font-size: 15px; }
+	.safe-mod .cover-2a .cover-stats .stack-long { display: inline; }
+	.safe-mod .cover-2a .cover-stats .stack-short { display: none; }
 
 	/* Bottom text navigation on the mobile cover */
 	.safe-mod .cover-2a .cover-nav {
@@ -645,10 +671,12 @@ a.ribbon:hover { color: #000; }
 	.cover-2a .cover-plaque h2 { font-size: 14px !important; }
 	.cover-2a .cover-photo { background-position: center 18%; }
 	.cover-2a .cover-photo::after { height: 320px; max-height: none; background: linear-gradient(0deg, rgba(15,13,16,.9) 35%, rgba(15,13,16,0)); }
-	.cover-2a .cover-stats { left: 20px; right: 20px; bottom: 20px; gap: 12px; }
-	.cover-2a .cover-stats-row { gap: 32px; }
-	.cover-2a .cover-stats dt { font-size: 13px; }
-	.cover-2a .cover-stats dd { font-size: 19px; }
+	/* .safe-mod prefix: must outrank the 959-block's 3B-restore rules,
+	   which carry the same prefix — document order then favours this block */
+	.safe-mod .cover-2a .cover-stats { left: 20px; right: 20px; bottom: 20px; gap: 12px; }
+	.safe-mod .cover-2a .cover-stats-row { gap: 32px; }
+	.safe-mod .cover-2a .cover-stats dt { font-size: 13px; }
+	.safe-mod .cover-2a .cover-stats dd { font-size: 19px; }
 	}
 
 /* HOMEPAGE COVER BLOG LINK */

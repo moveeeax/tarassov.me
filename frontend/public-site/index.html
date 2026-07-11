@@ -110,6 +110,12 @@
                                         <header class="cover-plaque">
                                             <h1>MICHAEL TARASSOV</h1>
                                             <h2>Multi-Cloud DevOps Engineer</h2>
+                                            <!-- desktop blog line (4A): one full-width strip, whole thing links to
+                                                 the latest post; js/blog.js fills it. Mobile keeps the 3B ticker. -->
+                                            <a class="cover-blog-line" id="cover-blog-line" href="blog.html" hidden>
+                                                <span class="cover-blog-label">FROM THE BLOG</span>
+                                                <span class="cover-blog-headline" id="cover-blog-headline"></span>
+                                            </a>
                                         </header>
                                         
                                         <!-- photo area -->
@@ -121,7 +127,7 @@
                                             <div class="cover-stats">
                                                 <dl>
                                                     <dt>STACK</dt>
-                                                    <dd>Terraform&nbsp;·&nbsp;Kubernetes</dd>
+                                                    <dd><span class="stack-short">Terraform&nbsp;·&nbsp;K8s</span><span class="stack-long">Terraform&nbsp;·&nbsp;Kubernetes</span></dd>
                                                 </dl>
                                                 <div class="cover-stats-row">
                                                     <dl>
