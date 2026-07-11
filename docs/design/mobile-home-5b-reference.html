@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobile home — one-scroll reference (5B)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Cutive+Mono&family=Oswald:wght@500;600&family=PT+Serif:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  /* Эталон мобильной главной (≤560px): одна прокрутка, без меню.
+     Открой в узком окне или в device mode. Десктоп этот файл не описывает —
+     там остаётся вариант 4A без изменений. */
+  body { margin: 0; background: #14110f; font-family: 'Oswald', sans-serif; }
+  a { color: #b33a3a; } a:hover { color: #8f2b2b; }
+
+  .page { max-width: 560px; margin: 0 auto; }
+
+  /* ── Экран 1: обложка ── */
+  .cover { position: relative; height: 100dvh; min-height: 640px; display: flex; flex-direction: column; background: #14110f; }
+
+  .cover-title { padding: 18px 16px 12px; text-align: center; }
+  .cover-title h1 {
+    margin: 0; font-family: 'Alfa Slab One', serif; font-size: 27px; line-height: 1.05;
+    color: #fff; text-shadow: 2px 2px 0 #c94c43; letter-spacing: 0.5px;
+  }
+  .cover-title p { margin: 4px 0 0; font-family: 'Cutive Mono', monospace; font-size: 14px; color: #f2ece2; }
+
+  .cover-photo {
+    position: relative; flex: 1;
+    background: url('https://tarassov.me/images/site/cover.jpg') center 18% / cover no-repeat;
+  }
+  .cover-photo::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 300px;
+    background: linear-gradient(0deg, rgba(15,13,16,0.92) 30%, rgba(15,13,16,0));
+    pointer-events: none;
+  }
+
+  .cover-open {
+    position: absolute; right: 0; top: 52%; z-index: 2;
+    background: #d96459; color: #7e2b24;
+    font-weight: 600; font-size: 14px; letter-spacing: 2px;
+    padding: 14px 18px 14px 24px;
+    clip-path: polygon(12px 0, 100% 0, 100% 100%, 12px 100%, 0 50%);
+    text-decoration: none;
+  }
+
+  .cover-stats { position: absolute; left: 20px; right: 20px; bottom: 44px; z-index: 2; display: flex; flex-direction: column; gap: 12px; }
+  .cover-stats .row { display: flex; gap: 32px; }
+  .cover-stats dt { margin: 0; color: #f4c430; font-weight: 600; font-size: 13px; letter-spacing: 2px; }
+  .cover-stats dd { margin: 0; color: #fff; font-size: 19px; font-weight: 500; }
+
+  .scroll-hint {
+    position: absolute; left: 0; right: 0; bottom: 10px; z-index: 2; text-align: center;
+    font-family: 'Cutive Mono', monospace; font-size: 13px; color: #b7ab98;
+  }
+
+  /* ── Секции под обложкой ── */
+  .sec { padding: 28px 20px; }
+  .sec h2 { margin: 0; font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 24px; color: #14110f; }
+  .sec h2 .dot { color: #c94c43; }
+  .sec.alt { background: #e5dbc6; }
+  .sec.light { background: #efe7d6; }
+
+  .sec .lead { font-family: 'PT Serif', serif; font-size: 16px; line-height: 1.6; color: #2b2622; margin: 8px 0 0; }
+  .sec .more {
+    display: inline-block; margin-top: 12px; text-decoration: none;
+    font-weight: 600; font-size: 13px; letter-spacing: 2px; color: #b33a3a;
+  }
+
+  .sec .links { display: flex; flex-direction: column; margin-top: 4px; }
+  .sec .links a {
+    font-size: 17px; font-weight: 500; color: #14110f; text-decoration: none;
+    padding: 12px 0; border-bottom: 1px solid #c9b99d;
+  }
+  .sec .links a:last-child { border-bottom: none; }
+
+  /* блок последнего поста */
+  .sec .post-meta { font-family: 'Cutive Mono', monospace; font-size: 13px; color: #7a6f60; margin-top: 12px; }
+  .sec .post-title { font-family: 'Alfa Slab One', serif; font-size: 19px; line-height: 1.3; color: #14110f; margin-top: 4px; text-decoration: none; display: block; }
+
+  .sec .mono { font-family: 'Cutive Mono', monospace; font-size: 15px; color: #2b2622; margin-top: 8px; }
+  .cta {
+    display: flex; align-items: center; justify-content: center; height: 50px; margin-top: 14px;
+    background: #d96459; color: #7e2b24 !important; text-decoration: none;
+    font-weight: 600; font-size: 15px; letter-spacing: 3px;
+  }
+
+  footer {
+    background: #14110f; text-align: center;
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+    font-family: 'Cutive Mono', monospace; font-size: 13px; color: #7a6f60;
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- Экран 1: обложка = 100dvh -->
+  <section class="cover">
+    <header class="cover-title">
+      <h1>MICHAEL TARASSOV</h1>
+      <p>Multi-Cloud DevOps Engineer</p>
+    </header>
+    <div class="cover-photo">
+      <a class="cover-open" href="#/resume">OPEN</a>
+      <div class="cover-stats">
+        <dl style="margin:0">
+          <dt>STACK</dt>
+          <dd>Terraform · Kubernetes</dd>
+        </dl>
+        <div class="row">
+          <dl style="margin:0">
+            <dt>CLOUDS</dt>
+            <dd>AWS · Azure · GCP</dd>
+          </dl>
+          <dl style="margin:0">
+            <dt>EXPERIENCE</dt>
+            <dd>10+ years</dd>
+          </dl>
+        </div>
+      </div>
+      <div class="scroll-hint">scroll ↓</div>
+    </div>
+  </section>
+
+  <!-- Секции: чередование двух бумажных тонов -->
+  <section class="sec light">
+    <h2>resume<span class="dot">.</span></h2>
+    <p class="lead">10+ лет в инфраструктуре: Terraform, Kubernetes и CI/CD в AWS, Azure и GCP.</p>
+    <a class="more" href="#/resume">FULL RESUME →</a>
+  </section>
+
+  <section class="sec alt">
+    <h2>projects<span class="dot">.</span></h2>
+    <div class="links">
+      <a href="https://gitlab.com/...">GitLab — code and infrastructure</a>
+      <a href="/blog.html">Blog — write-ups and notes</a>
+      <a href="https://linkedin.com/in/...">LinkedIn — experience and stack</a>
+    </div>
+  </section>
+
+  <section class="sec light">
+    <h2>from the blog<span class="dot">.</span></h2>
+    <div class="post-meta">2026-06-14 · 7 min read</div>
+    <a class="post-title" href="/blog-single.html?slug=example">Zero-downtime Kubernetes upgrades on three clouds</a>
+    <a class="more" href="/blog.html">ALL POSTS →</a>
+  </section>
+
+  <section class="sec alt">
+    <h2>contact<span class="dot">.</span></h2>
+    <p class="mono">michael@tarassov.me · Almaty, Kazakhstan</p>
+    <a class="cta" href="#/contact">DROP ME A LINE →</a>
+  </section>
+
+  <footer>© Michael Tarassov · tarassov.me</footer>
+
+</div>
+
+</body>
+</html>
