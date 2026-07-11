@@ -537,7 +537,7 @@ a.ribbon:hover { color: #000; }
 .cover-2a { display: flex; flex-direction: column; height: 100% !important; background-color: #14110f; background-image: none !important; }
 /* Mobile/tablet: the card fills the whole screen — the photo area flex-grows
    past its preferred ratio, so no paper tail shows below the cover. */
-.safe-mod .cover-2a { height: auto !important; min-height: 640px; min-height: max(640px, 100vh); min-height: max(640px, 100dvh); }
+.safe-mod .cover-2a { height: auto !important; min-height: 100vh; min-height: 100dvh; }
 
 .cover-2a .cover-plaque { padding: 20px 24px 14px; text-align: center; background: #14110f; }
 /* !important: fitText (main.js) sets inline font-size on .cover h1/h2 — the
@@ -606,14 +606,14 @@ a.ribbon:hover { color: #000; }
 .cover-blog-headline { color: #14110f; font-family: 'Cutive Mono', monospace; font-size: 15px; overflow: hidden; text-overflow: ellipsis; }
 .cover-blog-line:hover .cover-blog-headline { text-decoration: underline; }
 
-/* Mobile-only elements (5B one-scroll home) — never shown on desktop */
-.home-teasers, .cover-scroll-hint, .page-back { display: none; }
+/* Mobile-only bottom navigation strip — never shown on desktop */
+.cover-nav { display: none; }
 
 /* Safe-mod / narrow screens: card is full-width, name may wrap to two lines */
 @media (max-width: 959px) {
 	.cover-2a .cover-plaque h1 { font-size: 7.2vw !important; white-space: normal; }
 	.cover-2a .cover-plaque h2 { font-size: 3.6vw !important; }
-	.cover-2a .cover-stats { left: 18px; right: 18px; bottom: 44px; }
+	.cover-2a .cover-stats { left: 18px; right: 18px; bottom: 16px; }
 	.cover-2a .cover-stats-row { gap: 24px; }
 	.cover-2a .cover-stats dd { font-size: 18px; }
 
@@ -644,79 +644,18 @@ a.ribbon:hover { color: #000; }
 	   landed on the chin here. 186px puts it just above the stats, on the
 	   scrim, for any photo height. */
 	.safe-mod .cover-2a .cover-open {
-		top: 52%; bottom: auto; font-size: 14px; padding: 14px 18px 14px 24px;
+		top: auto; bottom: 186px; font-size: 14px; padding: 14px 18px 14px 24px;
 		-webkit-clip-path: polygon(12px 0, 100% 0, 100% 100%, 12px 100%, 0 50%);
 		clip-path: polygon(12px 0, 100% 0, 100% 100%, 12px 100%, 0 50%);
 		}
 
+	/* Blog ticker: static strip between the photo and the nav — off the face */
+	.safe-mod .cover-2a .latest-from-blog {
+		display: block; position: static; margin: 0; padding: 0 0 8px; background: #14110f;
+		}
+
 	/* the desktop plaque blog line has no place on the mobile cover */
 	.safe-mod .cover-2a .cover-blog-line { display: none !important; }
-
-	/* 5B: no navigation at all on mobile — the one-scroll teasers below the
-	   cover link to everything; inner sections get a compact back link. */
-	html.safe-mod #header { display: none !important; }
-	.safe-mod .page-back {
-		display: inline-block; margin: 0 0 6px; padding: 12px 0;
-		font-family: 'Alfa Slab One', serif; font-size: 16px; color: #14110f; text-decoration: none;
-		}
-
-	/* scroll cue at the very bottom of the photo */
-	.safe-mod .cover-scroll-hint {
-		display: block; position: absolute; left: 0; right: 0; bottom: 10px; z-index: 2;
-		text-align: center; font-family: 'Cutive Mono', monospace; font-size: 13px; color: #b7ab98;
-		}
-
-	/* ── one-scroll teasers under the cover ── */
-	/* The template pins the cover page's wrapper to the viewport
-	   (.safe-mod.on-cover-page .rm-wrapper { position:absolute; top:0; bottom:0 })
-	   which clips everything below the first screen — the home page could not
-	   scroll at all. Put the home page into the same static flow the template
-	   already uses for the other sections. */
-	html.safe-mod.on-cover-page .main { height: auto; }
-	html.safe-mod.on-cover-page .rm-container { height: auto; overflow: visible; }
-	html.safe-mod.on-cover-page .rm-wrapper { position: static; }
-	html.safe-mod.on-cover-page .rm-wrapper > div,
-	html.safe-mod.on-cover-page .rm-wrapper > div > div { position: static; }
-	html.safe-mod.on-cover-page .antiscroll-wrap { position: relative; top: auto; bottom: auto; left: auto; overflow: visible; }
-	html.safe-mod.on-cover-page .antiscroll-inner { overflow: visible; height: auto; }
-
-	.safe-mod .home-teasers { display: block; }
-	.safe-mod .teaser { padding: 28px 20px; }
-	.safe-mod .teaser-light { background: #efe7d6; }
-	.safe-mod .teaser-alt { background: #e5dbc6; }
-	.safe-mod .teaser h2 {
-		margin: 0; padding: 0; width: auto; text-align: left; text-shadow: none;
-		font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 24px !important; color: #14110f; letter-spacing: 0;
-		}
-	.safe-mod .teaser-dot { color: #c94c43; }
-	.safe-mod .teaser-lead { margin: 8px 0 0; font-family: 'PT Serif', serif; font-size: 16px; line-height: 1.6; color: #2b2622; }
-	.safe-mod .teaser-more {
-		display: inline-block; margin-top: 12px; padding: 12px 0; text-decoration: none;
-		font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 2px; color: #b33a3a;
-		}
-	.safe-mod .teaser-links { display: flex; flex-direction: column; margin-top: 4px; }
-	.safe-mod .teaser-links a {
-		font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 17px; color: #14110f;
-		text-decoration: none; padding: 12px 0; border-bottom: 1px solid #c9b99d;
-		}
-	.safe-mod .teaser-links a:last-child { border-bottom: none; }
-	.safe-mod .teaser-post-meta { margin-top: 12px; font-family: 'Cutive Mono', monospace; font-size: 13px; color: #7a6f60; }
-	.safe-mod .teaser-post-title {
-		display: block; margin-top: 4px; text-decoration: none;
-		font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 19px; line-height: 1.3; color: #14110f;
-		}
-	.safe-mod .teaser-mono { margin: 8px 0 0; font-family: 'Cutive Mono', monospace; font-size: 15px; color: #2b2622; }
-	.safe-mod .teaser-mono a { color: #b33a3a; text-decoration: none; }
-	.safe-mod .teaser-cta {
-		display: flex; align-items: center; justify-content: center; height: 50px; margin-top: 14px;
-		background: #d96459; color: #7e2b24; text-decoration: none;
-		font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 3px;
-		}
-	.safe-mod .home-footer {
-		background: #14110f; text-align: center;
-		padding: 20px 16px; padding-bottom: calc(20px + env(safe-area-inset-bottom));
-		font-family: 'Cutive Mono', monospace; font-size: 13px; color: #7a6f60;
-		}
 
 	/* 3B stats layout: STACK above, CLOUDS+EXPERIENCE in a row below */
 	.safe-mod .cover-2a .cover-stats { flex-direction: column; justify-content: flex-start; gap: 14px; }
@@ -725,7 +664,18 @@ a.ribbon:hover { color: #000; }
 	.safe-mod .cover-2a .cover-stats .stack-long { display: inline; }
 	.safe-mod .cover-2a .cover-stats .stack-short { display: none; }
 
-
+	/* Bottom text navigation on the mobile cover */
+	.safe-mod .cover-2a .cover-nav {
+		display: flex; justify-content: center; gap: 22px;
+		padding: 14px 16px; padding-bottom: calc(14px + env(safe-area-inset-bottom));
+		background: #14110f; border-top: 1px solid #2b2622;
+		}
+	.safe-mod .cover-2a .cover-nav a {
+		color: #b7ab98; text-decoration: none; padding: 8px 0;
+		font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 2px;
+		}
+	.safe-mod .cover-2a .cover-nav a.accent,
+	.safe-mod .cover-2a .cover-nav a:hover { color: #f4c430; }
 	}
 
 /* Phone sizes from the 3B reference (docs/design/cover-mobile-3b-reference.html) */
@@ -734,10 +684,10 @@ a.ribbon:hover { color: #000; }
 	.cover-2a .cover-plaque h1 { font-size: 27px !important; letter-spacing: .5px; }
 	.cover-2a .cover-plaque h2 { font-size: 14px !important; }
 	.cover-2a .cover-photo { background-position: center 18%; }
-	.cover-2a .cover-photo::after { height: 300px; max-height: none; background: linear-gradient(0deg, rgba(15,13,16,.92) 30%, rgba(15,13,16,0)); }
+	.cover-2a .cover-photo::after { height: 320px; max-height: none; background: linear-gradient(0deg, rgba(15,13,16,.9) 35%, rgba(15,13,16,0)); }
 	/* .safe-mod prefix: must outrank the 959-block's 3B-restore rules,
 	   which carry the same prefix — document order then favours this block */
-	.safe-mod .cover-2a .cover-stats { left: 20px; right: 20px; bottom: 44px; gap: 12px; }
+	.safe-mod .cover-2a .cover-stats { left: 20px; right: 20px; bottom: 20px; gap: 12px; }
 	.safe-mod .cover-2a .cover-stats-row { gap: 32px; }
 	.safe-mod .cover-2a .cover-stats dt { font-size: 13px; }
 	.safe-mod .cover-2a .cover-stats dd { font-size: 19px; }

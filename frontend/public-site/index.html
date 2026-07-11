@@ -27,7 +27,7 @@
     <link href='https://fonts.googleapis.com/css?family=Lato:100,300,400,700,900,100italic,300italic,400italic,700italic,900italic' rel='stylesheet' type='text/css'>
     <link href='https://fonts.googleapis.com/css?family=Alfa+Slab+One|Nixie+One|Raleway:200,800' rel='stylesheet' type='text/css'>
     <link href='https://fonts.googleapis.com/css?family=Tulpen+One|Sacramento' rel='stylesheet' type='text/css'>
-    <link href='https://fonts.googleapis.com/css2?family=Cutive+Mono&family=Oswald:wght@500;600&family=PT+Serif:ital,wght@0,400;0,700;1,400&display=swap' rel='stylesheet' type='text/css'>
+    <link href='https://fonts.googleapis.com/css2?family=Cutive+Mono&family=Oswald:wght@500;600&display=swap' rel='stylesheet' type='text/css'>
         
     <!-- STYLES -->
     <link rel="stylesheet" type="text/css" media="print" href="css/print.css">
@@ -123,9 +123,6 @@
                                             
                                             <a href="#/resume" class="rm-button-open cover-open">OPEN</a>
                                             
-                                            <!-- mobile-only scroll cue (5B); desktop hides it -->
-                                            <div class="cover-scroll-hint">scroll &darr;</div>
-                                            
                                             <!-- stats anchored to the jacket, under the bottom scrim -->
                                             <div class="cover-stats">
                                                 <dl>
@@ -146,48 +143,27 @@
                                             
                                         </div>
                                         
+                                        <!-- latest-from-blog (filled by js/blog.js from /api/v1/public/posts;
+                                             stays hidden unless the API returns at least one post). Child of the
+                                             card, not the photo: desktop keeps the same absolute spot (the photo
+                                             ends at the card bottom), mobile lays it out statically off the face. -->
+                                        <div class="latest-from-blog" hidden>
+                                        	<h3>From the blog
+                                            	<a class="button2" href="blog.html">All posts</a></h3>
+                                            <div class="blog-bar" id="latest-posts"></div>
+                                        </div>
+                                        <!-- latest-from-blog -->
+                                        
+                                        <!-- mobile-only bottom navigation (display:none on desktop) -->
+                                        <nav class="cover-nav" aria-label="Sections">
+                                            <a class="accent" href="#/resume">RESUME</a>
+                                            <a href="#/portfolio">PROJECTS</a>
+                                            <a href="blog.html">BLOG</a>
+                                            <a href="#/contact">CONTACT</a>
+                                        </nav>
+                                        
                                     </div>
                                     <!-- COVER (2A) -->
-                                    
-                                    <!-- MOBILE ONE-SCROLL TEASERS (5B) — display:none on desktop; teasers
-                                         only LINK to the full sections, they do not replace them -->
-                                    <div class="home-teasers">
-                                        
-                                        <section class="teaser teaser-light">
-                                            <h2>resume<span class="teaser-dot">.</span></h2>
-                                            <p class="teaser-lead">10+ years of cloud infrastructure: Terraform, Kubernetes and CI/CD across AWS, Azure and GCP.</p>
-                                            <a class="teaser-more" href="#/resume">FULL RESUME &rarr;</a>
-                                        </section>
-                                        
-                                        <section class="teaser teaser-alt">
-                                            <h2>projects<span class="teaser-dot">.</span></h2>
-                                            <div class="teaser-links">
-                                                <a href="https://gitlab.com/tarassov.me" target="_blank" rel="noopener">GitLab &mdash; code and infrastructure</a>
-                                                <a href="blog.html">Blog &mdash; write-ups and notes</a>
-                                                <a href="https://www.linkedin.com/in/tarassov-michael" target="_blank" rel="noopener">LinkedIn &mdash; experience and stack</a>
-                                            </div>
-                                        </section>
-                                        
-                                        <section class="teaser teaser-light">
-                                            <h2>from the blog<span class="teaser-dot">.</span></h2>
-                                            <!-- filled by js/blog.js (same fetch as the desktop plaque line) -->
-                                            <div id="teaser-post" hidden>
-                                                <div class="teaser-post-meta" id="teaser-post-meta"></div>
-                                                <a class="teaser-post-title" id="teaser-post-title" href="blog.html"></a>
-                                            </div>
-                                            <a class="teaser-more" href="blog.html">ALL POSTS &rarr;</a>
-                                        </section>
-                                        
-                                        <section class="teaser teaser-alt">
-                                            <h2>contact<span class="teaser-dot">.</span></h2>
-                                            <p class="teaser-mono"><a href="mailto:michael@tarassov.me">michael@tarassov.me</a> &middot; Almaty, Kazakhstan</p>
-                                            <a class="teaser-cta" href="#/contact">DROP ME A LINE &rarr;</a>
-                                        </section>
-                                        
-                                        <footer class="home-footer">&copy; Michael Tarassov &middot; tarassov.me</footer>
-                                        
-                                    </div>
-                                    <!-- MOBILE ONE-SCROLL TEASERS -->
                                     
                                     
                                     
@@ -215,8 +191,6 @@
                                         <div class="content">
                                         
                                         	
-                                            <a class="page-back" href="#/home">&larr; M. TARASSOV</a>
-
                                             <h2><span>RESUME</span></h2>
                                             
                                             <h4 class="about-text">I am a <span class="label">Multi-Cloud DevOps engineer</span> with 10+ years of hands-on experience: cloud infrastructure, Kubernetes and automation, end to end.</h4>
@@ -444,8 +418,6 @@
                                         <div class="content">
                                         
                                         	
-                                            <a class="page-back" href="#/home">&larr; M. TARASSOV</a>
-
                                             <h2><span>PROJECTS</span></h2>
 
                                             <!-- Three link cards (texts reuse the former paragraph);
@@ -546,8 +518,6 @@
                                         <div class="content">
                                         	
                                             
-                                            <a class="page-back" href="#/home">&larr; M. TARASSOV</a>
-
                                             <h2><span>CONTACT</span></h2>
                                         		
                                                 

@@ -271,36 +271,42 @@
             .catch(function () {});
     }
 
-    // vCard home page blog spots: the desktop plaque line (4A) and the mobile
-    // "from the blog." teaser (5B). Both stay hidden while the blog is empty.
+    // The vCard's "latest from the blog" widget (index.html #latest-posts).
+    // The whole widget ships hidden and is only revealed when the API returns
+    // posts — an empty blog (or a failed fetch) must not leave an unreadable
+    // "No posts yet" notice sitting on the cover photo.
     function renderLatest() {
-        var line = document.getElementById("cover-blog-line");
-        var teaser = document.getElementById("teaser-post");
-        if (!line && !teaser) return;
-        fetch(API + "?limit=1")
+        var el = document.getElementById("latest-posts");
+        if (!el) return;
+        var widget = el.closest ? el.closest(".latest-from-blog") : null;
+        // 2 posts max: the widget sits on the cover photo and must stay compact.
+        fetch(API + "?limit=2")
             .then(function (r) {
                 return r.json();
             })
             .then(function (res) {
                 var posts = (res && res.data) || [];
                 if (!posts.length) return;
-                var post = posts[0];
-                var href = "blog-single.html?slug=" + encodeURIComponent(post.slug);
-                if (line) {
-                    line.href = href;
-                    var headline = document.getElementById("cover-blog-headline");
-                    if (headline) headline.textContent = post.title;
+                el.innerHTML = posts
+                    .map(function (p) {
+                        return (
+                            '<h2><a href="blog-single.html?slug=' +
+                            encodeURIComponent(p.slug) +
+                            '">' +
+                            esc(p.title) +
+                            "</a></h2>"
+                        );
+                    })
+                    .join("");
+                if (widget) widget.removeAttribute("hidden");
+
+                // Desktop plaque line (4A): the whole strip links to the latest post.
+                var line = document.getElementById("cover-blog-line");
+                var headline = document.getElementById("cover-blog-headline");
+                if (line && headline) {
+                    line.href = "blog-single.html?slug=" + encodeURIComponent(posts[0].slug);
+                    headline.textContent = posts[0].title;
                     line.removeAttribute("hidden");
-                }
-                if (teaser) {
-                    var meta = document.getElementById("teaser-post-meta");
-                    var title = document.getElementById("teaser-post-title");
-                    if (meta) meta.textContent = (post.published_at || "").slice(0, 10) + " · " + readMins(post.body) + " min read";
-                    if (title) {
-                        title.textContent = post.title;
-                        title.href = href;
-                    }
-                    teaser.removeAttribute("hidden");
                 }
             })
             .catch(function () {});
@@ -351,7 +357,7 @@
     }
 
     document.addEventListener("DOMContentLoaded", function () {
-        if (document.getElementById("cover-blog-line") || document.getElementById("teaser-post")) renderLatest();
+        if (document.getElementById("latest-posts")) renderLatest();
         bindContact();
         if (location.pathname.indexOf("blog-single") !== -1) renderSingle();
         else if (document.getElementById("blog-posts")) renderList();
