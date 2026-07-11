@@ -270,6 +270,13 @@
 		// 3D LAYOUT
 		Menu.init();
 		// ------------------------------
+
+		// Reveal the page after layout init (pairs with FOUC guard in main.css
+		// and early .safe-mod from js/boot.js). rAF waits one paint so transforms
+		// are applied before opacity goes to 1.
+		requestAnimationFrame(function () {
+			document.documentElement.classList.add('is-ready');
+		});
 		
 		
 	});

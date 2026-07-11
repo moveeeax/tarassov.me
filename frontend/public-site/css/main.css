@@ -11,13 +11,31 @@ MAIN STYLE FILE */
 
 /* BASE */
 html, body { width:100%; height:100%; }
-body { overflow: hidden; -webkit-text-size-adjust:none; }
+/* Solid fallback while the wood texture / skins load (avoids white flash). */
+html { background-color: #2c2118; }
+body { overflow: hidden; -webkit-text-size-adjust:none; background-color: #2c2118; }
 /* The blog pages are ordinary documents — the global overflow:hidden exists
    for the book mechanics on index.html and killed native scrolling here. */
 body.blog-page { overflow: visible; overflow-y: auto; overflow-x: hidden; }
 .safe-mod body { overflow: visible; overflow-x: hidden; display: block !important; }
 .p-overlay-on body { overflow: visible; }
 .p-overlay-on.safe-mod .main { display: none; }
+
+/* FOUC guard (index.html): hide the book shell until boot.js/main.js have
+   applied .safe-mod and finished layout init. Failsafe in boot.js reveals
+   after 2.5s even if main.js errors. */
+html:not(.is-ready) .main {
+  opacity: 0;
+}
+html.is-ready .main {
+  opacity: 1;
+  -webkit-transition: opacity 0.22s ease-out;
+  transition: opacity 0.22s ease-out;
+}
+/* Prefer reduced motion: skip the fade, still avoid the FOUC. */
+@media (prefers-reduced-motion: reduce) {
+  html.is-ready .main { -webkit-transition: none; transition: none; }
+}
 
 a { color: #C25337; text-decoration: none; outline: none; }
 a:hover { color: #C00; }
@@ -471,6 +489,8 @@ box-shadow: 0 0 10px #555;
 /* COVER PAGE */
 .cover-image-holder { display: none; }
 .cover { position: relative; z-index:1000; width:100%; height:100%; overflow:hidden; background-position: center center; background-repeat: no-repeat; background-size: cover; }
+/* Back cover photo without waiting for main.js's bg-image hook. */
+.rm-right > .rm-front > .cover { background-image: url(../images/site/cover-2.jpg); }
 .cover h1 { display: block; width: 100%; margin: 0 auto; padding: .5em 0 .1em 0; text-align: center; color: #fff; line-height: 1; letter-spacing: 1px; font-size: 62px; font-family: 'Alfa Slab One'; text-shadow: 8px 7px 0px rgba(0, 0, 0, 0.1); }
 .cover h2 { display: block; width: 100%; margin: 0% 0 8% 0%; padding: 0; text-align: center; line-height: 1.2; letter-spacing: 1px; color: #fff; font-size: 16px; font-family: 'Nixie One'; }
 .cover h3 { display: block; width: 30%; margin: 5% 0 0 4%; padding: 0; text-align: left; letter-spacing: 1px; font-size: 18px; font-family: 'Raleway'; font-weight: 200; color:#fff; }

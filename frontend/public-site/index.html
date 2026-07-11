@@ -12,23 +12,40 @@
 
     <title>Michael Tarassov — tarassov.me</title>
 
+    <!-- Critical first-paint: solid bg (wood texture loads later) + hide shell
+         until .is-ready. Mirrors rules in main.css so FOUC is covered even if
+         CSS is slow. -->
+    <style>
+      html, body { background-color: #2c2118; }
+      html:not(.is-ready) .main { opacity: 0; }
+    </style>
+    <noscript>
+      <style>html:not(.is-ready) .main { opacity: 1 !important; }</style>
+    </noscript>
+
     <!-- FAV and TOUCH ICONS -->
-    <link rel="shortcut icon" href="images/ico/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="images/ico/favicon.svg">
+    <link rel="icon" type="image/x-icon" href="images/ico/favicon.ico">
     <link rel="apple-touch-icon" href="images/ico/apple-touch-icon.png"/>
-    
+
+    <!-- LCP: cover photo used as CSS background on .cover-photo -->
+    <link rel="preload" as="image" href="images/site/cover.jpg">
+
+    <!-- Early .safe-mod before first paint (avoids desktop-book flash on mobile) -->
+    <script src="js/boot.js"></script>
+
     <!-- SCRIPTS -->
-    <script type="text/javascript" src="js/modernizr.js"></script> 
+    <script type="text/javascript" src="js/modernizr.js"></script>
     <!--[if lte IE 9]>
         <script src="js/html5shiv.js"></script>
         <script src="js/selectivizr-min.js"></script>
-    <![endif]-->    
-    
-    <!-- FONTS -->
-    <link href='https://fonts.googleapis.com/css?family=Lato:100,300,400,700,900,100italic,300italic,400italic,700italic,900italic' rel='stylesheet' type='text/css'>
-    <link href='https://fonts.googleapis.com/css?family=Alfa+Slab+One|Nixie+One|Raleway:200,800' rel='stylesheet' type='text/css'>
-    <link href='https://fonts.googleapis.com/css?family=Tulpen+One|Sacramento' rel='stylesheet' type='text/css'>
-    <link href='https://fonts.googleapis.com/css2?family=Cutive+Mono&family=Oswald:wght@500;600&display=swap' rel='stylesheet' type='text/css'>
-        
+    <![endif]-->
+
+    <!-- FONTS: one request, display=swap (no FOIT). Weights trimmed to what the site uses. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Cutive+Mono&family=Lato:ital,wght@0,300;0,400;0,700;1,400&family=Oswald:wght@500;600&family=Raleway:wght@200;800&family=Sacramento&family=Tulpen+One&display=swap" rel="stylesheet">
+
     <!-- STYLES -->
     <link rel="stylesheet" type="text/css" media="print" href="css/print.css">
     <link rel="stylesheet" type="text/css" href="css/normalize.css">
@@ -37,13 +54,13 @@
     <link rel="stylesheet" type="text/css" href="css/book.css" />
     <link rel="stylesheet" type="text/css" href="css/font-awesome.css">
     <link rel="stylesheet" type="text/css" href="css/jquery.fancybox-1.3.4.css">
-	<link rel="stylesheet" type="text/css" href="css/main.css">
-    
+    <link rel="stylesheet" type="text/css" href="css/main.css">
+
     <link class="cover-skin" rel="stylesheet" type="text/css" href="css/skins/cover/standart.css">
     <link class="base-skin" rel="stylesheet" type="text/css" href="css/skins/base/clean.css">
     <link class="paper-bg-skin" rel="stylesheet" type="text/css" href="css/skins/paper-bg/cream-dust.css">
     <link class="body-bg-skin" rel="stylesheet" type="text/css" href="css/skins/body-bg/wood.css">
-    
+
 </head>
 
 <body>
@@ -664,10 +681,9 @@
         <!-- ************************ ALERT -->  
 		
         
-        <!-- SCRIPTS -->
-        <!-- Grab Google CDN's jQuery, with a protocol relative URL; fall back to local if offline -->
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>
-        <script>window.jQuery || document.write('<script src="js/jquery-1.8.3.min.js"><\/script>')</script>
+        <!-- SCRIPTS — local jQuery only: CSP is script-src 'self', so the
+             Google CDN URL was blocked and forced a second local request. -->
+        <script src="js/jquery-1.8.3.min.js"></script>
         <script src="js/jquery.address-1.5.min.js"></script>
         <script src="js/antiscroll.js"></script>
         <script src="js/jquery.fittext.js"></script>
