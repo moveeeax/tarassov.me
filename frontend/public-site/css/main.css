@@ -586,8 +586,12 @@ a.ribbon:hover { color: #000; }
 .cover-2a .cover-stats dt { margin: 0; color: #f4c430; font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 2px; }
 .cover-2a .cover-stats dd { margin: 0; color: #fff; font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 22px; }
 
-/* Blog widget now lives inside .cover-photo — keep it clear of the stats block */
+/* Blog widget is a child of the card; on desktop the absolute offset is
+   measured from the card bottom, which coincides with the photo bottom. */
 .cover-2a .latest-from-blog { margin: 0; bottom: 158px; z-index: 3; }
+
+/* Mobile-only bottom navigation strip — never shown on desktop */
+.cover-nav { display: none; }
 
 /* Safe-mod / narrow screens: card is full-width, name may wrap to two lines */
 @media (max-width: 959px) {
@@ -596,6 +600,48 @@ a.ribbon:hover { color: #000; }
 	.cover-2a .cover-stats { left: 18px; right: 18px; bottom: 16px; }
 	.cover-2a .cover-stats-row { gap: 24px; }
 	.cover-2a .cover-stats dd { font-size: 18px; }
+
+	/* OPEN ribbon on the jacket (not the face), tap zone >= 44px.
+	   Anchored to the photo BOTTOM (not a % from the top): the full-screen
+	   photo height varies with the ticker/nav, and the reference's top:52%
+	   landed on the chin here. 186px puts it just above the stats, on the
+	   scrim, for any photo height. */
+	.safe-mod .cover-2a .cover-open {
+		top: auto; bottom: 186px; font-size: 14px; padding: 14px 18px 14px 24px;
+		-webkit-clip-path: polygon(12px 0, 100% 0, 100% 100%, 12px 100%, 0 50%);
+		clip-path: polygon(12px 0, 100% 0, 100% 100%, 12px 100%, 0 50%);
+		}
+
+	/* Blog ticker: static strip between the photo and the nav — off the face */
+	.safe-mod .cover-2a .latest-from-blog {
+		position: static; margin: 0; padding: 0 0 8px; background: #14110f;
+		}
+
+	/* Bottom text navigation on the mobile cover */
+	.safe-mod .cover-2a .cover-nav {
+		display: flex; justify-content: center; gap: 22px;
+		padding: 14px 16px; padding-bottom: calc(14px + env(safe-area-inset-bottom));
+		background: #14110f; border-top: 1px solid #2b2622;
+		}
+	.safe-mod .cover-2a .cover-nav a {
+		color: #b7ab98; text-decoration: none; padding: 8px 0;
+		font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 2px;
+		}
+	.safe-mod .cover-2a .cover-nav a.accent,
+	.safe-mod .cover-2a .cover-nav a:hover { color: #f4c430; }
+	}
+
+/* Phone sizes from the 3B reference (docs/design/cover-mobile-3b-reference.html) */
+@media (max-width: 560px) {
+	.cover-2a .cover-plaque { padding: 18px 16px 12px; }
+	.cover-2a .cover-plaque h1 { font-size: 27px !important; letter-spacing: .5px; }
+	.cover-2a .cover-plaque h2 { font-size: 14px !important; }
+	.cover-2a .cover-photo { background-position: center 18%; }
+	.cover-2a .cover-photo::after { height: 320px; max-height: none; background: linear-gradient(0deg, rgba(15,13,16,.9) 35%, rgba(15,13,16,0)); }
+	.cover-2a .cover-stats { left: 20px; right: 20px; bottom: 20px; gap: 12px; }
+	.cover-2a .cover-stats-row { gap: 32px; }
+	.cover-2a .cover-stats dt { font-size: 13px; }
+	.cover-2a .cover-stats dd { font-size: 19px; }
 	}
 
 /* HOMEPAGE COVER BLOG LINK */

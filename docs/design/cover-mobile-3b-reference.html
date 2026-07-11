@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cover — mobile 3B reference (desktop unchanged)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Cutive+Mono&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #e8dcc8; display: flex; justify-content: center; padding: 40px 0; font-family: 'Oswald', sans-serif; }
+
+  /* ============================================================
+     DESKTOP (базовый вариант 2A) — как уже внедрено, НЕ менять
+     ============================================================ */
+  .cover {
+    position: relative;
+    width: 471px;
+    height: 658px;
+    background: #14110f;
+    overflow: hidden;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .cover-title { padding: 20px 24px 14px; text-align: center; background: #14110f; }
+  .cover-title h1 {
+    margin: 0; font-family: 'Alfa Slab One', serif; font-size: 34px; line-height: 1.05;
+    color: #fff; text-shadow: 2px 2px 0 #c94c43; letter-spacing: 1px;
+  }
+  .cover-title p { margin: 4px 0 0; font-family: 'Cutive Mono', monospace; font-size: 17px; color: #f2ece2; }
+
+  .cover-photo {
+    position: relative; flex: 1;
+    background: url('https://tarassov.me/images/site/cover.jpg') center 22% / cover no-repeat;
+  }
+  .cover-photo::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 300px;
+    background: linear-gradient(0deg, rgba(15,13,16,0.85) 30%, rgba(15,13,16,0));
+  }
+
+  .cover-open {
+    position: absolute; right: 0; top: 34%; z-index: 2;
+    background: #d96459; color: #7e2b24;
+    font-weight: 600; font-size: 15px; letter-spacing: 2px;
+    padding: 12px 22px 12px 26px;
+    clip-path: polygon(14px 0, 100% 0, 100% 100%, 14px 100%, 0 50%);
+    text-decoration: none;
+  }
+
+  .cover-stats {
+    position: absolute; left: 28px; right: 28px; bottom: 22px; z-index: 2;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .cover-stats .row { display: flex; gap: 40px; }
+  .cover-stats dt { margin: 0; color: #f4c430; font-weight: 600; font-size: 15px; letter-spacing: 2px; }
+  .cover-stats dd { margin: 0; color: #fff; font-size: 22px; font-weight: 500; }
+
+  /* Мобильная текстовая навигация: на десктопе скрыта */
+  .cover-nav { display: none; }
+
+  /* ============================================================
+     MOBILE (вариант 3B) — только через media query, ≤560px
+     ============================================================ */
+  @media (max-width: 560px) {
+    body { padding: 0; }
+
+    .cover {
+      width: 100%;
+      height: 100dvh;      /* обложка = первый экран телефона */
+      min-height: 640px;
+      box-shadow: none;
+    }
+
+    .cover-title { padding: 18px 16px 12px; }
+    .cover-title h1 { font-size: 27px; letter-spacing: 0.5px; }
+    .cover-title p { font-size: 14px; }
+
+    .cover-photo { background-position: center 18%; }
+    .cover-photo::after { height: 320px; background: linear-gradient(0deg, rgba(15,13,16,0.9) 35%, rgba(15,13,16,0)); }
+
+    /* Лента OPEN: ниже, на пиджак; крупнее тап-зона */
+    .cover-open {
+      top: 52%;
+      font-size: 14px;
+      padding: 14px 18px 14px 24px;
+      clip-path: polygon(12px 0, 100% 0, 100% 100%, 12px 100%, 0 50%);
+    }
+
+    .cover-stats { left: 20px; right: 20px; bottom: 20px; gap: 12px; }
+    .cover-stats .row { gap: 32px; }
+    .cover-stats dt { font-size: 13px; }
+    .cover-stats dd { font-size: 19px; }
+
+    /* Текстовая навигация внизу обложки */
+    .cover-nav {
+      display: flex; justify-content: center; gap: 22px;
+      padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+      background: #14110f; border-top: 1px solid #2b2622;
+    }
+    .cover-nav a {
+      color: #b7ab98; font-weight: 600; font-size: 13px; letter-spacing: 2px;
+      text-decoration: none; padding: 8px 0; /* тап-зона ≥44px вместе с padding строки */
+    }
+    .cover-nav a.accent, .cover-nav a:hover { color: #f4c430; }
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <header class="cover-title">
+    <h1>MICHAEL TARASSOV</h1>
+    <p>Multi-Cloud DevOps Engineer</p>
+  </header>
+
+  <div class="cover-photo">
+    <a class="cover-open" href="#/resume">OPEN</a>
+
+    <div class="cover-stats">
+      <dl style="margin:0">
+        <dt>STACK</dt>
+        <dd>Terraform · Kubernetes</dd>
+      </dl>
+      <div class="row">
+        <dl style="margin:0">
+          <dt>CLOUDS</dt>
+          <dd>AWS · Azure · GCP</dd>
+        </dl>
+        <dl style="margin:0">
+          <dt>EXPERIENCE</dt>
+          <dd>10+ years</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <nav class="cover-nav">
+    <a class="accent" href="#/resume">RESUME</a>
+    <a href="#/portfolio">PROJECTS</a>
+    <a href="/blog.html">BLOG</a>
+    <a href="#/contact">CONTACT</a>
+  </nav>
+</div>
+
+</body>
+</html>

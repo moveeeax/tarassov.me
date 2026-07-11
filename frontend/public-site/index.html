@@ -135,16 +135,26 @@
                                                 </div>
                                             </div>
                                             
-                                            <!-- latest-from-blog (filled by js/blog.js from /api/v1/public/posts;
-                                                 stays hidden unless the API returns at least one post) -->
-                                            <div class="latest-from-blog" hidden>
-                                            	<h3>From the blog
-                                                	<a class="button2" href="blog.html">All posts</a></h3>
-                                                <div class="blog-bar" id="latest-posts"></div>
-                                            </div>
-                                            <!-- latest-from-blog -->
-                                            
                                         </div>
+                                        
+                                        <!-- latest-from-blog (filled by js/blog.js from /api/v1/public/posts;
+                                             stays hidden unless the API returns at least one post). Child of the
+                                             card, not the photo: desktop keeps the same absolute spot (the photo
+                                             ends at the card bottom), mobile lays it out statically off the face. -->
+                                        <div class="latest-from-blog" hidden>
+                                        	<h3>From the blog
+                                            	<a class="button2" href="blog.html">All posts</a></h3>
+                                            <div class="blog-bar" id="latest-posts"></div>
+                                        </div>
+                                        <!-- latest-from-blog -->
+                                        
+                                        <!-- mobile-only bottom navigation (display:none on desktop) -->
+                                        <nav class="cover-nav" aria-label="Sections">
+                                            <a class="accent" href="#/resume">RESUME</a>
+                                            <a href="#/portfolio">PROJECTS</a>
+                                            <a href="blog.html">BLOG</a>
+                                            <a href="#/contact">CONTACT</a>
+                                        </nav>
                                         
                                     </div>
                                     <!-- COVER (2A) -->
