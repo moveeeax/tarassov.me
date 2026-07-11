@@ -535,7 +535,9 @@ a.ribbon:hover { color: #000; }
    a shorter card left a white strip below the photo). Safe-mod/mobile flows
    statically, where height:100% would instead stretch a black tail — keep auto. */
 .cover-2a { display: flex; flex-direction: column; height: 100% !important; background-color: #14110f; background-image: none !important; }
-.safe-mod .cover-2a { height: auto !important; }
+/* Mobile/tablet: the card fills the whole screen — the photo area flex-grows
+   past its preferred ratio, so no paper tail shows below the cover. */
+.safe-mod .cover-2a { height: auto !important; min-height: 100vh; min-height: 100dvh; }
 
 .cover-2a .cover-plaque { padding: 20px 24px 14px; text-align: center; background: #14110f; }
 /* !important: fitText (main.js) sets inline font-size on .cover h1/h2 — the

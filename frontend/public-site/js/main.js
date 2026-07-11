@@ -173,6 +173,59 @@
 	
 		
 		// ------------------------------
+		// SAFE-MOD SECTION FLOW (mobile/tablet only — the desktop book keeps
+		// its own antiscroll panels). Scrolling past the end of a main section
+		// advances to the next one (resume -> portfolio -> contact); scrolling
+		// up from the very top goes back. The cover stays out of the cycle.
+		if (safeMod && $('#rm-container').length) {
+			(function() {
+				var order = ['resume', 'portfolio', 'contact'];
+				var lockUntil = 0;
+				var touchY = null, startedAtTop = false, startedAtBottom = false;
+
+				function scrollTopNow() {
+					return window.pageYOffset || document.documentElement.scrollTop || 0;
+				}
+				function atTop() { return scrollTopNow() <= 2; }
+				function atBottom() {
+					var doc = document.documentElement;
+					var full = Math.max(document.body.scrollHeight, doc.scrollHeight);
+					return window.innerHeight + scrollTopNow() >= full - 2;
+				}
+				function go(step) {
+					var i = order.indexOf($('.page.active').attr('id'));
+					if (i === -1) return; // on the cover or an unknown page
+					var next = i + step;
+					if (next < 0 || next >= order.length) return;
+					var now = new Date().getTime();
+					if (now < lockUntil) return;
+					lockUntil = now + 900;
+					$.address.path(order[next]); // setActivePage animates the swap
+				}
+
+				window.addEventListener('wheel', function(e) {
+					if (e.deltaY > 0 && atBottom()) go(1);
+					else if (e.deltaY < 0 && atTop()) go(-1);
+				}, { passive: true });
+
+				window.addEventListener('touchstart', function(e) {
+					touchY = e.touches[0].clientY;
+					startedAtTop = atTop();
+					startedAtBottom = atBottom();
+				}, { passive: true });
+				window.addEventListener('touchend', function(e) {
+					if (touchY === null) return;
+					var dy = touchY - e.changedTouches[0].clientY; // >0: swipe up = scroll down
+					if (dy > 70 && startedAtBottom) go(1);
+					else if (dy < -70 && startedAtTop) go(-1);
+					touchY = null;
+				}, { passive: true });
+			})();
+		}
+		// ------------------------------
+	
+		
+		// ------------------------------
 		// FIT TEXT
 		fitText();
 		// ------------------------------
