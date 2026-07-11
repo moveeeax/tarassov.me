@@ -601,6 +601,13 @@ a.ribbon:hover { color: #000; }
 	.cover-2a .cover-stats-row { gap: 24px; }
 	.cover-2a .cover-stats dd { font-size: 18px; }
 
+	/* WebKit derives a flex item's WIDTH from aspect-ratio x stretched height
+	   (unlike Blink), which pushed the photo wider than the phone screen —
+	   the crop drifted sideways and the right-anchored OPEN ribbon went
+	   off-screen. On mobile the photo needs no ratio at all: it is simply
+	   the flex remainder of the 100dvh card. */
+	.safe-mod .cover-2a .cover-photo { aspect-ratio: auto; min-height: 320px; }
+
 	/* OPEN ribbon on the jacket (not the face), tap zone >= 44px.
 	   Anchored to the photo BOTTOM (not a % from the top): the full-screen
 	   photo height varies with the ticker/nav, and the reference's top:52%
