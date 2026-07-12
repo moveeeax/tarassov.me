@@ -195,10 +195,41 @@ input, textarea { display:block; padding:10px; border:0; border-radius:0; outlin
 textarea { height:80px; }
 input:focus, textarea:focus { border-color: #aaa; }
 
-.contact-form label { display:block; float: left; width: 30%; }
-.contact-form input, .contact-form textarea { display:block; float: left; width: 70% !important; -moz-box-sizing:border-box;-webkit-box-sizing:border-box;-ms-box-sizing:border-box;box-sizing:border-box; }
-.contact-form textarea { height: 100px; }
-.contact-form input.submit { width:auto !important; margin-top: 1.2em; float:right !important; }
+/* Typed-letter look: small-caps labels over full-width ruled lines on the
+   paper itself (no white boxes), typewriter text, wax-red submit.
+   #contact-form id in the selectors: the template ships late
+   input:not([type=submit])… rules whose attribute chains out-rank plain
+   classes (and paint the focus ring an alien green). */
+#contact-form label {
+	display: block; float: none; width: auto; margin: 0 0 2px;
+	font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 11px;
+	letter-spacing: 2px; text-transform: uppercase; color: #8a7d5c;
+	}
+#contact-form input, #contact-form textarea {
+	display: block; float: none; width: 100% !important;
+	-moz-box-sizing: border-box; -webkit-box-sizing: border-box; -ms-box-sizing: border-box; box-sizing: border-box;
+	padding: 6px 2px; background: transparent; border: 0; border-bottom: 1px solid #cfc4ab;
+	font-family: 'Cutive Mono', monospace; font-size: 15px; color: #2b2620;
+	}
+#contact-form input:focus, #contact-form textarea:focus { border-bottom-color: #c94c43; }
+#contact-form ::-webkit-input-placeholder { color: #b0a48e; font-style: italic; }
+#contact-form ::placeholder { color: #b0a48e; font-style: italic; opacity: 1; }
+/* message: ruled writing lines, text sits on them */
+#contact-form textarea {
+	height: 140px; min-height: 140px; line-height: 28px; padding: 0 2px; resize: vertical;
+	background-image: -webkit-repeating-linear-gradient(top, transparent, transparent 27px, #ddd3ba 27px, #ddd3ba 28px);
+	background-image: repeating-linear-gradient(180deg, transparent, transparent 27px, #ddd3ba 27px, #ddd3ba 28px);
+	background-attachment: local; border-bottom: 0;
+	}
+#contact-form .btn.submit {
+	float: right; margin-top: 1em; padding: 12px 30px; border: 0; border-radius: 3px; cursor: pointer;
+	background: #c94c43; color: #fff;
+	font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 13px;
+	letter-spacing: 2px; text-transform: uppercase;
+	box-shadow: 2px 2px 0 rgba(20,17,15,.25);
+	}
+#contact-form .btn.submit:hover { background: #b33a3a; color: #fff; }
+#contact-form .btn.submit:active { background: #b33a3a; box-shadow: 1px 1px 0 rgba(20,17,15,.25); }
 .stamp { position:relative; float:right; margin-right: 0.4em; width:114px; height:134px; background:url(../images/bckg/stamp.png) 0 0 no-repeat; }
 .stamp:after { content:""; position:absolute; top:0; left:0; width: 100%; height:100%; background:url(../images/bckg/stamp-mask.png) 0 0 no-repeat; }
 .stamp img { display: block; width:94px; height: 114px; position:absolute; top:10px; left:10px; }
