@@ -19,8 +19,11 @@ body { overflow: hidden; -webkit-text-size-adjust:none; background-color: #2c211
    other axis to auto, which turns body into a viewport-height scroll
    container; the wood background then stops at the first screen and the
    dark html canvas shows through when scrolling. Wide content is handled
-   at the source (pre/table scroll wrappers, img max-width). */
-body.blog-page { overflow: visible; }
+   at the source (pre/table scroll wrappers, img max-width).
+   background-attachment: the skins ship `fixed`, which WebKit/Safari
+   paints only over the first viewport (the tile "ends" and never repeats
+   down the page) — long-scrolling blog pages use a normal scrolling tile. */
+body.blog-page { overflow: visible; background-attachment: scroll; }
 .safe-mod body { overflow: visible; overflow-x: hidden; display: block !important; }
 
 .p-overlay-on.safe-mod .main { display: none; }
