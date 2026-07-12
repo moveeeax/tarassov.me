@@ -262,8 +262,29 @@ html:not(.safe-mod) .project-links { margin: auto 0; }
 .project-card:hover .project-card-text em { color: #444; }
 
 /* --- SPREAD CONTENT V2 (brand refresh) --- */
-/* certification chips: brass cant instead of the pill look */
-.skill-tags--cert li { border-left: 3px solid #f4c430; border-radius: 3px; }
+/* certification diploma cards: vendor / name / tier ribbon */
+.cert-list {
+	margin: 0 0 1.8em; padding: 0; list-style: none;
+	display: flex; flex-wrap: wrap; gap: 10px;
+	}
+.cert-card {
+	-moz-box-sizing: border-box; -webkit-box-sizing: border-box; box-sizing: border-box;
+	width: calc(50% - 5px); padding: 10px 12px;
+	display: flex; flex-direction: column; gap: 2px;
+	border: 1px solid #b5ab96; border-left: 3px solid #f4c430; border-radius: 3px;
+	background: rgba(255,255,255,.35);
+	}
+.cert-vendor { font-family: 'Cutive Mono', monospace; font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: #8a7d5c; }
+.cert-name { font-size: 13.5px; line-height: 1.3; color: #2b2620; }
+.cert-tier {
+	align-self: flex-start; margin-top: 5px; padding: 2px 8px; border-radius: 2px;
+	font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 10px;
+	letter-spacing: 1.5px; text-transform: uppercase;
+	border: 1px solid #b5ab96; color: #6b6151;
+	}
+.cert-tier--expert { background: #f4c430; border-color: #f4c430; color: #14110f; }
+.cert-tier--pro { background: #c94c43; border-color: #c94c43; color: #fff; }
+html.w420 .cert-card { width: 100%; }
 
 /* compact history entry for the early-career position */
 .history-unit--compact .work-desc p { font-size: .85em; }
