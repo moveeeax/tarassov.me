@@ -300,6 +300,26 @@ html:not(.safe-mod) .project-links { margin: auto 0; }
 .history-group--employment .work-desc h5 { margin-top: 8px; }
 .history-group--employment .work-desc p { margin-top: 12px; }
 
+/* EMPLOYMENT horizontals: badge column pinned to the sheet's left edge
+   with a clear gap to the text (the template floats the badge and pushes
+   the text with margin-left instead). Grid replaces both; the dashed
+   timeline moves under the new badge column's center. */
+.history-group--employment .history-unit {
+	display: grid; grid-template-columns: 132px 1fr; column-gap: 28px;
+	padding-left: 0;
+	}
+.history-group--employment .history-unit h4.work-time {
+	float: none; margin: 0; min-width: 0; width: 100%; align-self: start;
+	-moz-box-sizing: border-box; -webkit-box-sizing: border-box; box-sizing: border-box;
+	}
+/* html. prefix: the book panel is ~400px wide, so .w420 is active even on
+   desktop, and the template's later `.w420 .history-unit .work-desc
+   { margin-left:104px }` ties this rule's specificity — outrank it. */
+html .history-group--employment .work-desc, html.w420 .history-group--employment .work-desc { margin-left: 0; }
+.history-group--employment .history-unit:before { left: 65px; }
+html.w420 .history-group--employment .history-unit { grid-template-columns: 104px 1fr; column-gap: 20px; }
+html.w420 .history-group--employment .history-unit:before { left: 51px; }
+
 /* compact history entry for the early-career position */
 .history-unit--compact .work-desc p { font-size: .85em; }
 
