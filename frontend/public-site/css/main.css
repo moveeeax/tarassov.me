@@ -230,6 +230,33 @@ html:not(.safe-mod) .project-links { margin: auto 0; }
 .project-card-text em { font-style: normal; font-size: 12.5px; color: #6b6151; }
 .project-card:hover .project-card-text em { color: #444; }
 
+/* --- SPREAD CONTENT V2 (brand refresh) --- */
+/* certification chips: brass cant instead of the pill look */
+.skill-tags--cert li { border-left: 3px solid #f4c430; border-radius: 3px; }
+
+/* compact history entry for the early-career position */
+.history-unit--compact .work-desc p { font-size: .85em; }
+
+/* PROJECTS: five compact proof-cards need the full column, not centering */
+.projects-intro { text-align: center; font-style: italic; color: #7a6f60; margin: 0 0 1.2em; }
+html:not(.safe-mod) .project-links--full { margin: 0 0 1em; }
+.project-card--compact { padding: 10px 14px; gap: 12px; margin-bottom: 10px; }
+.project-card--compact .project-card-text strong { font-size: 14px; }
+.project-card--compact .project-card-text em { font-size: 12px; line-height: 1.45; }
+.projects-footer { text-align: center; margin: 0; }
+.projects-footer a { letter-spacing: 1px; font-size: 13px; }
+
+/* CONTACT: availability stamp (postmark look) + booking CTA spacing */
+.status-stamp {
+	display: inline-block; padding: 6px 14px; border: 2px solid #c94c43; border-radius: 2px;
+	color: #c94c43; font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 12px;
+	letter-spacing: 2px; text-transform: uppercase;
+	-webkit-transform: rotate(-2deg); transform: rotate(-2deg);
+	}
+#contact .launch { padding: 1.2em 0 .4em; }
+#contact .launch .btn { padding: 16px 40px; }
+.contact-alt { margin-top: .2em; font-size: .95em; }
+
  
 
 .portfolio-field .btn { margin:2em auto 2em; }
