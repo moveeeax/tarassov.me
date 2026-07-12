@@ -15,7 +15,12 @@ html { background-color: #2c2118; }
 body { overflow: hidden; -webkit-text-size-adjust:none; background-color: #2c2118; }
 /* The blog pages are ordinary documents — the global overflow:hidden exists
    for the book mechanics on index.html and killed native scrolling here. */
-body.blog-page { overflow: visible; overflow-y: auto; overflow-x: hidden; }
+/* Fully visible — no overflow-x:hidden here: any hidden axis computes the
+   other axis to auto, which turns body into a viewport-height scroll
+   container; the wood background then stops at the first screen and the
+   dark html canvas shows through when scrolling. Wide content is handled
+   at the source (pre/table scroll wrappers, img max-width). */
+body.blog-page { overflow: visible; }
 .safe-mod body { overflow: visible; overflow-x: hidden; display: block !important; }
 
 .p-overlay-on.safe-mod .main { display: none; }
@@ -873,9 +878,10 @@ a.button:active {
 	
 
 /* LAYOUT */
-body.classic {
-	overflow: auto;
-	}
+/* overflow:auto removed: it made body a viewport-height scroll container,
+   so the wood background stopped after the first screen and the dark html
+   canvas showed below when scrolling (body.blog-page earlier in the file
+   sets the full-visible overflow this page needs). */
 body.classic * {
 	-webkit-box-sizing: border-box; -moz-box-sizing: border-box; box-sizing: border-box;
 	}
