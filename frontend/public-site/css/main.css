@@ -324,8 +324,6 @@ html:not(.safe-mod) .project-links { margin: auto 0; }
 /* COVER PAGE */
 .cover-image-holder { display: none; }
 .cover { position: relative; z-index:1000; width:100%; height:100%; overflow:hidden; background-position: center center; background-repeat: no-repeat; background-size: cover; }
-/* Back cover photo without waiting for main.js's bg-image hook. */
-.rm-right > .rm-front > .cover { background-image: url(../images/site/cover-2.jpg); }
 .cover h1 { display: block; width: 100%; margin: 0 auto; padding: .5em 0 .1em 0; text-align: center; color: #fff; line-height: 1; letter-spacing: 1px; font-size: 62px; font-family: 'Alfa Slab One'; text-shadow: 8px 7px 0px rgba(0, 0, 0, 0.1); }
 .cover h2 { display: block; width: 100%; margin: 0% 0 8% 0%; padding: 0; text-align: center; line-height: 1.2; letter-spacing: 1px; color: #fff; font-size: 16px; font-family: 'Nixie One'; }
 .cover h3 { display: block; width: 30%; margin: 5% 0 0 4%; padding: 0; text-align: left; letter-spacing: 1px; font-size: 18px; font-family: 'Raleway'; font-weight: 200; color:#fff; }
@@ -639,8 +637,9 @@ body { color:#333; }
 /* FRONT PAGE BG */
 .rm-wrapper > div.rm-cover > div.rm-front { background-color: #666; }
 
-/* BACK PAGE BG */
-.rm-wrapper > div.rm-right > div.rm-front { background-color: #666; }
+/* BACK PAGE BG — plain white face shown mid-flip while the book opens
+   (was the template's placeholder photo cover-2.jpg) */
+.rm-wrapper > div.rm-right > div.rm-front { background-color: #fff; }
 
 /* --------------------------------------- */
 
