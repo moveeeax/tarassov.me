@@ -273,19 +273,32 @@ html:not(.safe-mod) .project-links { margin: auto 0; }
 	--mono: 'Cutive Mono', monospace;
 	}
 
-/* certification registry: one hairline-ruled row per cert — mono vendor
-   code in seal red, name in the body font with the tier bolded */
-.cert-registry { margin: 0 0 .8em; }
-.cert-row { display: flex; align-items: baseline; gap: 12px; padding: 7px 2px; }
-.cert-row + .cert-row { border-top: 1px solid var(--hairline); }
-.cert-vendor {
-	flex: 0 0 84px; min-width: 0;
-	font-family: var(--mono); font-size: 11px; letter-spacing: 1px;
-	text-transform: uppercase; color: var(--seal);
+/* certification registry: hairline-ruled grid rows — fixed mono vendor
+   column in seal red, names all starting on one vertical, tier bolded */
+.cert-registry { margin: 0 0 .8em; border-top: 1px solid var(--hairline); }
+.cert-row {
+	display: grid; grid-template-columns: 96px 1fr; column-gap: 20px;
+	align-items: baseline; padding: 14px 2px;
+	border-bottom: 1px solid var(--hairline);
 	}
-.cert-name { flex: 1 1 auto; min-width: 0; }
+.cert-vendor {
+	font-family: var(--mono); font-size: .72em; letter-spacing: 1px;
+	text-transform: uppercase; color: var(--seal);
+	white-space: nowrap; align-self: baseline;
+	}
+.cert-name { font-size: 1rem; line-height: 1.3; }
 /* narrow screens: vendor gets its own line above the name */
-html.w420 .cert-row { display: block; }
+@media (max-width: 560px) {
+	.cert-row { grid-template-columns: 1fr; row-gap: 2px; }
+}
+
+/* EMPLOYMENT: roomier vertical rhythm — entries clearly separated, air
+   between year/title, company line and description. Scoped with the
+   --employment modifier so EDUCATION keeps the tight default. */
+.history-group--employment .history-unit { margin-bottom: 36px; }
+.history-group--employment .history-unit:last-child { margin-bottom: 0; }
+.history-group--employment .work-desc h5 { margin-top: 8px; }
+.history-group--employment .work-desc p { margin-top: 12px; }
 
 /* compact history entry for the early-career position */
 .history-unit--compact .work-desc p { font-size: .85em; }
