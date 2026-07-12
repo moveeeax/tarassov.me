@@ -255,7 +255,6 @@ html:not(.safe-mod) .project-links--full { margin: 0 0 1em; }
 	}
 #contact .launch { padding: 1.2em 0 .4em; }
 #contact .launch .btn { padding: 16px 40px; }
-.contact-alt { margin-top: .2em; font-size: .95em; }
 
  
 
@@ -399,10 +398,12 @@ a.rm-button-open:hover { right:0; }
 
 /* Photo area: aspect from the 2A reference (471x560 under a ~98px plate);
    the card heights here are content-driven, so the ratio must be explicit. */
-/* aspect-ratio is the preferred (minimum) size; flex-grow lets the photo take
-   whatever page height remains so the card always reaches the page bottom. */
+/* aspect-ratio is the preferred size; flex-grow lets the photo take whatever
+   page height remains, and flex-shrink + min-height:0 let it give height back
+   when the plaque grows (the FROM THE BLOG line used to push the stats row
+   below the page bottom on shorter windows). */
 .cover-2a .cover-photo {
-	position: relative; flex: 1 0 auto; aspect-ratio: 471 / 560;
+	position: relative; flex: 1 1 auto; min-height: 0; aspect-ratio: 471 / 560;
 	background: url(../images/site/cover.jpg) center 22% / cover no-repeat;
 	}
 .cover-2a .cover-photo::after {
