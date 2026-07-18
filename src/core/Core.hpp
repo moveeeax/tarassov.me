@@ -550,8 +550,17 @@ private:
                 return;
             try {
                 auto lag = Database::get().execute_read([](auto& txn) -> std::optional<double> {
-                    auto r =
-                        txn.exec("SELECT EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp()))::float8 AS lag");
+                    // Report 0 once the replica has replayed every WAL byte it
+                    // received (receive_lsn == replay_lsn): the timestamp-based
+                    // delta alone reads as phantom lag on an idle primary, since
+                    // pg_last_xact_replay_timestamp() freezes at the last replayed
+                    // xact and now()-frozen grows unbounded with write-idle time.
+                    // On the primary both LSN fns are NULL → lag NULL → skipped.
+                    auto r = txn.exec(
+                        "SELECT CASE"
+                        "         WHEN pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() THEN 0.0"
+                        "         ELSE EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp()))"
+                        "       END::float8 AS lag");
                     if (r.empty() || r[0]["lag"].is_null())
                         return std::nullopt;  // landed on the primary / nothing replayed yet
                     return r[0]["lag"].template as<double>();
