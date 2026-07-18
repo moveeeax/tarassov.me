@@ -65,7 +65,7 @@ services:
     # Default: pull the public image GitLab CI builds on master. `make up-*`
     # does `pull` (no local build). To build locally instead use `make up-build`
     # (or `docker compose ... up --build`), which uses the build: block below.
-    image: ${APP_IMAGE:-docker.io/resert/tarassov-me:latest}
+    image: ${APP_IMAGE:-docker.io/moveeeax/tarassov-me:latest}
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -182,7 +182,7 @@ services:
 
   # Background job worker
   worker:
-    image: ${WORKER_IMAGE:-docker.io/resert/tarassov-me-worker:latest}
+    image: ${WORKER_IMAGE:-docker.io/moveeeax/tarassov-me-worker:latest}
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -570,7 +570,7 @@ services:
   # Opt-in via profile `with-frontend` so plain `make up` stays
   # backend-only (faster cold start, no Node toolchain pulled).
   frontend:
-    image: ${FRONTEND_IMAGE:-docker.io/resert/tarassov-me-frontend:latest}
+    image: ${FRONTEND_IMAGE:-docker.io/moveeeax/tarassov-me-frontend:latest}
     build:
       context: ..
       dockerfile: frontend/Dockerfile

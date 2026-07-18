@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     # End-to-end: builds the Docker builder stage (which compiles everything
     # with sanitizers and links the test binary), then runs the full gtest
     # suite against ephemeral Postgres + Redis containers via the `test`
@@ -57,7 +57,7 @@ jobs:
             --profile test logs test-runner || true
 
   lint-format:
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     # Pure text lint — doesn't need Docker, runs fast, gates style issues
     # before the heavier build job finishes.
     steps:
@@ -94,7 +94,7 @@ jobs:
           severity: warning
 
   secret-scan:
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     # Catch credentials before they land. We learned the hard way that a
     # local helm/values.yaml with stage passwords can slip into git.
     steps:
@@ -107,7 +107,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   openapi-drift:
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     # Pure-shell check — verifies (method, path) tuples in
     # Api::get_endpoints() match docs/openapi.yaml. Runs in seconds, gates
     # the heavier build job from going green if the spec is stale.
@@ -121,7 +121,7 @@ jobs:
         run: ./scripts/check-test-buckets.sh
 
   helm-charts:
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     # Render the tarassov-me-env umbrella with CI values and assert deploy-path
     # invariants (ingress<->service port match, MAIL_VIA_JOBS injected,
     # baseDomain expanded, no null ports). No cluster — pure template smoke
@@ -137,7 +137,7 @@ jobs:
         run: ./scripts/check-helm-render.sh
 
   frontend:
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     # Frontend gate — typecheck + lint + production build. Regenerates
     # schema.gen.ts from docs/openapi.yaml and fails if the committed copy
     # is stale (see the "schema.gen.ts up to date" step).
@@ -170,7 +170,7 @@ jobs:
         run: npm run build
 
   clang-tidy:
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     # Structural and API-usage lint. Uses the builder image for
     # compile_commands.json so the analysis sees the real include paths
     # vcpkg resolved. Best-effort: warnings don't gate yet, the .clang-tidy
@@ -222,7 +222,7 @@ jobs:
           if-no-files-found: ignore
 
   sanitizers:
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     # AddressSanitizer + UndefinedBehaviorSanitizer over the unit-test bucket.
     # Integration tests need real Postgres/Redis which aren't wired into this
     # job — keep them out of the filter. Allows a separate, fast feedback

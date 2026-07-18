@@ -2,7 +2,7 @@
 
 Личный сайт Михаила Тарасова — визитка и блог на `tarassov.me`.
 
-[![pipeline](https://gitlab.com/tarassov.me/site/badges/main/pipeline.svg)](https://gitlab.com/tarassov.me/site/-/pipelines)
+[![CI](https://github.com/moveeeax/tarassov.me/actions/workflows/ci.yml/badge.svg)](https://github.com/moveeeax/tarassov.me/actions/workflows/ci.yml)
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)
 ![Drogon](https://img.shields.io/badge/Drogon-HTTP-green.svg)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791.svg)
@@ -62,7 +62,7 @@ external secrets, не в коде.
 
 ## Деплой
 
-Образы публикуются в Docker Hub (`docker.io/resert/tarassov-me{,-worker,-frontend}`)
+Образы публикуются в Docker Hub (`docker.io/moveeeax/tarassov-me{,-worker,-frontend}`)
 через GitLab CI. Прод — Helm-чарт `helm/tarassov-me` (+ `-worker` / `-frontend`).
 Нужные CI-переменные и storage/SMTP-настройки описаны в `values.yaml` и
 `docker/docker-compose.yml`.

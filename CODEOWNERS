@@ -16,7 +16,6 @@ src/api/Api.hpp                 @OWNER
 # Infrastructure.
 docker/                         @OWNER
 helm/                           @OWNER
-.gitlab-ci.yml                  @OWNER
 .github/                        @OWNER
 
 # Docs / API contract.

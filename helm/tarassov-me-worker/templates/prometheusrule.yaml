@@ -34,7 +34,7 @@ spec:
             severity: critical
             service: {{ include "tarassov-me-worker.fullname" . }}
           annotations:
-            runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#targetdown"
+            runbook_url: "https://github.com/moveeeax/tarassov.me/blob/main/docs/RUNBOOK.md#targetdown"
             summary: "tarassov-me-worker target is down"
             description: "Prometheus cannot scrape {{ include "tarassov-me-worker.fullname" . }} — the worker pod is gone or the metrics endpoint is unreachable. Jobs are piling up in the queue."
 
@@ -54,7 +54,7 @@ spec:
             severity: warning
             service: {{ include "tarassov-me-worker.fullname" . }}
           annotations:
-            runbook_url: "https://gitlab.com/tarassov.me/tarassov-me/-/blob/master/docs/RUNBOOK.md#retries"
+            runbook_url: "https://github.com/moveeeax/tarassov.me/blob/main/docs/RUNBOOK.md#retries"
             summary: "Worker retries frequently exhausted"
             description: "Downstream is likely degraded — investigate database / cache / mail SMTP health."
 {{- end }}

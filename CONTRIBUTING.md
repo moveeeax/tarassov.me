@@ -91,25 +91,21 @@ The PR template covers:
 - **Breaking changes** — list them explicitly (config keys, API routes,
   response shapes).
 
-## Two CI pipelines
+## CI pipeline
 
-The repo ships both `.github/workflows/` (GitHub Actions) and `.gitlab-ci.yml`
-(GitLab) so it works on either host. They are kept close but are NOT identical
-— pick the one your host uses; the other is a maintained reference. Current
-intentional differences:
+CI runs on GitHub Actions (`.github/workflows/`). Coverage:
 
-- **GitLab** additionally runs `cppcheck` and a Spectral OpenAPI lint.
-- Both now run Trivy image scanning, gitleaks, shellcheck, and the
-  openapi-drift + test-bucket checks.
-- Both emit SBOM + provenance on release images.
-
-When you change a CI gate, change it in **both** files (or note here why it's
-intentionally one-sided).
+- `ci.yml` — build + full test suite, clang-format, clang-tidy, ASan/UBSan,
+  gitleaks secret scan, shellcheck, openapi-drift + test-bucket checks,
+  helm render smoke test, and the frontend gate (typecheck/lint/build).
+- `release.yml` — tag-driven multi-arch image build, Trivy scan, promote,
+  and GitHub Release; emits SBOM + provenance on release images.
 
 ## Release
 
 Semver, tagged on `main`. A tag that matches `v*.*.*` triggers
 `.github/workflows/release.yml`, which builds multi-arch images for both
-the app and worker targets, pushes them to `ghcr.io/<owner>/<repo>` (and
-`-worker`), and opens a draft GitHub Release seeded from auto-generated
+the app and worker targets, pushes them to Docker Hub
+`docker.io/moveeeax/tarassov-me` (and `-worker`), and opens a GitHub Release
+seeded from auto-generated
 commit notes. Update `CHANGELOG.md` under `## [Unreleased]` before tagging.

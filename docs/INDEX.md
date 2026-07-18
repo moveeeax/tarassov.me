@@ -69,9 +69,8 @@ question instead of grepping the tree.
 
 | File | What's there |
 |---|---|
-| [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml) | GitHub Actions CI (kept in parity with the canonical GitLab pipeline): build + test + format + secret-scan |
-| [`../.github/workflows/release.yml`](../.github/workflows/release.yml) | Tag-driven multi-arch image build + draft release |
-| [`../.gitlab-ci.yml`](../.gitlab-ci.yml) | Self-hosted GitLab pipeline (kept for parity) |
+| [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml) | GitHub Actions CI: build + test + format + secret-scan |
+| [`../.github/workflows/release.yml`](../.github/workflows/release.yml) | Tag-driven multi-arch image build + release |
 | [`../helm/tarassov-me/`](../helm/tarassov-me/) | API Helm chart |
 | [`../helm/tarassov-me-worker/`](../helm/tarassov-me-worker/) | Worker Helm chart |
 

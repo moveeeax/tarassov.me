@@ -1,5 +1,5 @@
 # BuildKit uses this file INSTEAD of the root .dockerignore when the image is
-# built with `-f frontend/Dockerfile` (see .gitlab-ci.yml build:frontend:*).
+# built with `-f frontend/Dockerfile` (the frontend image build).
 #
 # The root .dockerignore excludes frontend/ to keep the C++ image's build
 # context lean — but this build's context is also the repo root and it COPYs
