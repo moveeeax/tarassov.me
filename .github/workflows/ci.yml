@@ -63,10 +63,10 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Install clang-format 17
+      - name: Install clang-format 17 + shellcheck
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-format-17
+          sudo apt-get install -y clang-format-17 shellcheck
           sudo ln -sf /usr/bin/clang-format-17 /usr/local/bin/clang-format
 
       - name: Check C++ formatting
@@ -78,20 +78,17 @@ jobs:
           fi
           clang-format --dry-run --Werror "${files[@]}"
 
-      - name: Shellcheck (scripts)
-        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38  # 2.0.0
-        with:
-          scandir: ./scripts
-          severity: warning
-
-      - name: Shellcheck (docker)
-        # docker/*.sh (Postgres replica setup) lives outside ./scripts and was
-        # previously skipped here, while GitLab CI scanned it. Second invocation
-        # keeps the scandir scoping (the action only accepts one scandir).
-        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38  # 2.0.0
-        with:
-          scandir: ./docker
-          severity: warning
+      - name: Shellcheck (scripts + docker)
+        # Install via apt and invoke directly rather than a download-based
+        # action: the self-hosted ARC runner image ships no `xz`, so the
+        # action's shellcheck .tar.xz can't be unpacked (`xz: Cannot exec`).
+        # Covers scripts/ and docker/ (the Postgres replica setup scripts).
+        run: |
+          mapfile -t files < <(find scripts docker -type f -name '*.sh')
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No shell scripts to check"; exit 0
+          fi
+          shellcheck --severity=warning "${files[@]}"
 
   secret-scan:
     runs-on: site-runners
