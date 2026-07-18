@@ -163,8 +163,7 @@ private:
             nt.exec("SELECT pg_advisory_lock(4242424242)");
             bool applied = false;
             try {
-                auto seen =
-                    nt.exec("SELECT 1 FROM schema_migrations WHERE version = $1", pqxx::params{mf.version});
+                auto seen = nt.exec("SELECT 1 FROM schema_migrations WHERE version = $1", pqxx::params{mf.version});
                 if (seen.empty()) {
                     nt.exec(sql);  // single statement — autocommits immediately
                     nt.exec("INSERT INTO schema_migrations (version, name) VALUES ($1, $2)",
