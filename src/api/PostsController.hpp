@@ -131,7 +131,7 @@ public:
         callback(Response::ok({{"data", data}, {"limit", page.limit}, {"offset", page.offset}}));
     }
 
-    void publicGetPost(const HttpRequestPtr& req,
+    void publicGetPost(const HttpRequestPtr&,
                        std::function<void(const HttpResponsePtr&)>&& callback,
                        const std::string& slug) {
         Repositories::PostRepository repo;

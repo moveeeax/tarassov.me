@@ -280,7 +280,7 @@ inline void register_idempotency() {
  *          side. Empty body (no Content-Type at all) is allowed: not every
  *          mutation carries a payload.
  *
- *          Recognized prefixes: application/json, application/*+json. Charset
+ *          Recognized prefixes: application/json and any application/...+json. Charset
  *          parameters are stripped before comparison.
  */
 inline void register_content_type_check() {

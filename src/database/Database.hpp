@@ -84,7 +84,10 @@ public:
     template <typename... Args>
     auto exec_params(const std::string& query, Args&&... args) {
         record_(query);
-        return txn_.exec_params(query, std::forward<Args>(args)...);
+        // libpqxx deprecated exec_params(query, args...) in favour of
+        // exec(query, params). Keep this wrapper's name/signature (callers are
+        // unchanged) and translate the pack into a pqxx::params here.
+        return txn_.exec(query, pqxx::params{std::forward<Args>(args)...});
     }
 
     auto exec(const std::string& query) {
