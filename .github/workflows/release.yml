@@ -32,7 +32,7 @@ env:
 
 jobs:
   build-staging:
-    runs-on: arc-runner-set
+    runs-on: site-runners
     timeout-minutes: 45
     permissions:
       contents: read   # checkout
@@ -87,7 +87,7 @@ jobs:
           provenance: mode=max
 
   scan:
-    runs-on: arc-runner-set
+    runs-on: site-runners
     needs: build-staging
     permissions:
       contents: read
@@ -129,7 +129,7 @@ jobs:
           platform: linux/amd64
 
   promote:
-    runs-on: arc-runner-set
+    runs-on: site-runners
     needs: scan
     permissions:
       contents: read
@@ -164,7 +164,7 @@ jobs:
             ${{ env.IMAGE_NAME }}-worker:${{ steps.ver.outputs.version }}-staging
 
   github-release:
-    runs-on: arc-runner-set
+    runs-on: site-runners
     needs: promote
     permissions:
       contents: write  # create the GitHub Release + tag notes
