@@ -10,7 +10,7 @@ on:
 # worker-runtime is the worker image. Both get tagged with the git tag and
 # :latest.
 #
-# Registry: Docker Hub `docker.io/moveeeax/tarassov-me{,-worker}` — this MUST
+# Registry: Docker Hub `docker.io/moveeeax/tarassov-me{,-worker,-frontend}` — this MUST
 # match what the runtime actually pulls. docker/docker-compose.yml and
 # helm/*/values-prod.yaml both deploy from this Docker Hub namespace. Pushing
 # to GHCR here would produce images nothing deploys. Requires repo secrets
@@ -86,6 +86,23 @@ jobs:
           sbom: true
           provenance: mode=max
 
+      # Frontend is a separate Node→nginx image (frontend/Dockerfile, final
+      # stage `runtime`). Own gha cache scope so it doesn't thrash the C++
+      # builder cache shared by the app/worker images above.
+      - name: Build and push frontend image (multi-arch, staging tag)
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
+        with:
+          context: .
+          file: frontend/Dockerfile
+          target: runtime
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.IMAGE_NAME }}-frontend:${{ steps.ver.outputs.version }}-staging
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+          sbom: true
+          provenance: mode=max
+
   scan:
     runs-on: site-runners
     needs: build-staging
@@ -128,6 +145,20 @@ jobs:
           scan-type: image
           platform: linux/amd64
 
+      # Frontend scan is informational, not a release gate (exit-code 0):
+      # a static nginx image tends to carry base-image CVEs that shouldn't
+      # block a release, matching the prior GitLab CI intent.
+      - name: Scan frontend image (Trivy, non-gating)
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2  # v0.28.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}-frontend:${{ steps.ver.outputs.version }}-staging
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '0'
+          image-config-scanners: ''
+          scan-type: image
+          platform: linux/amd64
+
   promote:
     runs-on: site-runners
     needs: scan
@@ -162,6 +193,13 @@ jobs:
             -t ${{ env.IMAGE_NAME }}-worker:${{ steps.ver.outputs.version }} \
             -t ${{ env.IMAGE_NAME }}-worker:latest \
             ${{ env.IMAGE_NAME }}-worker:${{ steps.ver.outputs.version }}-staging
+
+      - name: Promote frontend image to version + latest
+        run: |
+          docker buildx imagetools create \
+            -t ${{ env.IMAGE_NAME }}-frontend:${{ steps.ver.outputs.version }} \
+            -t ${{ env.IMAGE_NAME }}-frontend:latest \
+            ${{ env.IMAGE_NAME }}-frontend:${{ steps.ver.outputs.version }}-staging
 
   github-release:
     runs-on: site-runners

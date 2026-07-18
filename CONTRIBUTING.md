@@ -104,8 +104,8 @@ CI runs on GitHub Actions (`.github/workflows/`). Coverage:
 ## Release
 
 Semver, tagged on `main`. A tag that matches `v*.*.*` triggers
-`.github/workflows/release.yml`, which builds multi-arch images for both
-the app and worker targets, pushes them to Docker Hub
-`docker.io/moveeeax/tarassov-me` (and `-worker`), and opens a GitHub Release
-seeded from auto-generated
-commit notes. Update `CHANGELOG.md` under `## [Unreleased]` before tagging.
+`.github/workflows/release.yml`, which builds multi-arch images for the app,
+worker, and frontend targets, pushes them to Docker Hub
+`docker.io/moveeeax/tarassov-me` (and `-worker`, `-frontend`), and opens a
+GitHub Release seeded from auto-generated commit notes. Update `CHANGELOG.md`
+under `## [Unreleased]` before tagging.
