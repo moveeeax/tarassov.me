@@ -25,12 +25,10 @@ jobs:
     # suite against ephemeral Postgres + Redis containers via the `test`
     # compose profile — the same thing `make test` does locally.
     #
-    # 45m, not 25m: a cold gha cache means a full vcpkg dependency build
-    # (~20m) before our code even compiles. This job must be able to finish
-    # that once and export type=gha cache — otherwise it is killed mid-build
-    # and every later run stays cold too. clang-tidy/sanitizers `needs:` this
-    # job so they start against the warm cache instead of all cold-building in
-    # parallel and starving the runners.
+    # 45m, not 25m: a fully cold cache (no gha, no GHCR builder:cache) means a
+    # full vcpkg dependency build (~20m) before our code even compiles. This
+    # job must be able to finish that once and export type=gha cache —
+    # otherwise it is killed mid-build and every later run stays cold too.
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -202,11 +200,10 @@ jobs:
     permissions:
       contents: read
       packages: read  # pull ghcr builder:cache
-    # Chain after sanitizers (not just build-and-test): a single heavy Docker
-    # build saturates a runner, but two concurrent ones get the pods OOM-killed.
-    # build-and-test → sanitizers → clang-tidy keeps exactly one heavy build in
-    # flight at a time. clang-tidy is best-effort, so it goes last.
-    needs: sanitizers
+    # No needs-chain: on GitHub-hosted runners each job gets its own VM, so the
+    # heavy builds can run in parallel (the old ARC runners OOM'd on two
+    # concurrent builds — that constraint is gone). The builder layers come from
+    # the gha/GHCR caches either way.
     # Structural and API-usage lint. Uses the builder image for
     # compile_commands.json so the analysis sees the real include paths
     # vcpkg resolved. Best-effort: warnings don't gate yet, the .clang-tidy
@@ -271,7 +268,6 @@ jobs:
     permissions:
       contents: read
       packages: read  # pull ghcr builder:cache
-    needs: build-and-test  # reuse the builder image build-and-test warmed into type=gha
     # AddressSanitizer + UndefinedBehaviorSanitizer over the unit-test bucket.
     # Integration tests need real Postgres/Redis which aren't wired into this
     # job — keep them out of the filter. Allows a separate, fast feedback
