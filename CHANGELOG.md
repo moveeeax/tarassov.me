@@ -6,6 +6,15 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.5] — 2026-07-19
+
+### Added
+- **SEO**: Open Graph + Twitter Card tags with a rendered 1200×630 og-image
+  (the closed BookCard cover), `rel=canonical` on all public pages, JSON-LD
+  `Person` schema (jobTitle, sameAs profiles), real `robots.txt` and
+  `sitemap.xml` (previously the SPA fallback served HTML for both).
+- Sharper meta descriptions on the vCard and blog pages.
+
 ## [1.5.4] — 2026-07-19
 
 ### Fixed
@@ -559,7 +568,8 @@ First tagged release. Highlights of the pre-release hardening pass:
 - OpenSSL linked explicitly for HMAC-SHA256 (JWT signature) and SHA-256
   (Idempotency-Key body hash); constant-time compare via `CRYPTO_memcmp`.
 
-[Unreleased]: https://github.com/moveeeax/tarassov.me/compare/v1.5.4...main
+[Unreleased]: https://github.com/moveeeax/tarassov.me/compare/v1.5.5...main
+[1.5.5]: https://github.com/moveeeax/tarassov.me/compare/v1.5.4...v1.5.5
 [1.5.4]: https://github.com/moveeeax/tarassov.me/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/moveeeax/tarassov.me/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/moveeeax/tarassov.me/compare/v1.5.1...v1.5.2

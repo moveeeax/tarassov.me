@@ -6,11 +6,52 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" >
-    <meta name="description" content="Michael Tarassov — Multi-Cloud DevOps engineer. vCard, notes and blog.">
-    <meta name="keywords" content="devops, kubernetes, terraform, cloud, sre, blog">
+    <meta name="description" content="Michael Tarassov — multi-cloud DevOps / platform engineer (AWS, Azure, GCP, OCI) who runs his own bare-metal Kubernetes production. I build infrastructure that doesn't wake you up at 3 AM.">
     <meta name="author" content="Michael Tarassov">
 
-    <title>Michael Tarassov — tarassov.me</title>
+    <title>Michael Tarassov — Multi-Cloud DevOps Engineer</title>
+
+    <!-- SEO: canonical (the site also answers on www.) -->
+    <link rel="canonical" href="https://tarassov.me/">
+
+    <!-- Open Graph (LinkedIn / Telegram / WhatsApp previews) -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="tarassov.me">
+    <meta property="og:title" content="Michael Tarassov — Multi-Cloud DevOps Engineer">
+    <meta property="og:description" content="AWS · Azure · GCP · OCI in production, plus bare-metal Kubernetes on Talos — this very site runs on it. I build infrastructure that doesn't wake you up at 3 AM.">
+    <meta property="og:url" content="https://tarassov.me/">
+    <meta property="og:image" content="https://tarassov.me/images/site/og.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:locale" content="en_US">
+
+    <!-- Twitter / X card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Michael Tarassov — Multi-Cloud DevOps Engineer">
+    <meta name="twitter:description" content="Multi-cloud platform engineer who runs his own bare-metal Kubernetes production.">
+    <meta name="twitter:image" content="https://tarassov.me/images/site/og.jpg">
+
+    <!-- Structured data: this site IS the vCard -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Person",
+      "name": "Michael Tarassov",
+      "url": "https://tarassov.me/",
+      "image": "https://tarassov.me/images/site/og.jpg",
+      "jobTitle": "Multi-Cloud DevOps Engineer",
+      "worksFor": { "@type": "Organization", "name": "CyberCapybara LLC" },
+      "email": "mailto:michael@tarassov.me",
+      "knowsAbout": ["DevOps", "Kubernetes", "Terraform", "AWS", "Azure", "GCP", "OCI", "Talos Linux", "Cloud cost optimization", "C++"],
+      "sameAs": [
+        "https://github.com/moveeeax",
+        "https://www.linkedin.com/in/tarassov-michael",
+        "https://leetcode.com/u/moveeeax/",
+        "https://t.me/tarassov_me",
+        "https://www.credly.com/users/michael-tarassov/badges"
+      ]
+    }
+    </script>
 
     <!-- Critical first-paint: solid bg (wood texture loads later) + hide shell
          until .is-ready. Mirrors rules in main.css so FOUC is covered even if

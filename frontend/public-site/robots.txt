@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+# Admin SPA and API are not for crawlers
+Disallow: /admin
+Disallow: /login
+Disallow: /register
+Disallow: /account
+Disallow: /api/
+
+Sitemap: https://tarassov.me/sitemap.xml
