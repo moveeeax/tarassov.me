@@ -122,7 +122,7 @@ jobs:
       # platform: linux/amd64 matches the most common deployment target; the
       # platform hint kept for Trivy determinism.
       - name: Scan app image (Trivy)
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2  # v0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 (v0.28.0's setup-trivy@v0.2.1 dep was yanked upstream)
         with:
           image-ref: ${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }}-staging
           severity: CRITICAL
@@ -133,7 +133,7 @@ jobs:
           platform: linux/amd64
 
       - name: Scan worker image (Trivy)
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2  # v0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 (v0.28.0's setup-trivy@v0.2.1 dep was yanked upstream)
         with:
           image-ref: ${{ env.IMAGE_NAME }}-worker:${{ steps.ver.outputs.version }}-staging
           severity: CRITICAL
@@ -147,7 +147,7 @@ jobs:
       # a static nginx image tends to carry base-image CVEs that shouldn't
       # block a release, matching the prior GitLab CI intent.
       - name: Scan frontend image (Trivy, non-gating)
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2  # v0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 (v0.28.0's setup-trivy@v0.2.1 dep was yanked upstream)
         with:
           image-ref: ${{ env.IMAGE_NAME }}-frontend:${{ steps.ver.outputs.version }}-staging
           severity: CRITICAL,HIGH
