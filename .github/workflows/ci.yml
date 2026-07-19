@@ -56,11 +56,17 @@ jobs:
         # The self-hosted ARC runner image is minimal and ships no `make`, so
         # install it first (docker + compose are already present via dind).
         run: |
+          # The minimal ARC runner image (ghcr.io/actions/actions-runner) ships
+          # only the docker CLI (+ a dind daemon) — no make, no docker compose
+          # plugin. Install both before the compose-based test suite. A custom
+          # runner image with these baked in would be cleaner long-term.
           sudo apt-get update && sudo apt-get install -y make
+          mkdir -p "$HOME/.docker/cli-plugins"
+          curl -fsSL https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64 \
+            -o "$HOME/.docker/cli-plugins/docker-compose"
+          chmod +x "$HOME/.docker/cli-plugins/docker-compose"
+          docker compose version
           docker tag tarassov-me-template:builder tarassov-me:builder-latest
-          # Force the Compose v2 plugin: the runner has `docker compose` but not
-          # the legacy `docker-compose` binary, and the Makefile's autodetect
-          # ($(shell docker compose version)) misfires here and falls back to it.
           make test COMPOSE_BIN="docker compose"
 
       - name: Dump logs on failure
