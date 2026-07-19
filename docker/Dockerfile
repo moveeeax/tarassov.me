@@ -117,7 +117,9 @@ RUN mkdir -p logs
 ENV TEST_PG_HOST=localhost
 ENV TEST_REDIS_HOST=127.0.0.1
 
-ENTRYPOINT ["sh", "-c", "exec /app/build/$TEST_BINARY \"$@\"", "--"]
+# stdbuf: line-buffer stdout even when it's a pipe, so a crashing test binary
+# (SIGSEGV / std::terminate) doesn't take its buffered gtest output with it.
+ENTRYPOINT ["sh", "-c", "exec stdbuf -oL -eL /app/build/$TEST_BINARY \"$@\"", "--"]
 CMD ["--gtest_color=yes"]
 
 # Stage 2b: Sanitizer test build (ASan + UBSan)

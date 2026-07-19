@@ -19,6 +19,8 @@
  */
 
 #include <chrono>
+#include <cstdio>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <thread>
@@ -361,6 +363,17 @@ TEST(HttpE2E, AdminGateChecksPermissionBitmask) {
 }  // namespace
 
 int main(int argc, char** argv) {
+    // CI forensics for the intermittent startup/teardown crash: when stdout is
+    // a pipe it is block-buffered, so a std::terminate (e.g. a joinable
+    // std::thread destroyed) discards everything gtest printed and the CI log
+    // shows only "terminate called..." with no clue where it died. Flush both
+    // streams before aborting so the last executed test/phase is visible.
+    std::set_terminate([] {
+        std::fputs("\n=== e2e std::terminate — flushing buffered output ===\n", stderr);
+        std::fflush(stdout);
+        std::fflush(stderr);
+        std::abort();
+    });
     ::testing::InitGoogleTest(&argc, argv);
     ::testing::AddGlobalTestEnvironment(new HttpServerEnvironment);
     return RUN_ALL_TESTS();
