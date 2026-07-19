@@ -33,10 +33,12 @@ add_compile_options(
 option(ENABLE_WERROR "Treat warnings as errors (intended for CI)" OFF)
 if(ENABLE_WERROR)
     add_compile_options(-Werror)
-    # GCC 13's -Wnull-dereference raises false positives deep inside libstdc++
-    # system headers (streambuf, shared_ptr_base) that we cannot fix. Keep the
-    # warning enabled for our own code but don't let system-header noise fail CI.
-    add_compile_options(-Wno-error=null-dereference)
+    # GCC 13's optimizer-analysis warnings raise false positives deep inside
+    # libstdc++ system headers we cannot fix — -Wnull-dereference in streambuf/
+    # shared_ptr_base, and -Wmaybe-uninitialized in <variant> when std::variant
+    # (via pqxx::params) is instantiated under -O3. Keep the warnings enabled
+    # for our own code but don't let system-header noise fail CI.
+    add_compile_options(-Wno-error=null-dereference -Wno-error=maybe-uninitialized)
 endif()
 
 # Sanitizer support — when ENABLE_SANITIZERS=ON, build with ASan+UBSan
