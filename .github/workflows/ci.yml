@@ -53,7 +53,10 @@ jobs:
         # --cache-from tarassov-me:builder-latest. Alias the builder we just loaded
         # under that tag so the compose build is a cache hit instead of a full
         # recompile.
+        # The self-hosted ARC runner image is minimal and ships no `make`, so
+        # install it first (docker + compose are already present via dind).
         run: |
+          sudo apt-get update && sudo apt-get install -y make
           docker tag tarassov-me-template:builder tarassov-me:builder-latest
           make test
 
