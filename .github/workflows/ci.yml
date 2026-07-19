@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build-and-test:
-    runs-on: site-runners
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read  # pull ghcr builder:cache
@@ -88,7 +88,7 @@ jobs:
             --profile test logs test-runner || true
 
   lint-format:
-    runs-on: site-runners
+    runs-on: ubuntu-latest
     # Pure text lint — doesn't need Docker, runs fast, gates style issues
     # before the heavier build job finishes.
     steps:
@@ -122,7 +122,7 @@ jobs:
           shellcheck --severity=warning "${files[@]}"
 
   secret-scan:
-    runs-on: site-runners
+    runs-on: ubuntu-latest
     # Catch credentials before they land. We learned the hard way that a
     # local helm/values.yaml with stage passwords can slip into git.
     steps:
@@ -135,7 +135,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   openapi-drift:
-    runs-on: site-runners
+    runs-on: ubuntu-latest
     # Pure-shell check — verifies (method, path) tuples in
     # Api::get_endpoints() match docs/openapi.yaml. Runs in seconds, gates
     # the heavier build job from going green if the spec is stale.
@@ -149,7 +149,7 @@ jobs:
         run: ./scripts/check-test-buckets.sh
 
   helm-charts:
-    runs-on: site-runners
+    runs-on: ubuntu-latest
     # Render the tarassov-me-env umbrella with CI values and assert deploy-path
     # invariants (ingress<->service port match, MAIL_VIA_JOBS injected,
     # baseDomain expanded, no null ports). No cluster — pure template smoke
@@ -165,7 +165,7 @@ jobs:
         run: ./scripts/check-helm-render.sh
 
   frontend:
-    runs-on: site-runners
+    runs-on: ubuntu-latest
     # Frontend gate — typecheck + lint + production build. Regenerates
     # schema.gen.ts from docs/openapi.yaml and fails if the committed copy
     # is stale (see the "schema.gen.ts up to date" step).
@@ -198,7 +198,7 @@ jobs:
         run: npm run build
 
   clang-tidy:
-    runs-on: site-runners
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read  # pull ghcr builder:cache
@@ -267,7 +267,7 @@ jobs:
           if-no-files-found: ignore
 
   sanitizers:
-    runs-on: site-runners
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read  # pull ghcr builder:cache
