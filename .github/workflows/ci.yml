@@ -58,7 +58,10 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y make
           docker tag tarassov-me-template:builder tarassov-me:builder-latest
-          make test
+          # Force the Compose v2 plugin: the runner has `docker compose` but not
+          # the legacy `docker-compose` binary, and the Makefile's autodetect
+          # ($(shell docker compose version)) misfires here and falls back to it.
+          make test COMPOSE_BIN="docker compose"
 
       - name: Dump logs on failure
         if: failure()
