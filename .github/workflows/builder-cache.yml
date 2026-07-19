@@ -5,7 +5,7 @@ name: builder-cache
 
 on:
   push:
-    branches: [master]
+    branches: [main]  # was [master] — the repo's default branch is main, so this never fired
     paths:
       - vcpkg.json
       - docker/Dockerfile

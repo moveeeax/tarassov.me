@@ -17,6 +17,9 @@ permissions:
 jobs:
   build-and-test:
     runs-on: site-runners
+    permissions:
+      contents: read
+      packages: read  # pull ghcr builder:cache
     # End-to-end: builds the Docker builder stage (which compiles everything
     # with sanitizers and links the test binary), then runs the full gtest
     # suite against ephemeral Postgres + Redis containers via the `test`
@@ -35,6 +38,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
 
+      - name: Log in to GHCR (pull builder cache)
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build builder image (cache warm)
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
         with:
@@ -45,7 +55,9 @@ jobs:
           load: true
           tags: tarassov-me-template:builder
           build-args: ENABLE_WERROR=ON
-          cache-from: type=gha
+          cache-from: |
+            type=gha
+            type=registry,ref=ghcr.io/${{ github.repository }}/builder:cache
           cache-to: type=gha,mode=max
 
       - name: Run full test suite
@@ -187,6 +199,9 @@ jobs:
 
   clang-tidy:
     runs-on: site-runners
+    permissions:
+      contents: read
+      packages: read  # pull ghcr builder:cache
     # Chain after sanitizers (not just build-and-test): a single heavy Docker
     # build saturates a runner, but two concurrent ones get the pods OOM-killed.
     # build-and-test → sanitizers → clang-tidy keeps exactly one heavy build in
@@ -203,6 +218,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
 
+      - name: Log in to GHCR (pull builder cache)
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build builder image
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
         with:
@@ -213,7 +235,9 @@ jobs:
           load: true
           tags: tarassov-me-template:builder
           build-args: ENABLE_WERROR=ON
-          cache-from: type=gha
+          cache-from: |
+            type=gha
+            type=registry,ref=ghcr.io/${{ github.repository }}/builder:cache
           cache-to: type=gha,mode=max
 
       - name: Run clang-tidy inside builder
@@ -244,6 +268,9 @@ jobs:
 
   sanitizers:
     runs-on: site-runners
+    permissions:
+      contents: read
+      packages: read  # pull ghcr builder:cache
     needs: build-and-test  # reuse the builder image build-and-test warmed into type=gha
     # AddressSanitizer + UndefinedBehaviorSanitizer over the unit-test bucket.
     # Integration tests need real Postgres/Redis which aren't wired into this
@@ -256,6 +283,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
 
+      - name: Log in to GHCR (pull builder cache)
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build builder image
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
         with:
@@ -266,7 +300,9 @@ jobs:
           load: true
           tags: tarassov-me-template:builder
           build-args: ENABLE_WERROR=ON
-          cache-from: type=gha
+          cache-from: |
+            type=gha
+            type=registry,ref=ghcr.io/${{ github.repository }}/builder:cache
           cache-to: type=gha,mode=max
 
       - name: Build & run unit tests with ASan + UBSan
@@ -282,7 +318,7 @@ jobs:
                       -DCMAKE_BUILD_TYPE=Debug \
                       -DENABLE_SANITIZERS=ON \
                       -DCMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake \
-                      -DVCPKG_INSTALLED_DIR=/app/build/vcpkg_installed  # reuse the builder stage's vcpkg tree (mirrors the sanitizer-builder Dockerfile stage); avoids a full vcpkg reinstall
+                      -DVCPKG_INSTALLED_DIR=/app/vcpkg_installed  # reuse the builder stage's vcpkg tree (mirrors the sanitizer-builder Dockerfile stage); avoids a full vcpkg reinstall
                   cmake --build build-san -j\$(nproc) --target tarassov_me_tests_unit
                   ASAN_OPTIONS=halt_on_error=1:detect_leaks=1 \
                   UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \

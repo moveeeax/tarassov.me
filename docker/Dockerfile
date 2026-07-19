@@ -66,19 +66,27 @@ RUN git clone --filter=blob:none https://github.com/microsoft/vcpkg.git && \
 ENV VCPKG_ROOT=/opt/vcpkg
 ENV PATH="${VCPKG_ROOT}:${PATH}"
 
-# Manifest mode: copy only vcpkg.json so a source-only change doesn't
-# bust this layer. CMake's vcpkg toolchain reads the manifest and
-# installs the locked dependency set during the configure step.
+# Manifest mode: copy only vcpkg.json and install the WHOLE dependency set in
+# its own layer BEFORE any source is copied. This layer's cache key is just
+# base-image + vcpkg.json, so a source-only commit is a layer-cache hit even on
+# ephemeral CI runners (where RUN --mount=type=cache does NOT survive between
+# jobs — the mounts live in buildkitd state that dies with the pod). Previously
+# the deps were installed inside the build RUN below, after COPY . ., so every
+# commit rebuilt all ~29 packages (~10 min) despite a "warm" layer cache.
 WORKDIR /app
 COPY vcpkg.json ./
 
-# Copy source code (after manifest, so editing src/ keeps the dep cache warm).
+RUN --mount=type=cache,target=/opt/vcpkg/downloads \
+    --mount=type=cache,target=/root/.cache/vcpkg \
+    vcpkg install --x-install-root=/app/vcpkg_installed
+
+# Copy source code (after the dep layer, so editing src/ keeps it warm).
 COPY . .
 
-# Build application — vcpkg manifest install runs as part of cmake configure.
-# BuildKit cache mounts keep vcpkg source tarballs and built-package archives
-# across builds (and across FAILED builds — without them, one flaky download
-# or compile error discards the whole dependency set with the RUN layer).
+# Build application — the configure step finds the pre-installed tree via
+# VCPKG_INSTALLED_DIR and the manifest install becomes a fast no-op.
+# Cache mounts still help local/persistent-buildkitd rebuilds after a
+# vcpkg.json change.
 # ENABLE_WERROR=ON activates -Werror for the CI gate (see CMakeLists.txt).
 # Pass --build-arg ENABLE_WERROR=ON from CI; defaults to OFF for local builds.
 ARG ENABLE_WERROR=OFF
@@ -91,6 +99,7 @@ RUN --mount=type=cache,target=/opt/vcpkg/downloads \
     -DCMAKE_BUILD_TYPE=Release \
     -DENABLE_WERROR=${ENABLE_WERROR} \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+    -DVCPKG_INSTALLED_DIR=/app/vcpkg_installed \
     -DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake && \
     cmake --build . --config Release -j$(nproc)
 
@@ -116,8 +125,8 @@ CMD ["--gtest_color=yes"]
 # skip the recompile on an unchanged tree (registry-backed → shared across all
 # runners; a host ccache can't survive true-dind jobs).
 # VCPKG_INSTALLED_DIR reuses the deps the builder already installed under
-# /app/build — without it a fresh `cmake -B build-san` would reinstall the whole
-# dependency set from source (no binary cache inside the image).
+# /app/vcpkg_installed — without it a fresh `cmake -B build-san` would reinstall
+# the whole dependency set from source (no binary cache inside the image).
 FROM builder AS sanitizer-builder
 # NOTE (council backlog, measured 2026-06): extending ASan to the integration
 # bucket here is deferred until T1 Phase 2 (app_core). Compiling the integration
@@ -128,7 +137,7 @@ FROM builder AS sanitizer-builder
 RUN cmake -B build-san -G Ninja \
     -DCMAKE_BUILD_TYPE=Debug \
     -DENABLE_SANITIZERS=ON \
-    -DVCPKG_INSTALLED_DIR=/app/build/vcpkg_installed \
+    -DVCPKG_INSTALLED_DIR=/app/vcpkg_installed \
     -DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake && \
     cmake --build build-san -j"$(nproc)" --target tarassov_me_tests_unit
 
