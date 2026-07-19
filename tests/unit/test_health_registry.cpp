@@ -51,8 +51,9 @@ TEST_F(HealthRegistryTest, ReportCarriesCriticalFlag) {
     ASSERT_EQ(report.size(), 2u);
     bool saw_optional = false;
     for (const auto& c : report) {
-        if (c.name == "critical-dep")
+        if (c.name == "critical-dep") {
             EXPECT_TRUE(c.critical);
+        }
         if (c.name == "optional-dep") {
             saw_optional = true;
             EXPECT_FALSE(c.critical);

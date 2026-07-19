@@ -20,12 +20,12 @@ using Utils::Base64::url_decode;
 using Utils::Base64::url_encode;
 
 TEST(Base64Test, RoundTrips) {
-    for (const std::string s : {std::string(""),
-                                std::string("a"),
-                                std::string("ab"),
-                                std::string("abc"),
-                                std::string("hello world"),
-                                std::string("\x00\x01\x02\xff\xfe", 5)}) {
+    for (const std::string& s : {std::string(""),
+                                 std::string("a"),
+                                 std::string("ab"),
+                                 std::string("abc"),
+                                 std::string("hello world"),
+                                 std::string("\x00\x01\x02\xff\xfe", 5)}) {
         EXPECT_EQ(url_decode(url_encode(s)), s) << "roundtrip failed for size " << s.size();
     }
 }
