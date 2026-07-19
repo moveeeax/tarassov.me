@@ -5,7 +5,8 @@ on:
     tags:
       - 'v*.*.*'
 
-# Publishes multi-arch images on tags matching v<semver>. Uses the repo's
+# Publishes linux/amd64 images on tags matching v<semver> (the prod Talos
+# nodes are all amd64 — arm64 was dropped 2026-07-19). Uses the repo's
 # existing multi-stage Dockerfile — runtime is the default final stage,
 # worker-runtime is the worker image. Both get tagged with the git tag and
 # :latest.
@@ -49,22 +50,19 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130  # v3.7.0
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
 
       # Push under a staging tag so Trivy can scan before :latest/:version are published.
       # The promote job (needs: scan) will move these digests into the final tags via
       # imagetools create (no rebuild — digest-level operation).
-      - name: Build and push app image (multi-arch, staging tag)
+      - name: Build and push app image (amd64, staging tag)
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
         with:
           context: .
           file: docker/Dockerfile
           target: runtime
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: ${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }}-staging
           cache-from: type=gha
@@ -72,13 +70,13 @@ jobs:
           sbom: true
           provenance: mode=max
 
-      - name: Build and push worker image (multi-arch, staging tag)
+      - name: Build and push worker image (amd64, staging tag)
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
         with:
           context: .
           file: docker/Dockerfile
           target: worker-runtime
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: ${{ env.IMAGE_NAME }}-worker:${{ steps.ver.outputs.version }}-staging
           cache-from: type=gha
@@ -89,13 +87,13 @@ jobs:
       # Frontend is a separate Node→nginx image (frontend/Dockerfile, final
       # stage `runtime`). Own gha cache scope so it doesn't thrash the C++
       # builder cache shared by the app/worker images above.
-      - name: Build and push frontend image (multi-arch, staging tag)
+      - name: Build and push frontend image (amd64, staging tag)
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
         with:
           context: .
           file: frontend/Dockerfile
           target: runtime
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: ${{ env.IMAGE_NAME }}-frontend:${{ steps.ver.outputs.version }}-staging
           cache-from: type=gha,scope=frontend
@@ -122,7 +120,7 @@ jobs:
       # Vulnerability gate — scan the staging tags before they get promoted to
       # :latest/:version. Fails on a fixable CRITICAL so nothing broken ships.
       # platform: linux/amd64 matches the most common deployment target; the
-      # multi-arch manifest index requires an explicit platform hint for Trivy.
+      # platform hint kept for Trivy determinism.
       - name: Scan app image (Trivy)
         uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2  # v0.28.0
         with:

@@ -6,6 +6,29 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.1] — 2026-07-19
+
+Infrastructure release: the repo moved from GitLab to GitHub
+(`github.com/moveeeax/tarassov.me`), CI runs on GitHub Actions, images are
+published to Docker Hub under `moveeeax/`.
+
+### Fixed
+- **`db_replica_lag_seconds` phantom lag**: the metric reported unbounded
+  "lag" on a write-idle primary (frozen `pg_last_xact_replay_timestamp()`),
+  firing `CppApiHighReplicaLag` with no real replication lag. The query now
+  reports 0 when the replica has replayed all received WAL.
+- e2e test harness: transient HTTP errors during server-startup polling no
+  longer crash the binary via a joinable-thread `std::terminate`.
+- GCC 13 `-Werror` build: migrated off libpqxx's deprecated
+  `exec_params(...)` to `exec(query, pqxx::params)`; assorted warning fixes.
+
+### Changed
+- CI: GitHub Actions on hosted runners; vcpkg dependencies cached as their
+  own image layer + GHCR cache anchor; heavy jobs run in parallel (green
+  pipeline ~12 min wall).
+- Release images are `linux/amd64` only (the prod nodes are amd64; the
+  arm64/QEMU build was dropped).
+
 ## [1.5.0] — 2026-06-28
 
 First production release of the personal site (tarassov.me): the public
@@ -507,6 +530,7 @@ First tagged release. Highlights of the pre-release hardening pass:
 - OpenSSL linked explicitly for HMAC-SHA256 (JWT signature) and SHA-256
   (Idempotency-Key body hash); constant-time compare via `CRYPTO_memcmp`.
 
-[Unreleased]: https://github.com/moveeeax/tarassov.me/compare/v1.2.0...main
+[Unreleased]: https://github.com/moveeeax/tarassov.me/compare/v1.5.1...main
+[1.5.1]: https://github.com/moveeeax/tarassov.me/releases/tag/v1.5.1
 [1.2.0]: https://github.com/moveeeax/tarassov.me/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/moveeeax/tarassov.me/compare/v1.0.0...v1.1.0
