@@ -6,6 +6,17 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.2] — 2026-07-19
+
+### Changed
+- **Public site / PROJECTS**: cards now link to GitHub (`github.com/moveeeax`).
+  `cpp-rapid-rest-template` and `telegram-rest-gateway` cards (GitLab-only
+  repos) replaced with cost-optimization proof: `tf-cost-diff` and
+  `aws-orphan-finder`. "More on GitLab" footer and the social icon switched
+  to GitHub.
+- Credly badge link updated to the new profile URL
+  (`credly.com/users/michael-tarassov/badges`).
+
 ## [1.5.1] — 2026-07-19
 
 Infrastructure release: the repo moved from GitLab to GitHub
@@ -530,7 +541,8 @@ First tagged release. Highlights of the pre-release hardening pass:
 - OpenSSL linked explicitly for HMAC-SHA256 (JWT signature) and SHA-256
   (Idempotency-Key body hash); constant-time compare via `CRYPTO_memcmp`.
 
-[Unreleased]: https://github.com/moveeeax/tarassov.me/compare/v1.5.1...main
+[Unreleased]: https://github.com/moveeeax/tarassov.me/compare/v1.5.2...main
+[1.5.2]: https://github.com/moveeeax/tarassov.me/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/moveeeax/tarassov.me/releases/tag/v1.5.1
 [1.2.0]: https://github.com/moveeeax/tarassov.me/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/moveeeax/tarassov.me/compare/v1.0.0...v1.1.0
