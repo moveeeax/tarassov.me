@@ -187,7 +187,11 @@ jobs:
 
   clang-tidy:
     runs-on: site-runners
-    needs: build-and-test  # reuse the builder image build-and-test warmed into type=gha
+    # Chain after sanitizers (not just build-and-test): a single heavy Docker
+    # build saturates a runner, but two concurrent ones get the pods OOM-killed.
+    # build-and-test → sanitizers → clang-tidy keeps exactly one heavy build in
+    # flight at a time. clang-tidy is best-effort, so it goes last.
+    needs: sanitizers
     # Structural and API-usage lint. Uses the builder image for
     # compile_commands.json so the analysis sees the real include paths
     # vcpkg resolved. Best-effort: warnings don't gate yet, the .clang-tidy
