@@ -21,7 +21,14 @@ jobs:
     # with sanitizers and links the test binary), then runs the full gtest
     # suite against ephemeral Postgres + Redis containers via the `test`
     # compose profile — the same thing `make test` does locally.
-    timeout-minutes: 25
+    #
+    # 45m, not 25m: a cold gha cache means a full vcpkg dependency build
+    # (~20m) before our code even compiles. This job must be able to finish
+    # that once and export type=gha cache — otherwise it is killed mid-build
+    # and every later run stays cold too. clang-tidy/sanitizers `needs:` this
+    # job so they start against the warm cache instead of all cold-building in
+    # parallel and starving the runners.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -168,6 +175,7 @@ jobs:
 
   clang-tidy:
     runs-on: site-runners
+    needs: build-and-test  # reuse the builder image build-and-test warmed into type=gha
     # Structural and API-usage lint. Uses the builder image for
     # compile_commands.json so the analysis sees the real include paths
     # vcpkg resolved. Best-effort: warnings don't gate yet, the .clang-tidy
@@ -220,6 +228,7 @@ jobs:
 
   sanitizers:
     runs-on: site-runners
+    needs: build-and-test  # reuse the builder image build-and-test warmed into type=gha
     # AddressSanitizer + UndefinedBehaviorSanitizer over the unit-test bucket.
     # Integration tests need real Postgres/Redis which aren't wired into this
     # job — keep them out of the filter. Allows a separate, fast feedback
