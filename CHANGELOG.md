@@ -6,6 +6,15 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.3] — 2026-07-19
+
+### Fixed
+- **Runtime image ships `ca-certificates`**: `--no-install-recommends` was
+  silently dropping the CA bundle, so any outbound TLS from the app failed —
+  discovered when the Mailer's SMTP STARTTLS to Brevo died with curl's
+  "Problem with the SSL CA cert". Outbound email now works against a real
+  TLS relay.
+
 ## [1.5.2] — 2026-07-19
 
 ### Changed
@@ -541,7 +550,8 @@ First tagged release. Highlights of the pre-release hardening pass:
 - OpenSSL linked explicitly for HMAC-SHA256 (JWT signature) and SHA-256
   (Idempotency-Key body hash); constant-time compare via `CRYPTO_memcmp`.
 
-[Unreleased]: https://github.com/moveeeax/tarassov.me/compare/v1.5.2...main
+[Unreleased]: https://github.com/moveeeax/tarassov.me/compare/v1.5.3...main
+[1.5.3]: https://github.com/moveeeax/tarassov.me/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/moveeeax/tarassov.me/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/moveeeax/tarassov.me/releases/tag/v1.5.1
 [1.2.0]: https://github.com/moveeeax/tarassov.me/compare/v1.1.0...v1.2.0

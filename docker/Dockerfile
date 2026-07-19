@@ -157,7 +157,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsodium23 \
     libcurl4t64 \
     curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+    # ca-certificates: --no-install-recommends skips it, and without the CA
+    # bundle every outbound TLS from the app fails — first hit in prod was the
+    # Mailer's SMTP STARTTLS to Brevo (curl: "Problem with the SSL CA cert").
 
 # Create app user (noble's base image already has uid 1000 "ubuntu" — drop it first)
 RUN userdel -r ubuntu 2>/dev/null || true && \
