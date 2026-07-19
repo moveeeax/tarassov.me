@@ -80,19 +80,41 @@ public:
         app().addListener("127.0.0.1", kPort).setThreadNum(1);
         server_thread_ = std::thread([] { app().run(); });
 
-        // Wait until the server actually accepts: poll /healthz.
-        auto client = HttpClient::newHttpClient(base_url());
-        for (int i = 0; i < 100; ++i) {
-            auto req = HttpRequest::newHttpRequest();
-            req->setPath("/healthz");
-            auto [ok, resp] = client->sendRequest(req, /*timeout=*/1.0);
-            if (ok == ReqResult::Ok && resp && resp->statusCode() == k200OK) {
-                g_env_ok = true;
-                return;
+        // Once the server thread is running, any exception thrown before we
+        // return (e.g. the HTTP client throwing under a slow/loaded runner)
+        // would escape SetUp — gtest then destroys the fixture WITHOUT calling
+        // TearDown, and ~std::thread on a still-joinable server_thread_ calls
+        // std::terminate ("terminate called without an active exception").
+        // Stop and join the thread before letting any exception propagate.
+        try {
+            // Wait until the server actually accepts: poll /healthz. A request
+            // sent before the listener is up can THROW (connection refused)
+            // rather than return an error result, so catch per-attempt and keep
+            // polling instead of aborting SetUp on a transient startup race.
+            auto client = HttpClient::newHttpClient(base_url());
+            for (int i = 0; i < 100; ++i) {
+                try {
+                    auto req = HttpRequest::newHttpRequest();
+                    req->setPath("/healthz");
+                    auto [ok, resp] = client->sendRequest(req, /*timeout=*/1.0);
+                    if (ok == ReqResult::Ok && resp && resp->statusCode() == k200OK) {
+                        g_env_ok = true;
+                        return;
+                    }
+                } catch (...) {
+                    // server not accepting yet — fall through to the retry sleep
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            ADD_FAILURE() << "e2e server did not become ready on " << base_url();
+        } catch (...) {
+            // Defense in depth: never let server_thread_ be destroyed joinable
+            // (that calls std::terminate). Stop and join before propagating.
+            app().quit();
+            if (server_thread_.joinable())
+                server_thread_.join();
+            throw;
         }
-        ADD_FAILURE() << "e2e server did not become ready on " << base_url();
     }
 
     void TearDown() override {
