@@ -43,15 +43,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build builder image (cache warm)
+      - name: Build test-runner image (cache warm)
+        # Build the test-runner stage HERE via buildx (gha + GHCR cache,
+        # ENABLE_WERROR=ON — same layer keys as the builder-cache workflow) and
+        # load it under the tag compose expects. Previously `make test` let
+        # compose rebuild the stage itself: BuildKit can't use a merely-loaded
+        # image as cache (no inline metadata), so every CI run recompiled the
+        # whole app a second time (~8 min) inside the test step.
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
         with:
           context: .
           file: docker/Dockerfile
-          target: builder
+          target: test-runner
           push: false
           load: true
-          tags: tarassov-me-template:builder
+          tags: tarassov-me:test-latest
           build-args: ENABLE_WERROR=ON
           cache-from: |
             type=gha
@@ -59,25 +65,12 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Run full test suite
-        # `make test` builds the test-runner stage with
-        # --cache-from tarassov-me:builder-latest. Alias the builder we just loaded
-        # under that tag so the compose build is a cache hit instead of a full
-        # recompile.
-        # The self-hosted ARC runner image is minimal and ships no `make`, so
-        # install it first (docker + compose are already present via dind).
+        # Run-only targets — compose reuses the tarassov-me:test-latest image
+        # loaded above and never rebuilds. test-quick covers unit+integration,
+        # test-e2e the HTTP end-to-end binary (mirrors `make test` coverage).
         run: |
-          # The minimal ARC runner image (ghcr.io/actions/actions-runner) ships
-          # only the docker CLI (+ a dind daemon) — no make, no docker compose
-          # plugin. Install both before the compose-based test suite. A custom
-          # runner image with these baked in would be cleaner long-term.
-          sudo apt-get update && sudo apt-get install -y make
-          mkdir -p "$HOME/.docker/cli-plugins"
-          curl -fsSL https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64 \
-            -o "$HOME/.docker/cli-plugins/docker-compose"
-          chmod +x "$HOME/.docker/cli-plugins/docker-compose"
-          docker compose version
-          docker tag tarassov-me-template:builder tarassov-me:builder-latest
-          make test COMPOSE_BIN="docker compose"
+          make test-quick COMPOSE_BIN="docker compose"
+          make test-e2e COMPOSE_BIN="docker compose"
 
       - name: Dump logs on failure
         if: failure()
