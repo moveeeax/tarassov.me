@@ -62,6 +62,7 @@ struct Message {
     std::string subject;    // prefix is added by Mailer; pass the bare subject
     std::string text_body;  // plain text alt
     std::string html_body;  // HTML body
+    std::string reply_to;   // optional Reply-To header (e.g. contact-form submitter)
 };
 
 namespace detail {
@@ -133,6 +134,10 @@ inline std::string build_mime(const MailerConfig& cfg, const Message& msg, const
     else
         out << cfg.from << "\r\n";
     out << "To: " << to << "\r\n";
+    // Reply-To lets the recipient hit "Reply" and reach the real author (the
+    // envelope From must stay our authenticated MAIL_FROM for SPF/DKIM).
+    if (!msg.reply_to.empty())
+        out << "Reply-To: " << strip_crlf(msg.reply_to) << "\r\n";
     // Join prefix and subject with a space unless the prefix already ends
     // with one — env-file values tend to lose trailing whitespace.
     out << "Subject: " << cfg.subject_prefix;

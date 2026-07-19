@@ -38,6 +38,7 @@ inline Email::Message message_from_payload(const json& payload) {
     m.subject = payload.value("subject", "");
     m.text_body = payload.value("text", "");
     m.html_body = payload.value("html", "");
+    m.reply_to = payload.value("reply_to", "");
     if (m.to.empty())
         throw std::runtime_error("email.send: 'to' is required");
     if (m.text_body.empty() && m.html_body.empty())
@@ -74,12 +75,15 @@ inline bool via_jobs() {
 inline void send(const std::string& to,
                  const std::string& subject,
                  const std::string& text,
-                 const std::string& html = "") {
+                 const std::string& html = "",
+                 const std::string& reply_to = "") {
     if (via_jobs()) {
         try {
             json payload = {{"to", to}, {"subject", subject}, {"text", text}};
             if (!html.empty())
                 payload["html"] = html;
+            if (!reply_to.empty())
+                payload["reply_to"] = reply_to;
             auto job = Jobs::get().submit(kJobType, payload);
             spdlog::debug("SendEmail: to {} enqueued as job {}", Utils::Strings::mask_email(to), job.id);
             return;
@@ -98,6 +102,7 @@ inline void send(const std::string& to,
         m.subject = subject;
         m.text_body = text;
         m.html_body = html;
+        m.reply_to = reply_to;
         if (!Email::get().send(m))
             spdlog::warn("SendEmail: SMTP refused mail to {}", Utils::Strings::mask_email(to));
     } catch (const std::exception& e) {

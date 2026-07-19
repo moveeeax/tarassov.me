@@ -6,6 +6,15 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.4] — 2026-07-19
+
+### Fixed
+- **Contact form: replies now reach the sender.** The email carries a
+  `Reply-To` with the submitter's address, so hitting "Reply" answers the
+  person who wrote — the envelope From stays the site's authenticated
+  MAIL_FROM (SPF/DKIM alignment). `Email::SendEmail::send()` gains an
+  optional `reply_to` argument.
+
 ## [1.5.3] — 2026-07-19
 
 ### Fixed
@@ -550,7 +559,8 @@ First tagged release. Highlights of the pre-release hardening pass:
 - OpenSSL linked explicitly for HMAC-SHA256 (JWT signature) and SHA-256
   (Idempotency-Key body hash); constant-time compare via `CRYPTO_memcmp`.
 
-[Unreleased]: https://github.com/moveeeax/tarassov.me/compare/v1.5.3...main
+[Unreleased]: https://github.com/moveeeax/tarassov.me/compare/v1.5.4...main
+[1.5.4]: https://github.com/moveeeax/tarassov.me/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/moveeeax/tarassov.me/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/moveeeax/tarassov.me/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/moveeeax/tarassov.me/releases/tag/v1.5.1

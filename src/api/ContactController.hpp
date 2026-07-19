@@ -65,10 +65,11 @@ public:
         const auto subject = body.value("subject", std::string{"(no subject)"});
         const auto message = body["message"].get<std::string>();
 
-        // The submitter's address goes in the body (the envelope From is the
-        // app's MAIL_FROM); the owner can just hit reply mentally / copy it.
+        // The submitter goes into the body AND into Reply-To, so the owner can
+        // just hit "Reply" (the envelope From must stay the app's MAIL_FROM —
+        // SPF/DKIM are aligned to our domain, not the submitter's).
         const std::string text = "From: " + name + " <" + email + ">\n\n" + message;
-        Email::SendEmail::send(to, "[Contact] " + subject, text);
+        Email::SendEmail::send(to, "[Contact] " + subject, text, /*html=*/"", /*reply_to=*/email);
 
         callback(Response::ok({{"message", "Thanks — your message has been sent."}}));
     }
