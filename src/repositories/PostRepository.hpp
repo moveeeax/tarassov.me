@@ -34,9 +34,9 @@ struct PostInput {
     std::string title;
     std::string summary;
     std::string body;
-    std::string status;               // draft | published
-    std::string topic;                // section label
-    std::vector<std::string> tags;    // keyword tags (stored comma-joined)
+    std::string status;             // draft | published
+    std::string topic;              // section label
+    std::vector<std::string> tags;  // keyword tags (stored comma-joined)
 };
 
 class PostRepository : public CrudBase<PostRepository, Domain::Post, std::string> {

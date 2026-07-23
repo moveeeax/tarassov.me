@@ -53,11 +53,11 @@ struct Post {
     std::string id;    // UUID v4 (text)
     std::string slug;  // URL key
     std::string title;
-    std::string summary;               // list/teaser blurb
-    std::string body;                  // Markdown source
-    std::string status;                // draft | published
-    std::string topic;                 // section label (e.g. "Kubernetes")
-    std::vector<std::string> tags;     // keyword tags (drive the index tag cloud)
+    std::string summary;            // list/teaser blurb
+    std::string body;               // Markdown source
+    std::string status;             // draft | published
+    std::string topic;              // section label (e.g. "Kubernetes")
+    std::vector<std::string> tags;  // keyword tags (drive the index tag cloud)
     std::optional<std::string> published_at;
     std::string created_at;
     std::string updated_at;
