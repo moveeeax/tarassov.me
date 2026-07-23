@@ -35,7 +35,7 @@ TEST(PostDomain, ToJsonSerializesEveryField) {
     EXPECT_EQ(j["body"], e.body);
     EXPECT_EQ(j["status"], e.status);
     EXPECT_EQ(j["topic"], e.topic);
-    EXPECT_EQ(j["tags"], e.tags);           // serialized as a JSON array
+    EXPECT_EQ(j["tags"], e.tags);  // serialized as a JSON array
     EXPECT_TRUE(j["tags"].is_array());
     EXPECT_EQ(j["published_at"], *e.published_at);
     EXPECT_EQ(j["created_at"], e.created_at);
@@ -46,10 +46,8 @@ TEST(PostDomain, TagsSplitJoinRoundTrip) {
     // The comma-joined storage boundary must survive a round-trip and tolerate
     // whitespace, empties and trailing commas from hand-authored input.
     EXPECT_EQ(Domain::join_tags({"kubernetes", "talos", "c++"}), "kubernetes,talos,c++");
-    EXPECT_EQ(Domain::split_tags("kubernetes,talos,c++"),
-              (std::vector<std::string>{"kubernetes", "talos", "c++"}));
-    EXPECT_EQ(Domain::split_tags(" kubernetes , talos ,"),
-              (std::vector<std::string>{"kubernetes", "talos"}));
+    EXPECT_EQ(Domain::split_tags("kubernetes,talos,c++"), (std::vector<std::string>{"kubernetes", "talos", "c++"}));
+    EXPECT_EQ(Domain::split_tags(" kubernetes , talos ,"), (std::vector<std::string>{"kubernetes", "talos"}));
     EXPECT_TRUE(Domain::split_tags("").empty());
 }
 
