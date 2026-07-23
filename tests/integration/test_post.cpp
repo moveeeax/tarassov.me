@@ -47,11 +47,24 @@ TEST_F(PostsFlowTest, ListReturnsEnvelope) {
 }
 
 TEST_F(PostsFlowTest, CreatePublishAndPublicRead) {
-    json body = {
-        {"slug", "hello-test"}, {"title", "Hello"}, {"summary", "s"}, {"body", "# h"}, {"status", "published"}};
+    json body = {{"slug", "hello-test"},
+                 {"title", "Hello"},
+                 {"summary", "s"},
+                 {"body", "# h"},
+                 {"status", "published"},
+                 {"topic", "Kubernetes"},
+                 {"tags", {"kubernetes", "talos"}}};
     auto resp = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, body), std::move(cb)); });
     ASSERT_NE(resp, nullptr);
     EXPECT_EQ(resp->statusCode(), k201Created);
+    // topic + tags survive the create round-trip and serialize as expected.
+    {
+        auto created = json::parse(std::string(resp->body()))["data"];
+        EXPECT_EQ(created.value("topic", ""), "Kubernetes");
+        ASSERT_TRUE(created["tags"].is_array());
+        EXPECT_EQ(created["tags"].size(), 2u);
+        EXPECT_EQ(created["tags"][0], "kubernetes");
+    }
 
     // Public list shows the published post.
     resp = call([&](auto cb) { controller.publicListPosts(TestHelpers::make_request(Get), std::move(cb)); });
@@ -86,6 +99,13 @@ TEST_F(PostsFlowTest, DraftHiddenFromPublic) {
 
 TEST_F(PostsFlowTest, CreateRejectsMissingFields) {
     json body = {{"summary", "no slug or title"}};
+    auto resp = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, body), std::move(cb)); });
+    EXPECT_EQ(resp->statusCode(), k400BadRequest);
+}
+
+TEST_F(PostsFlowTest, CreateRejectsCommaInTag) {
+    // A comma inside a tag would corrupt the comma-joined storage — reject it.
+    json body = {{"slug", "bad-tag"}, {"title", "Bad tag"}, {"tags", {"a,b"}}};
     auto resp = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, body), std::move(cb)); });
     EXPECT_EQ(resp->statusCode(), k400BadRequest);
 }

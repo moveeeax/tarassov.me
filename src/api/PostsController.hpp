@@ -154,7 +154,39 @@ private:
         Validation::require(errs, body, "title");
         Validation::string_length(errs, body, "slug", 1, 160);
         Validation::string_length(errs, body, "title", 1, 255);
+        Validation::string_length(errs, body, "topic", 0, 80);
         Validation::one_of(errs, body, "status", {"draft", "published"});
+        // tags: optional array of non-empty keyword strings. Stored comma-joined,
+        // so a comma inside a tag would corrupt the round-trip — reject it.
+        std::vector<std::string> tags;
+        if (body.contains("tags") && !body["tags"].is_null()) {
+            if (!body["tags"].is_array()) {
+                errs.add("tags", "not_array", "must be an array of strings");
+            } else {
+                for (const auto& t : body["tags"]) {
+                    if (!t.is_string()) {
+                        errs.add("tags", "not_string", "each tag must be a string");
+                        break;
+                    }
+                    std::string s = t.get<std::string>();
+                    std::size_t b = s.find_first_not_of(" \t");
+                    std::size_t e = s.find_last_not_of(" \t");
+                    if (b == std::string::npos)
+                        continue;  // blank tag → skip silently
+                    s = s.substr(b, e - b + 1);
+                    if (s.size() > 40) {
+                        errs.add("tags", "too_long", "each tag max length 40");
+                        break;
+                    }
+                    if (s.find(',') != std::string::npos || s.find('\n') != std::string::npos ||
+                        s.find('\r') != std::string::npos) {
+                        errs.add("tags", "invalid", "a tag must not contain commas or line breaks");
+                        break;
+                    }
+                    tags.push_back(std::move(s));
+                }
+            }
+        }
         if (errs.any()) {
             callback(Validation::response_400(errs));
             return false;
@@ -164,6 +196,8 @@ private:
         in.summary = body.value("summary", std::string{});
         in.body = body.value("body", std::string{});
         in.status = body.value("status", std::string{"draft"});
+        in.topic = body.value("topic", std::string{});
+        in.tags = std::move(tags);
         return true;
     }
 };

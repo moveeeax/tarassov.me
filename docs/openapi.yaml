@@ -866,6 +866,11 @@ paths:
                 summary: { type: string }
                 body:    { type: string }
                 status:  { type: string, enum: [draft, published], default: draft }
+                topic:   { type: string, maxLength: 80, description: "Section label (e.g. Kubernetes)" }
+                tags:
+                  type: array
+                  description: "Keyword tags driving the index tag cloud. No commas or line breaks per tag."
+                  items: { type: string, maxLength: 40 }
       responses:
         '201': { description: Created }
         '400': { description: Validation failed }
@@ -898,6 +903,11 @@ paths:
                 summary: { type: string }
                 body:    { type: string }
                 status:  { type: string, enum: [draft, published] }
+                topic:   { type: string, maxLength: 80, description: "Section label (e.g. Kubernetes)" }
+                tags:
+                  type: array
+                  description: "Keyword tags driving the index tag cloud. No commas or line breaks per tag."
+                  items: { type: string, maxLength: 40 }
       responses:
         '200': { description: Updated }
         '400': { description: Validation failed }
