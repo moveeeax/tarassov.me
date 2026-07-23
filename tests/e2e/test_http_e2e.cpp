@@ -19,8 +19,11 @@
  */
 
 #include <chrono>
+#include <csignal>
 #include <cstdio>
+#include <cstdlib>
 #include <exception>
+#include <execinfo.h>
 #include <filesystem>
 #include <fstream>
 #include <thread>
@@ -385,6 +388,16 @@ int main(int argc, char** argv) {
         std::fflush(stdout);
         std::fflush(stderr);
         std::abort();
+    });
+    // TEMP diagnostic: trantor LOG_FATAL (wrong-thread loop) calls abort() →
+    // SIGABRT. Print the backtrace to pin the exact call site, then exit.
+    std::signal(SIGABRT, [](int) {
+        void* bt[64];
+        int n = backtrace(bt, 64);
+        std::fputs("\n=== e2e SIGABRT backtrace ===\n", stderr);
+        backtrace_symbols_fd(bt, n, fileno(stderr));
+        std::fflush(stderr);
+        std::_Exit(139);
     });
     ::testing::InitGoogleTest(&argc, argv);
     ::testing::AddGlobalTestEnvironment(new HttpServerEnvironment);
