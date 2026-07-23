@@ -34,7 +34,9 @@ struct PostInput {
     std::string title;
     std::string summary;
     std::string body;
-    std::string status;  // draft | published
+    std::string status;               // draft | published
+    std::string topic;                // section label
+    std::vector<std::string> tags;    // keyword tags (stored comma-joined)
 };
 
 class PostRepository : public CrudBase<PostRepository, Domain::Post, std::string> {
@@ -43,7 +45,7 @@ public:
     // four constants — only the bespoke writes/reads below are hand-written.
     static constexpr const char* kTable = "posts";
     static constexpr const char* kColumns =
-        "id, slug, title, summary, body, status, published_at, created_at, updated_at";
+        "id, slug, title, summary, body, status, topic, tags, published_at, created_at, updated_at";
     static constexpr const char* kIdColumn = "id";
     static constexpr const char* kOrderBy = "created_at DESC";
 
@@ -56,14 +58,16 @@ public:
             [&] {
                 return Database::get().execute_write([&](auto& txn) {
                     auto r = txn.exec_params(
-                        std::string("INSERT INTO posts (slug, title, summary, body, status, published_at) "
-                                    "VALUES ($1, $2, $3, $4, $5, ") +
+                        std::string("INSERT INTO posts (slug, title, summary, body, status, topic, tags, published_at) "
+                                    "VALUES ($1, $2, $3, $4, $5, $6, $7, ") +
                             published_expr + ") RETURNING " + kColumns,
                         in.slug,
                         in.title,
                         in.summary,
                         in.body,
-                        in.status);
+                        in.status,
+                        in.topic,
+                        Domain::join_tags(in.tags));
                     return Domain::Post::from_row(r[0]);
                 });
             },
@@ -83,14 +87,16 @@ public:
                 return Database::get().execute_write([&](auto& txn) {
                     auto r = txn.exec_params(
                         std::string("UPDATE posts SET slug = $2, title = $3, summary = $4, body = $5, status = $6, "
-                                    "published_at = ") +
+                                    "topic = $7, tags = $8, published_at = ") +
                             published_expr + " WHERE id = $1 RETURNING " + kColumns,
                         id,
                         in.slug,
                         in.title,
                         in.summary,
                         in.body,
-                        in.status);
+                        in.status,
+                        in.topic,
+                        Domain::join_tags(in.tags));
                     if (r.empty())
                         throw PostNotFound{};
                     return Domain::Post::from_row(r[0]);
