@@ -27,6 +27,8 @@ interface Post {
   summary: string;
   body: string;
   status: 'draft' | 'published';
+  topic: string;
+  tags: string[];
   published_at: string | null;
   created_at: string;
   updated_at: string;
@@ -38,6 +40,8 @@ interface PostForm {
   summary: string;
   body: string;
   status: 'draft' | 'published';
+  topic: string;
+  tags: string[];
 }
 
 function fmtDate(iso: string | null): string {
@@ -155,7 +159,7 @@ export function AdminPostsPage() {
         <PostFormCard
           key="new"
           title="New post"
-          initial={{ slug: '', title: '', summary: '', body: '', status: 'draft' }}
+          initial={{ slug: '', title: '', summary: '', body: '', status: 'draft', topic: '', tags: [] }}
           submitting={create.isPending}
           onSubmit={(form) => create.mutate(form)}
           onCancel={() => setCreating(false)}
@@ -171,6 +175,8 @@ export function AdminPostsPage() {
             summary: editing.summary,
             body: editing.body,
             status: editing.status,
+            topic: editing.topic ?? '',
+            tags: editing.tags ?? [],
           }}
           submitting={update.isPending}
           onSubmit={(form) => update.mutate({ id: editing.id, form })}
@@ -214,6 +220,9 @@ function PostFormCard({ title, initial, submitting, onSubmit, onCancel }: PostFo
   const [summary, setSummary] = useState(initial.summary);
   const [body, setBody] = useState(initial.body);
   const [status, setStatus] = useState<PostForm['status']>(initial.status);
+  const [topic, setTopic] = useState(initial.topic);
+  // Tags are edited as a comma-separated string, sent as an array.
+  const [tagsText, setTagsText] = useState(initial.tags.join(', '));
   // Auto-fill the slug from the title only while creating (empty initial slug).
   const [slugTouched, setSlugTouched] = useState(initial.slug !== '');
   const [uploading, setUploading] = useState(false);
@@ -254,6 +263,11 @@ function PostFormCard({ title, initial, submitting, onSubmit, onCancel }: PostFo
       summary: summary.trim(),
       body,
       status,
+      topic: topic.trim(),
+      tags: tagsText
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean),
     });
   };
 
@@ -306,6 +320,29 @@ function PostFormCard({ title, initial, submitting, onSubmit, onCancel }: PostFo
               onChange={(e) => setSummary(e.target.value)}
               placeholder="Short blurb shown in the post list"
             />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="post-topic">Topic</Label>
+              <Input
+                id="post-topic"
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                maxLength={80}
+                placeholder="Section label, e.g. Kubernetes"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="post-tags">Tags</Label>
+              <Input
+                id="post-tags"
+                value={tagsText}
+                onChange={(e) => setTagsText(e.target.value)}
+                className="font-mono"
+                placeholder="comma-separated, e.g. kubernetes, talos, c++"
+              />
+            </div>
           </div>
 
           <div className="space-y-1">

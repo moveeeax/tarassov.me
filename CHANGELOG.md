@@ -6,6 +6,20 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-07-23
+
+### Added
+- **Blog redesign — "Field notes" tag cloud.** The index (`/blog.html`) and
+  article (`/blog-single.html`) pages are rebuilt to the new design handoff:
+  a frequency-scaled keyword tag cloud that OR-filters a single chronological
+  list, 10-per-page pagination, a scroll progress bar, and prev/next cards —
+  in the uppercase IBM Plex Mono / warm-paper / rust-accent visual language.
+  Self-contained `css/blog.css` (no book-theme chrome); vanilla `js/blog.js`.
+- **Posts gain `topic` and `tags`.** New migration `007` adds a section label
+  (`topic`) and keyword `tags` (stored comma-joined, exposed as a JSON array).
+  Both flow through the domain model, the admin CMS form, the public read API,
+  and OpenAPI. Tags with commas/line-breaks are rejected at validation.
+
 ## [1.5.5] — 2026-07-19
 
 ### Added

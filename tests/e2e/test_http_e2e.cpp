@@ -23,6 +23,8 @@
 #include <exception>
 #include <filesystem>
 #include <fstream>
+#include <future>
+#include <memory>
 #include <thread>
 
 #include <drogon/HttpClient.h>
@@ -80,7 +82,24 @@ public:
 
         Api::register_controllers();
         app().addListener("127.0.0.1", kPort).setThreadNum(1);
-        server_thread_ = std::thread([] { app().run(); });
+        // The main EventLoop was constructed on the main thread (the first app()
+        // touch — Core::initialize / register_controllers / addListener above),
+        // and trantor binds a loop to its constructing thread. Running app().run()
+        // on the server thread therefore trips the "forbidden to run loop on
+        // threads other than event-loop thread" abort (EventLoop.cc:269) — the
+        // intermittent startup crash. moveToCurrentThread() rebinds the loop; the
+        // started-barrier then blocks the main thread until the loop is actually
+        // looping here, closing the race where the main-thread HTTP client below
+        // touched the loop mid-rebind. The shared_ptr keeps the promise alive even
+        // if the wait times out before the in-loop callback runs.
+        auto loop_started = std::make_shared<std::promise<void>>();
+        auto started = loop_started->get_future();
+        server_thread_ = std::thread([loop_started] {
+            app().getLoop()->moveToCurrentThread();
+            app().getLoop()->queueInLoop([loop_started] { loop_started->set_value(); });
+            app().run();
+        });
+        started.wait_for(std::chrono::seconds(10));
 
         // Once the server thread is running, any exception thrown before we
         // return (e.g. the HTTP client throwing under a slow/loaded runner)
