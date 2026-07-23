@@ -80,7 +80,19 @@ public:
 
         Api::register_controllers();
         app().addListener("127.0.0.1", kPort).setThreadNum(1);
-        server_thread_ = std::thread([] { app().run(); });
+        server_thread_ = std::thread([] {
+            // The main EventLoop was constructed on the main thread (the first
+            // app() touch — Core::initialize / register_controllers / addListener
+            // above). trantor binds a loop to its constructing thread, so calling
+            // app().run() here trips the "forbidden to run loop on threads other
+            // than event-loop thread" abort (EventLoop.cc:269) — the intermittent
+            // startup crash this harness kept hitting. It also recurs because each
+            // per-test SetUp spawns a fresh server thread while the loop stays
+            // bound to the previous (now-dead) one. Rebind the loop to this thread
+            // before running it; the loop isn't looping yet, so the move is safe.
+            app().getLoop()->moveToCurrentThread();
+            app().run();
+        });
 
         // Once the server thread is running, any exception thrown before we
         // return (e.g. the HTTP client throwing under a slow/loaded runner)
