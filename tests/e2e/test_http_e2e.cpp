@@ -19,13 +19,12 @@
  */
 
 #include <chrono>
-#include <csignal>
 #include <cstdio>
-#include <cstdlib>
 #include <exception>
-#include <execinfo.h>
 #include <filesystem>
 #include <fstream>
+#include <future>
+#include <memory>
 #include <thread>
 
 #include <drogon/HttpClient.h>
@@ -83,19 +82,24 @@ public:
 
         Api::register_controllers();
         app().addListener("127.0.0.1", kPort).setThreadNum(1);
-        server_thread_ = std::thread([] {
-            // The main EventLoop was constructed on the main thread (the first
-            // app() touch — Core::initialize / register_controllers / addListener
-            // above). trantor binds a loop to its constructing thread, so calling
-            // app().run() here trips the "forbidden to run loop on threads other
-            // than event-loop thread" abort (EventLoop.cc:269) — the intermittent
-            // startup crash this harness kept hitting. It also recurs because each
-            // per-test SetUp spawns a fresh server thread while the loop stays
-            // bound to the previous (now-dead) one. Rebind the loop to this thread
-            // before running it; the loop isn't looping yet, so the move is safe.
+        // The main EventLoop was constructed on the main thread (the first app()
+        // touch — Core::initialize / register_controllers / addListener above),
+        // and trantor binds a loop to its constructing thread. Running app().run()
+        // on the server thread therefore trips the "forbidden to run loop on
+        // threads other than event-loop thread" abort (EventLoop.cc:269) — the
+        // intermittent startup crash. moveToCurrentThread() rebinds the loop; the
+        // started-barrier then blocks the main thread until the loop is actually
+        // looping here, closing the race where the main-thread HTTP client below
+        // touched the loop mid-rebind. The shared_ptr keeps the promise alive even
+        // if the wait times out before the in-loop callback runs.
+        auto loop_started = std::make_shared<std::promise<void>>();
+        auto started = loop_started->get_future();
+        server_thread_ = std::thread([loop_started] {
             app().getLoop()->moveToCurrentThread();
+            app().getLoop()->queueInLoop([loop_started] { loop_started->set_value(); });
             app().run();
         });
+        started.wait_for(std::chrono::seconds(10));
 
         // Once the server thread is running, any exception thrown before we
         // return (e.g. the HTTP client throwing under a slow/loaded runner)
@@ -388,16 +392,6 @@ int main(int argc, char** argv) {
         std::fflush(stdout);
         std::fflush(stderr);
         std::abort();
-    });
-    // TEMP diagnostic: trantor LOG_FATAL (wrong-thread loop) calls abort() →
-    // SIGABRT. Print the backtrace to pin the exact call site, then exit.
-    std::signal(SIGABRT, [](int) {
-        void* bt[64];
-        int n = backtrace(bt, 64);
-        std::fputs("\n=== e2e SIGABRT backtrace ===\n", stderr);
-        backtrace_symbols_fd(bt, n, fileno(stderr));
-        std::fflush(stderr);
-        std::_Exit(139);
     });
     ::testing::InitGoogleTest(&argc, argv);
     ::testing::AddGlobalTestEnvironment(new HttpServerEnvironment);
