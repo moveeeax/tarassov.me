@@ -12,18 +12,52 @@
 #include <optional>
 #include <pqxx/pqxx>
 #include <string>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
 namespace Domain {
 
+// Tags travel between the DB and the domain as one comma-joined TEXT column
+// (tags are constrained keywords with no commas — see migration 007). These two
+// helpers are the single split/join boundary; keep them a pair.
+inline std::vector<std::string> split_tags(const std::string& csv) {
+    std::vector<std::string> out;
+    std::size_t start = 0;
+    while (start <= csv.size()) {
+        std::size_t comma = csv.find(',', start);
+        std::string t = csv.substr(start, comma == std::string::npos ? std::string::npos : comma - start);
+        // Trim surrounding whitespace; drop empties (handles "" and trailing commas).
+        std::size_t b = t.find_first_not_of(" \t");
+        std::size_t e = t.find_last_not_of(" \t");
+        if (b != std::string::npos)
+            out.push_back(t.substr(b, e - b + 1));
+        if (comma == std::string::npos)
+            break;
+        start = comma + 1;
+    }
+    return out;
+}
+
+inline std::string join_tags(const std::vector<std::string>& tags) {
+    std::string out;
+    for (const auto& t : tags) {
+        if (!out.empty())
+            out += ',';
+        out += t;
+    }
+    return out;
+}
+
 struct Post {
     std::string id;    // UUID v4 (text)
     std::string slug;  // URL key
     std::string title;
-    std::string summary;  // list/teaser blurb
-    std::string body;     // Markdown source
-    std::string status;   // draft | published
+    std::string summary;            // list/teaser blurb
+    std::string body;               // Markdown source
+    std::string status;             // draft | published
+    std::string topic;              // section label (e.g. "Kubernetes")
+    std::vector<std::string> tags;  // keyword tags (drive the index tag cloud)
     std::optional<std::string> published_at;
     std::string created_at;
     std::string updated_at;
@@ -37,6 +71,8 @@ struct Post {
         e.summary = row["summary"].template as<std::string>();
         e.body = row["body"].template as<std::string>();
         e.status = row["status"].template as<std::string>();
+        e.topic = row["topic"].template as<std::string>();
+        e.tags = split_tags(row["tags"].template as<std::string>());
         if (!row["published_at"].is_null())
             e.published_at = row["published_at"].template as<std::string>();
         e.created_at = row["created_at"].template as<std::string>();
@@ -53,6 +89,8 @@ inline void to_json(nlohmann::json& j, const Post& e) {
         {"summary", e.summary},
         {"body", e.body},
         {"status", e.status},
+        {"topic", e.topic},
+        {"tags", e.tags},
         {"published_at", e.published_at ? nlohmann::json(*e.published_at) : nlohmann::json(nullptr)},
         {"created_at", e.created_at},
         {"updated_at", e.updated_at},

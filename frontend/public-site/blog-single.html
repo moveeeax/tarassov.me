@@ -24,62 +24,69 @@
     <link rel="icon" type="image/x-icon" href="images/ico/favicon.ico">
     <link rel="apple-touch-icon" href="images/ico/apple-touch-icon.png"/>
 
-    <!-- FONTS (article layout 1A: wordmark/h1 Alfa Slab One, meta/code Cutive
-         Mono, nav/h2 Oswald, body PT Serif) -->
+    <!-- FONTS: IBM Plex Mono for UI accents / code; Helvetica (system) for body -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Cutive+Mono&family=Oswald:wght@500;600&family=PT+Serif:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-    <!-- STYLES (article styles live in main.css under .post-1a) -->
+    <!-- Self-contained blog styling (no book/main.css chrome here) -->
     <link rel="stylesheet" type="text/css" href="css/normalize.css">
-    <link rel="stylesheet" type="text/css" href="css/main.css">
-    <link class="body-bg-skin" rel="stylesheet" type="text/css" href="css/skins/body-bg/wood.css">
-    <!-- the shared stylesheet pins html,body to height:100% for the book
-         page; blog documents must grow with their content, or backgrounds
-         paint one viewport high and the article gets clipped when scrolled -->
-    <style>html { height: auto; }</style>
+    <link rel="stylesheet" type="text/css" href="css/blog.css">
 
 </head>
 
-<!-- blog-page: re-enables native scrolling (main.css keeps body overflow:hidden
-     for the book mechanics on the vCard page). post-1a scopes the article styles. -->
-<body class="classic blog-page post-1a">
+<body class="blog">
 
-    <div class="post-sheet">
+    <!-- Scroll progress bar (width driven by js/blog.js) -->
+    <div class="blog-progress" id="blog-progress"></div>
 
-        <!-- compact top bar (no portrait hero on the article page) -->
-        <header class="post-topbar">
-            <a class="post-wordmark" href="/">M. TARASSOV</a>
-            <nav aria-label="Site">
+    <div class="blog-frame">
+        <nav class="blog-nav">
+            <a class="wordmark" href="/">M. TARASSOV</a>
+            <div class="links">
                 <a href="/">HOME</a>
                 <a class="active" href="blog.html">BLOG</a>
-            </nav>
+            </div>
+        </nav>
+    </div>
+
+    <!-- filled by js/blog.js from /api/v1/public/posts/{slug} -->
+    <article class="blog-article">
+
+        <header class="blog-post-head">
+            <a class="blog-back" href="blog.html">← ALL NOTES</a>
+            <div class="blog-post-topic" id="post-topic" hidden></div>
+            <h1 class="blog-post-title" id="post-title" hidden>Loading…</h1>
+            <p class="blog-post-dek" id="post-dek" hidden></p>
+            <div class="blog-post-meta" id="post-meta" hidden></div>
         </header>
 
-        <!-- filled by js/blog.js from /api/v1/public/posts/{slug} -->
-        <article class="post-article">
-            <div class="post-meta" id="post-meta" hidden></div>
-            <h1 class="post-title" id="post-title" hidden>Loading…</h1>
-            <div class="post-tags" id="post-tags" hidden></div>
-            <div class="post-body" id="post-content">
-                <p class="post-loading">Loading…</p>
-            </div>
-        </article>
+        <div class="blog-body" id="post-content">
+            <p class="blog-loading">Loading…</p>
+        </div>
+
+        <div class="blog-post-tags" id="post-tags" hidden></div>
 
         <!-- prev/next from the public posts index (date order); js/blog.js
              hides a side with no neighbour, or the whole bar -->
-        <nav class="post-pager" id="post-pager" hidden aria-label="Adjacent posts">
-            <a id="pager-prev" hidden>
-                <span class="post-pager-label">&larr; PREVIOUS</span>
-                <span class="post-pager-title"></span>
+        <nav class="blog-post-nav" id="post-pager" hidden aria-label="Adjacent posts">
+            <a id="pager-prev" class="prev" hidden>
+                <div class="label">← PREVIOUS</div>
+                <div class="title"></div>
             </a>
-            <a id="pager-next" hidden>
-                <span class="post-pager-label">NEXT &rarr;</span>
-                <span class="post-pager-title"></span>
+            <a id="pager-next" class="next" hidden>
+                <div class="label">NEXT →</div>
+                <div class="title"></div>
             </a>
         </nav>
 
-        <footer class="post-footer">&copy; 2026 Michael Tarassov</footer>
+    </article>
 
+    <div class="blog-frame">
+        <footer class="blog-footer">
+            <span>© 2026 MICHAEL TARASSOV</span>
+            <a href="https://github.com/moveeeax">GITHUB →</a>
+        </footer>
     </div>
 
     <!-- SCRIPTS (vanilla: no jquery/book machinery on the article page) -->
