@@ -20,6 +20,8 @@ TEST(PostDomain, ToJsonSerializesEveryField) {
     e.summary = "First post";
     e.body = "# Hello\n\nbody";
     e.status = "published";
+    e.topic = "Kubernetes";
+    e.tags = {"kubernetes", "talos"};
     e.published_at = "2026-01-02T00:00:00Z";
     e.created_at = "2026-01-01T00:00:00Z";
     e.updated_at = "2026-01-01T00:00:00Z";
@@ -32,9 +34,21 @@ TEST(PostDomain, ToJsonSerializesEveryField) {
     EXPECT_EQ(j["summary"], e.summary);
     EXPECT_EQ(j["body"], e.body);
     EXPECT_EQ(j["status"], e.status);
+    EXPECT_EQ(j["topic"], e.topic);
+    EXPECT_EQ(j["tags"], e.tags);  // serialized as a JSON array
+    EXPECT_TRUE(j["tags"].is_array());
     EXPECT_EQ(j["published_at"], *e.published_at);
     EXPECT_EQ(j["created_at"], e.created_at);
     EXPECT_EQ(j["updated_at"], e.updated_at);
+}
+
+TEST(PostDomain, TagsSplitJoinRoundTrip) {
+    // The comma-joined storage boundary must survive a round-trip and tolerate
+    // whitespace, empties and trailing commas from hand-authored input.
+    EXPECT_EQ(Domain::join_tags({"kubernetes", "talos", "c++"}), "kubernetes,talos,c++");
+    EXPECT_EQ(Domain::split_tags("kubernetes,talos,c++"), (std::vector<std::string>{"kubernetes", "talos", "c++"}));
+    EXPECT_EQ(Domain::split_tags(" kubernetes , talos ,"), (std::vector<std::string>{"kubernetes", "talos"}));
+    EXPECT_TRUE(Domain::split_tags("").empty());
 }
 
 TEST(PostDomain, ToJsonRendersNullPublishedAtForDrafts) {

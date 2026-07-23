@@ -24,63 +24,62 @@
     <link rel="icon" type="image/x-icon" href="images/ico/favicon.ico">
     <link rel="apple-touch-icon" href="images/ico/apple-touch-icon.png"/>
 
-    <!-- FONTS (shared with the article page, layout 1A/2A) -->
+    <!-- FONTS: IBM Plex Mono for UI accents; Helvetica (system) for body -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Cutive+Mono&family=Oswald:wght@500;600&family=PT+Serif:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-    <!-- STYLES (list styles live in main.css next to the .post-1a article set) -->
+    <!-- Self-contained blog styling (no book/main.css chrome here) -->
     <link rel="stylesheet" type="text/css" href="css/normalize.css">
-    <link rel="stylesheet" type="text/css" href="css/main.css">
-    <link class="body-bg-skin" rel="stylesheet" type="text/css" href="css/skins/body-bg/wood.css">
-    <!-- the shared stylesheet pins html,body to height:100% for the book
-         page; blog documents must grow with their content, or backgrounds
-         paint one viewport high and the article gets clipped when scrolled -->
-    <style>html { height: auto; }</style>
+    <link rel="stylesheet" type="text/css" href="css/blog.css">
 
 </head>
 
-<!-- blog-page: re-enables native scrolling; post-1a: shared sheet/topbar tokens -->
-<body class="classic blog-page post-1a">
+<body class="blog">
 
-    <div class="post-sheet">
+    <div class="blog-frame">
 
-        <!-- compact top bar, shared with blog-single (no portrait hero) -->
-        <header class="post-topbar">
-            <a class="post-wordmark" href="/">M. TARASSOV</a>
-            <nav aria-label="Site">
+        <nav class="blog-nav">
+            <a class="wordmark" href="/">M. TARASSOV</a>
+            <div class="links">
                 <a href="/">HOME</a>
                 <a class="active" href="blog.html">BLOG</a>
-            </nav>
-        </header>
-
-        <div class="post-article blog-col">
-
-            <h1 class="blog-title">the blog<span class="blog-title-dot">.</span></h1>
-            <p class="blog-subtitle">Notes on Kubernetes, Terraform, CI/CD and running this site's own infrastructure.</p>
-
-            <!-- tag filter: built by js/blog.js from the posts index; stays
-                 hidden while no post carries tags (the backend has none today) -->
-            <div class="blog-tag-filter" id="blog-tags" hidden></div>
-
-            <!-- post list (filled by js/blog.js from /api/v1/public/posts) -->
-            <div class="blog-posts" id="blog-posts">
-                <p class="post-loading">Loading…</p>
             </div>
-
-        </div>
-
-        <!-- client-side pagination; hidden while everything fits one page -->
-        <nav class="blog-pager" id="blog-pager" hidden aria-label="Pages">
-            <a id="blog-pager-newer" href="#">&larr; NEWER</a>
-            <span class="blog-pager-page" id="blog-pager-page"></span>
-            <a id="blog-pager-older" href="#">OLDER &rarr;</a>
         </nav>
 
-        <footer class="post-footer">&copy; 2026 Michael Tarassov</footer>
+        <header class="blog-header">
+            <div class="blog-eyebrow">FIELD NOTES FROM PRODUCTION</div>
+            <h1 class="blog-h1">the blog.</h1>
+            <p class="blog-sub">Write-ups on Kubernetes, Terraform, multi-cloud cost, Linux internals, the DevOps career, and the occasional algorithm. Filter by topic — click a tag.</p>
+        </header>
+
+        <!-- Filter panel: tag cloud + result label, built by js/blog.js -->
+        <section class="blog-filter" id="blog-filter" hidden>
+            <div class="blog-filter-head">
+                <div class="blog-filter-label">FILTER BY TOPIC</div>
+                <div class="blog-filter-result">
+                    <span id="blog-result"></span>
+                    <button type="button" class="blog-clear" id="blog-clear" hidden>CLEAR ✕</button>
+                </div>
+            </div>
+            <div class="blog-cloud" id="blog-cloud"></div>
+        </section>
+
+        <!-- Article list (filled by js/blog.js from /api/v1/public/posts) -->
+        <main class="blog-list" id="blog-posts">
+            <p class="blog-loading">Loading…</p>
+        </main>
+
+        <!-- Pagination (js/blog.js; shown only when >1 page) -->
+        <div id="blog-pager" hidden></div>
+
+        <footer class="blog-footer">
+            <span>© 2026 MICHAEL TARASSOV</span>
+            <a href="https://github.com/moveeeax">GITHUB →</a>
+        </footer>
 
     </div>
 
-    <!-- SCRIPTS (vanilla; no jquery/book machinery on the list page) -->
     <script src="js/blog.js"></script>
 
 </body>

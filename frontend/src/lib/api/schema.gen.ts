@@ -1786,6 +1786,10 @@ export interface paths {
                          * @enum {string}
                          */
                         status?: "draft" | "published";
+                        /** @description Section label (e.g. Kubernetes) */
+                        topic?: string;
+                        /** @description Keyword tags driving the index tag cloud. No commas or line breaks per tag. */
+                        tags?: string[];
                     };
                 };
             };
@@ -1914,6 +1918,10 @@ export interface paths {
                         body?: string;
                         /** @enum {string} */
                         status?: "draft" | "published";
+                        /** @description Section label (e.g. Kubernetes) */
+                        topic?: string;
+                        /** @description Keyword tags driving the index tag cloud. No commas or line breaks per tag. */
+                        tags?: string[];
                     };
                 };
             };
