@@ -16,16 +16,19 @@
 #include "database/Database.hpp"
 #include "domain/Post.hpp"
 #include "repositories/CrudBase.hpp"
+#include "repositories/RepoErrors.hpp"
 #include "repositories/SqlErrors.hpp"
 
 namespace Repositories {
 
-struct DuplicatePost : std::runtime_error {
-    DuplicatePost() : std::runtime_error("post already exists") {}
+// Derive from the generic repo bases so Api::with_repo_errors maps them to
+// 409 / 404 instead of a bare 500 (see RepoErrors.hpp / HandlerSupport.hpp).
+struct DuplicatePost : ConflictError {
+    DuplicatePost() : ConflictError("slug_taken", "a post with that slug already exists") {}
 };
 
-struct PostNotFound : std::runtime_error {
-    PostNotFound() : std::runtime_error("post not found") {}
+struct PostNotFound : NotFoundError {
+    PostNotFound() : NotFoundError("post") {}
 };
 
 // Public list filter (hybrid contract, spec 2026-07-25): every field optional.
@@ -163,7 +166,7 @@ private:
                 w += " AND topic = '" + txn.raw().esc(f.topic) + "'";
         }
         if (!f.tag.empty())
-            w += " AND (',' || tags || ',') LIKE ('%,' || '" + txn.raw().esc(f.tag) + "' || ',%')";
+            w += " AND (',' || tags || ',') LIKE ('%,' || '" + txn.raw().esc(escape_like(f.tag)) + "' || ',%')";
         if (!f.q.empty()) {
             const std::string qq = txn.raw().esc(escape_like(f.q));
             w += " AND (title ILIKE '%" + qq + "%' OR summary ILIKE '%" + qq + "%')";
@@ -180,7 +183,7 @@ private:
         if (!f.topic.empty())
             w += " AND topic = '" + txn.raw().esc(f.topic) + "'";
         if (!f.tag.empty())
-            w += " AND (',' || tags || ',') LIKE ('%,' || '" + txn.raw().esc(f.tag) + "' || ',%')";
+            w += " AND (',' || tags || ',') LIKE ('%,' || '" + txn.raw().esc(escape_like(f.tag)) + "' || ',%')";
         if (!f.q.empty()) {
             const std::string qq = txn.raw().esc(escape_like(f.q));
             w += " AND (title ILIKE '%" + qq + "%' OR slug ILIKE '%" + qq + "%' OR summary ILIKE '%" + qq + "%')";

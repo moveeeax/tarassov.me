@@ -34,6 +34,9 @@ ingress:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     external-dns.alpha.kubernetes.io/hostname: app.example.com        # TODO
     external-dns.alpha.kubernetes.io/target: "<your-loadbalancer-ip>" # TODO
+    # Media uploads are up to 5 MB; the ingress default (1m) 413s them before
+    # the frontend nginx (which also sets client_max_body_size 6m) is reached.
+    nginx.ingress.kubernetes.io/proxy-body-size: "6m"
   certManager:
     clusterIssuer: letsencrypt-prod
   hosts:

@@ -110,6 +110,10 @@ data:
         }
 
         location /api/ {
+            # Media uploads accept up to 5 MB (UploadController kMaxBytes); the
+            # nginx default 1m 413s a normal photo. Keep in sync with the ingress
+            # proxy-body-size annotation (values .ingress.annotations).
+            client_max_body_size 6m;
             proxy_pass http://{{ .Values.backend.service }}:{{ .Values.backend.port }};
             proxy_set_header Host              $host;
             # Pass through the X-Real-IP the ingress set (the REAL client) — NOT

@@ -321,9 +321,11 @@
                 }
 
                 if (tagsEl && Array.isArray(post.tags) && post.tags.length) {
+                    // Absolute /blog.html — a relative "blog.html" resolves
+                    // against /blog/<slug> to the dead /blog/blog.html.
                     tagsEl.innerHTML = post.tags
                         .map(function (t) {
-                            return '<a href="blog.html">' + esc(t) + "</a>";
+                            return '<a href="/blog.html">' + esc(t) + "</a>";
                         })
                         .join("");
                     tagsEl.removeAttribute("hidden");

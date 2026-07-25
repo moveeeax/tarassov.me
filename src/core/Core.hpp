@@ -299,6 +299,16 @@ private:
             primary = Utils::Pg::make_conninfo(host, port, user, name, password);
         } else {
             check_password_safety(primary);
+            // A user-supplied URL/DSN also needs a bounded connect, else a
+            // blackholed endpoint wedges request threads for ~2 min (see
+            // make_conninfo). Append a default only when none is pinned; the
+            // URL form takes ?connect_timeout=, the key=value form a space kv.
+            if (!Utils::Pg::has_connect_timeout(primary)) {
+                const bool url_form = primary.rfind("postgres", 0) == 0 && primary.find("://") != std::string::npos;
+                primary += url_form
+                               ? (primary.find('?') == std::string::npos ? "?connect_timeout=5" : "&connect_timeout=5")
+                               : " connect_timeout=5";
+            }
         }
         int pool_size = cfg.get<int>("database.pool_size", "DB_POOL_SIZE", 10);
         int acquire_ms = cfg.get<int>("database.acquire_timeout_ms", "DB_ACQUIRE_TIMEOUT_MS", 5000);

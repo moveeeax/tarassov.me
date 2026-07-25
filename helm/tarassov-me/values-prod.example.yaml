@@ -105,6 +105,11 @@ jobs:
 rateLimit:
   enabled: true
   failOpen: false
+  # REQUIRED behind the ingress -> frontend-nginx -> API hop chain: without it
+  # the limiter keys on the frontend pod IP, so ALL visitors share one bucket
+  # and 10 login/contact requests/min site-wide 429s everyone (fail-closed
+  # lockout). The frontend nginx forwards the ingress's X-Real-IP for this.
+  trustProxy: true
 
 # De-duplicate retried mutating requests carrying an Idempotency-Key header.
 idempotency:
