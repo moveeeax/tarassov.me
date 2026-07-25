@@ -1,18 +1,22 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { Trash2, Pencil, ExternalLink } from 'lucide-react';
 
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DataTable, type Column } from '@/components/DataTable';
+import { Modal } from '@/components/Modal';
+import { PaginationFooter } from '@/components/PaginationFooter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { useErrorToast } from '@/hooks/useErrorToast';
+import { usePagedQuery } from '@/hooks/usePagedQuery';
 import { api, csrfHeader } from '@/lib/api/client';
 import { qk } from '@/lib/api/queryKeys';
+
+const PER_PAGE = 20;
 
 /**
  * AdminPostsPage — blog CMS. Lists every post (drafts included), creates,
@@ -58,9 +62,11 @@ export function AdminPostsPage() {
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Post | null>(null);
 
-  const postsQ = useQuery({
+  const { data, isLoading, error, isPlaceholderData, page, setPage, totalPages } = usePagedQuery({
     queryKey: qk.admin.posts(),
-    queryFn: () => api.getJson<{ data: Post[]; total: number }>('/api/v1/posts?limit=200'),
+    queryFn: ({ limit, offset }) =>
+      api.getJson<{ data: Post[]; total: number }>('/api/v1/posts', { query: { limit, offset } }),
+    perPage: PER_PAGE,
   });
 
   const create = useApiMutation(
@@ -106,7 +112,11 @@ export function AdminPostsPage() {
         <>
           {p.status === 'published' && (
             <Button asChild size="sm" variant="ghost" title="View on the public site">
-              <a href={`/blog-single.html?slug=${encodeURIComponent(p.slug)}`} target="_blank" rel="noopener">
+              <a
+                href={`/blog-single.html?slug=${encodeURIComponent(p.slug)}`}
+                target="_blank"
+                rel="noopener"
+              >
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             </Button>
@@ -141,47 +151,68 @@ export function AdminPostsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{postsQ.data ? `${postsQ.data.total} post(s)` : 'Loading…'}</CardTitle>
+          <CardTitle>{data ? `${data.total} post(s)` : 'Loading…'}</CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <DataTable
             columns={columns}
-            rows={postsQ.data?.data}
+            rows={data?.data}
             rowKey={(p) => p.id}
-            isLoading={postsQ.isLoading}
-            error={postsQ.error}
+            isLoading={isLoading}
+            error={error}
             emptyText="No posts yet."
+            isPlaceholder={isPlaceholderData}
           />
+          {data && (
+            <PaginationFooter
+              page={page}
+              totalPages={totalPages}
+              isPlaceholderData={isPlaceholderData}
+              onPageChange={setPage}
+            />
+          )}
         </CardContent>
       </Card>
 
       {creating && (
-        <PostFormCard
-          key="new"
-          title="New post"
-          initial={{ slug: '', title: '', summary: '', body: '', status: 'draft', topic: '', tags: [] }}
-          submitting={create.isPending}
-          onSubmit={(form) => create.mutate(form)}
-          onCancel={() => setCreating(false)}
-        />
+        <Modal onClose={() => setCreating(false)}>
+          <PostFormCard
+            key="new"
+            title="New post"
+            initial={{
+              slug: '',
+              title: '',
+              summary: '',
+              body: '',
+              status: 'draft',
+              topic: '',
+              tags: [],
+            }}
+            submitting={create.isPending}
+            onSubmit={(form) => create.mutate(form)}
+            onCancel={() => setCreating(false)}
+          />
+        </Modal>
       )}
       {editing && (
-        <PostFormCard
-          key={editing.id}
-          title={`Edit: ${editing.title}`}
-          initial={{
-            slug: editing.slug,
-            title: editing.title,
-            summary: editing.summary,
-            body: editing.body,
-            status: editing.status,
-            topic: editing.topic ?? '',
-            tags: editing.tags ?? [],
-          }}
-          submitting={update.isPending}
-          onSubmit={(form) => update.mutate({ id: editing.id, form })}
-          onCancel={() => setEditing(null)}
-        />
+        <Modal onClose={() => setEditing(null)}>
+          <PostFormCard
+            key={editing.id}
+            title={`Edit: ${editing.title}`}
+            initial={{
+              slug: editing.slug,
+              title: editing.title,
+              summary: editing.summary,
+              body: editing.body,
+              status: editing.status,
+              topic: editing.topic ?? '',
+              tags: editing.tags ?? [],
+            }}
+            submitting={update.isPending}
+            onSubmit={(form) => update.mutate({ id: editing.id, form })}
+            onCancel={() => setEditing(null)}
+          />
+        </Modal>
       )}
       {deleting && (
         <ConfirmDialog
