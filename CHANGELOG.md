@@ -6,6 +6,36 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- **Blog API contract v2 (breaking, in place).** The public list is
+  `{items,page,limit,total}` with server-side `topic/tag/q` filters, 1-based
+  `page`, `limit` ≤ 50 and `include=facets`; the client no longer fetches the
+  whole feed (`?limit=1000` is gone). The by-slug read gains
+  `include=adjacent` (prev/next) and `?preview=`. The admin list gains
+  `q/status/topic/tag` filters. All API timestamps are ISO 8601 UTC.
+- **SEO surface rebuilt.** Absolute URLs derive from `site.base_url`
+  (`SITE_BASE_URL`, required https in prod — the binary refuses to start
+  without it); SSR post pages render from `templates/pages/` file templates
+  and embed a `#post-data` island so the page hydrates without a second
+  fetch; the sitemap sends `Cache-Control: max-age=3600`.
+- **Index filter is single-select** (one topic OR one tag), server-filtered;
+  the tag cloud and counts come from server facets.
+
+### Added
+- Draft preview: `POST /api/v1/posts/{id}/preview-token` issues a signed
+  1-hour link; `/blog/<slug>?preview=` renders the draft with `noindex`.
+  Drafts never appear in lists, facets or the sitemap.
+- Media library: `GET`/`DELETE /api/v1/admin/uploads` (+ `StorageBackend::list`
+  for local and S3) and an admin Media page.
+- Admin posts list: search box + status filter; the view action uses the
+  clean `/blog/<slug>` URL and drafts get a Preview button.
+- Migration 008: numeric-slug posts get `topic='LeetCode'` (the derivation is
+  removed from JS — the server owns topic).
+
+### Removed
+- `/blog-single.html` (endpoint, nginx locations, static shell, `?slug=`
+  fallback). Old links now 404 — accepted risk (spec 2026-07-25).
+
 ## [1.7.0] — 2026-07-25
 
 ### Added

@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2, Pencil, ExternalLink } from 'lucide-react';
+import { Trash2, Pencil, ExternalLink, Eye } from 'lucide-react';
 
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DataTable, type Column } from '@/components/DataTable';
@@ -62,12 +62,44 @@ export function AdminPostsPage() {
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Post | null>(null);
 
+  // Server-side search/filter (blog API contract v2): q is debounced so we
+  // don't fire a request per keystroke; the filter is part of the query key,
+  // so each combination caches separately.
+  const [q, setQ] = useState('');
+  const [status, setStatus] = useState<'' | 'draft' | 'published'>('');
+  const [qDebounced, setQDebounced] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setQDebounced(q), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+  const filterKey = JSON.stringify({ q: qDebounced, status });
+
   const { data, isLoading, error, isPlaceholderData, page, setPage, totalPages } = usePagedQuery({
-    queryKey: qk.admin.posts(),
+    queryKey: qk.admin.posts(filterKey),
     queryFn: ({ limit, offset }) =>
-      api.getJson<{ data: Post[]; total: number }>('/api/v1/posts', { query: { limit, offset } }),
+      api.getJson<{ data: Post[]; total: number }>('/api/v1/posts', {
+        query: {
+          limit,
+          offset,
+          ...(qDebounced ? { q: qDebounced } : {}),
+          ...(status ? { status } : {}),
+        },
+      }),
     perPage: PER_PAGE,
   });
+  // usePagedQuery owns the page state; changing the filter must land on page 1.
+  useEffect(() => {
+    setPage(1);
+  }, [filterKey, setPage]);
+
+  const preview = useApiMutation(
+    (id: string) =>
+      api.postJson<{ data: { url: string; expires_at: string } }>(
+        `/api/v1/posts/${id}/preview-token`,
+        { body: {} },
+      ),
+    { onSuccess: (res) => window.open(res.data.url, '_blank', 'noopener') },
+  );
 
   const create = useApiMutation(
     (form: PostForm) => api.postJson<{ data: Post }>('/api/v1/posts', { body: form }),
@@ -91,7 +123,7 @@ export function AdminPostsPage() {
     onSuccess: () => setDeleting(null),
   });
 
-  useErrorToast(create.error ?? update.error ?? remove.error);
+  useErrorToast(create.error ?? update.error ?? remove.error ?? preview.error);
 
   const columns: Column<Post>[] = [
     { header: 'Title', className: 'font-medium', cell: (p) => p.title },
@@ -110,15 +142,21 @@ export function AdminPostsPage() {
       className: 'text-right space-x-1',
       cell: (p) => (
         <>
-          {p.status === 'published' && (
+          {p.status === 'published' ? (
             <Button asChild size="sm" variant="ghost" title="View on the public site">
-              <a
-                href={`/blog-single.html?slug=${encodeURIComponent(p.slug)}`}
-                target="_blank"
-                rel="noopener"
-              >
+              <a href={`/blog/${encodeURIComponent(p.slug)}`} target="_blank" rel="noopener">
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              title="Preview draft (1-hour link)"
+              disabled={preview.isPending}
+              onClick={() => preview.mutate(p.id)}
+            >
+              <Eye className="h-3.5 w-3.5" />
             </Button>
           )}
           <Button size="sm" variant="ghost" onClick={() => setEditing(p)}>
@@ -147,6 +185,23 @@ export function AdminPostsPage() {
           </Button>
           <Button onClick={() => setCreating(true)}>New post</Button>
         </div>
+      </div>
+
+      <div className="flex gap-2">
+        <Input
+          placeholder="Search title, slug, summary…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        <select
+          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          value={status}
+          onChange={(e) => setStatus(e.target.value as '' | 'draft' | 'published')}
+        >
+          <option value="">all</option>
+          <option value="draft">draft</option>
+          <option value="published">published</option>
+        </select>
       </div>
 
       <Card>
