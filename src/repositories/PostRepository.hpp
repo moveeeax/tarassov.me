@@ -35,6 +35,15 @@ struct PublicListFilter {
     std::string q;      // ILIKE over title+summary
 };
 
+// Admin list filter: like the public one but sees drafts, filters by status,
+// and q additionally covers the slug (admins look posts up by slug).
+struct AdminListFilter {
+    std::string q;
+    std::string status;  // "" | draft | published
+    std::string topic;
+    std::string tag;
+};
+
 // Writable fields parsed from a request body (id/timestamps are server-owned;
 // published_at is derived from status transitions, not set directly).
 struct PostInput {
@@ -162,7 +171,44 @@ private:
         return w;
     }
 
+private:
+    template <typename Txn>
+    static std::string admin_where(Txn& txn, const AdminListFilter& f) {
+        std::string w = "TRUE";
+        if (!f.status.empty())
+            w += " AND status = '" + txn.raw().esc(f.status) + "'";
+        if (!f.topic.empty())
+            w += " AND topic = '" + txn.raw().esc(f.topic) + "'";
+        if (!f.tag.empty())
+            w += " AND (',' || tags || ',') LIKE ('%,' || '" + txn.raw().esc(f.tag) + "' || ',%')";
+        if (!f.q.empty()) {
+            const std::string qq = txn.raw().esc(escape_like(f.q));
+            w += " AND (title ILIKE '%" + qq + "%' OR slug ILIKE '%" + qq + "%' OR summary ILIKE '%" + qq + "%')";
+        }
+        return w;
+    }
+
 public:
+    std::vector<Domain::Post> list_admin(const AdminListFilter& f, int limit, int offset) {
+        return Database::get().execute_read([&](auto& txn) {
+            auto r = txn.exec(std::string("SELECT ") + kColumns + " FROM posts WHERE " + admin_where(txn, f) +
+                              " ORDER BY created_at DESC LIMIT " + std::to_string(limit) + " OFFSET " +
+                              std::to_string(offset));
+            std::vector<Domain::Post> out;
+            out.reserve(r.size());
+            for (const auto& row : r)
+                out.push_back(Domain::Post::from_row(row));
+            return out;
+        });
+    }
+
+    long count_admin(const AdminListFilter& f) {
+        return Database::get().execute_read([&](auto& txn) {
+            auto r = txn.exec("SELECT count(*) FROM posts WHERE " + admin_where(txn, f));
+            return r[0][0].template as<long>();
+        });
+    }
+
     // Lightweight list projection: no body column, and read_mins computed in
     // SQL (ceil(words / 200), floor 1) so the public index ships without any
     // Markdown bodies. Word count = whitespace-split token count of the trimmed

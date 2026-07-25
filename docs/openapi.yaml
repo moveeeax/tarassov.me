@@ -311,13 +311,6 @@ paths:
             text/html:
               schema: { type: string }
         '404': { description: No published post with that slug }
-  /blog-single.html:
-    get:
-      summary: Legacy blog-post URL — redirects to the clean /blog/{slug} path
-      tags: [public]
-      responses:
-        '301': { description: Permanent redirect to the canonical post URL }
-        '404': { description: Unknown or missing post reference }
 
   # ── Auth ───────────────────────────────────────────────────────────────────
   /api/v1/auth/register:
@@ -875,12 +868,16 @@ paths:
 
   /api/v1/posts:
     get:
-      summary: List posts (admin; offset-paginated)
+      summary: List posts (admin; offset-paginated, filterable)
       tags: [posts]
       security: [{ BearerAuth: [] }]
       parameters:
         - { name: limit,  in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
         - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: q,      in: query, schema: { type: string }, description: Case-insensitive search over title+slug+summary }
+        - { name: status, in: query, schema: { type: string, enum: [draft, published] } }
+        - { name: topic,  in: query, schema: { type: string } }
+        - { name: tag,    in: query, schema: { type: string } }
       responses:
         '200': { description: "{ data, total, limit, offset }" }
         '403': { description: Not an admin }
@@ -1066,4 +1063,28 @@ paths:
         '201': { description: "Stored — { data: { key, url } }" }
         '400': { description: Missing/unsupported/oversized file }
         '403': { description: Not an admin }
+        '503': { description: Storage backend not configured }
+    get:
+      summary: "Admin: list uploaded images (media library)"
+      tags: [uploads]
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: limit,  in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        '200': { description: "{ data: [ { key, name, url, size_bytes, content_type, created_at } ], total, limit, offset } — newest first" }
+        '403': { description: Not an admin }
+        '503': { description: Storage backend not configured }
+  /api/v1/admin/uploads/{name}:
+    parameters:
+      - { name: name, in: path, required: true, schema: { type: string }, description: Single-segment basename of an upload key (posts/<name>) }
+    delete:
+      summary: "Admin: delete an uploaded image"
+      tags: [uploads]
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200': { description: Deleted }
+        '400': { description: Name is not a single URL-safe segment }
+        '403': { description: Not an admin }
+        '404': { description: No such upload }
         '503': { description: Storage backend not configured }

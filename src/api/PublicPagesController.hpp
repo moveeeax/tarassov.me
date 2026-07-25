@@ -1,14 +1,13 @@
 /**
  * @file PublicPagesController.hpp
  * @brief Server-rendered public entry points for SEO — a dynamic sitemap over
- *        published posts, clean per-post URLs (/blog/<slug>) with a real head
- *        (title, canonical, OG, JSON-LD BlogPosting) so crawlers and link
- *        previews get correct per-post metadata before JS runs, and a 301 from
- *        the old /blog-single.html?slug= form.
+ *        published posts and clean per-post URLs (/blog/<slug>) with a real
+ *        head (title, canonical, OG, JSON-LD BlogPosting) so crawlers and link
+ *        previews get correct per-post metadata before JS runs.
  *
- * The article BODY is still hydrated client-side by /js/blog.js (Google renders
- * JS); this controller only guarantees the head + the shell js/blog.js targets.
- * The nginx frontend proxies /sitemap.xml, /blog/ and /blog-single.html here.
+ * The article BODY is still hydrated client-side by /js/blog.js (from the
+ * embedded #post-data island); this controller guarantees the head + shell.
+ * The nginx frontend proxies /sitemap.xml and /blog/ here.
  */
 
 #pragma once
@@ -36,7 +35,6 @@ public:
     METHOD_LIST_BEGIN
     ADD_METHOD_TO(PublicPagesController::sitemap, "/sitemap.xml", Get);
     ADD_METHOD_TO(PublicPagesController::blogPost, "/blog/{1}", Get);
-    ADD_METHOD_TO(PublicPagesController::blogSingleRedirect, "/blog-single.html", Get);
     METHOD_LIST_END
 
     // GET /sitemap.xml — home + blog index + every published post (clean URL).
@@ -134,13 +132,6 @@ public:
                           }));
         resp->setContentTypeCode(CT_TEXT_HTML);
         cb(resp);
-    }
-
-    // GET /blog-single.html?slug=X — 301 to the clean URL (back-compat).
-    void blogSingleRedirect(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& cb) {
-        const std::string slug = req->getParameter("slug");
-        const std::string target = slug.empty() ? "/blog.html" : "/blog/" + slug;
-        cb(HttpResponse::newRedirectionResponse(target, k301MovedPermanently));
     }
 
 private:

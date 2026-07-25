@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <ctime>
@@ -25,12 +26,14 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include <curl/curl.h>
 #include <spdlog/spdlog.h>
 
 #include "utils/Config.hpp"
 #include "utils/Crypto.hpp"
+#include "utils/Time.hpp"
 
 namespace Storage {
 
@@ -38,11 +41,21 @@ namespace Storage {
 /// failure; get()/exists() return empty/false for a simply-absent object.
 class StorageBackend {
 public:
+    /// One stored object, as reported by list().
+    struct ObjectInfo {
+        std::string key;
+        std::size_t size_bytes = 0;
+        std::string last_modified;  // ISO 8601 UTC, or empty when unknown
+    };
+
     virtual ~StorageBackend() = default;
     virtual void put(const std::string& key, const std::string& bytes, const std::string& content_type) = 0;
     virtual std::optional<std::string> get(const std::string& key) = 0;
     virtual bool remove(const std::string& key) = 0;
     virtual bool exists(const std::string& key) = 0;
+    /// Objects under @p prefix, newest first. Backends may truncate very large
+    /// listings (S3: one ListObjectsV2 page, 1000 keys) — they log when so.
+    virtual std::vector<ObjectInfo> list(const std::string& prefix) = 0;
     /// A URL/locator a client can use to fetch the object (backend-specific:
     /// a public base + key for local/CDN, or a presigned URL for S3).
     virtual std::string url(const std::string& key) = 0;
@@ -96,6 +109,37 @@ public:
     bool exists(const std::string& key) override {
         std::error_code ec;
         return std::filesystem::exists(resolve(key), ec);
+    }
+
+    std::vector<ObjectInfo> list(const std::string& prefix) override {
+        if (!key_is_safe(prefix.empty() ? std::string("x") : prefix))
+            throw std::runtime_error("storage: unsafe prefix");
+        std::vector<ObjectInfo> out;
+        std::error_code ec;
+        const auto base = root_ / prefix;
+        if (!std::filesystem::exists(base, ec))
+            return out;
+        for (auto it = std::filesystem::recursive_directory_iterator(base, ec);
+             it != std::filesystem::recursive_directory_iterator();
+             ++it) {
+            if (!it->is_regular_file(ec))
+                continue;
+            ObjectInfo o;
+            o.key = prefix + std::filesystem::relative(it->path(), base, ec).generic_string();
+            o.size_bytes = static_cast<std::size_t>(it->file_size(ec));
+            // file_time_type → system_clock epoch (C++20 clock_cast is not in
+            // every stdlib yet; offset via the two clocks' current now()).
+            const auto ft = std::filesystem::last_write_time(*it, ec);
+            const auto sys = std::chrono::system_clock::now().time_since_epoch() -
+                             std::filesystem::file_time_type::clock::now().time_since_epoch() + ft.time_since_epoch();
+            o.last_modified =
+                Utils::Time::epoch_to_iso8601(std::chrono::duration_cast<std::chrono::seconds>(sys).count());
+            out.push_back(std::move(o));
+        }
+        std::sort(out.begin(), out.end(), [](const ObjectInfo& a, const ObjectInfo& b) {
+            return a.last_modified > b.last_modified;
+        });
+        return out;
     }
 
     std::string url(const std::string& key) override {
@@ -159,6 +203,51 @@ public:
 
     bool exists(const std::string& key) override { return request("HEAD", key, "", "", nullptr) == 200; }
 
+    std::vector<ObjectInfo> list(const std::string& prefix) override {
+        // One ListObjectsV2 page (max 1000 keys) — plenty for a personal blog's
+        // uploads; a warning fires if S3 reports truncation.
+        std::string body;
+        const std::string query = "list-type=2&prefix=" + uri_encode_query(prefix);
+        const long code = signed_request("GET", "/" + cfg_.bucket, query, "", "", &body);
+        if (code != 200)
+            throw std::runtime_error("s3: LIST failed with HTTP " + std::to_string(code));
+        std::vector<ObjectInfo> out;
+        std::size_t pos = 0;
+        while ((pos = body.find("<Contents>", pos)) != std::string::npos) {
+            const auto end = body.find("</Contents>", pos);
+            if (end == std::string::npos)
+                break;
+            auto grab = [&](const char* tag) -> std::string {
+                const std::string open = std::string("<") + tag + ">";
+                const std::string close = std::string("</") + tag + ">";
+                const auto a = body.find(open, pos);
+                if (a == std::string::npos || a > end)
+                    return {};
+                const auto b = body.find(close, a);
+                if (b == std::string::npos || b > end)
+                    return {};
+                return body.substr(a + open.size(), b - a - open.size());
+            };
+            ObjectInfo o;
+            o.key = grab("Key");
+            const std::string sz = grab("Size");
+            o.size_bytes = sz.empty() ? 0 : static_cast<std::size_t>(std::stoull(sz));
+            std::string lm = grab("LastModified");  // 2026-07-25T05:34:32.000Z
+            if (lm.size() > 20)
+                lm = lm.substr(0, 19) + "Z";
+            o.last_modified = lm;
+            if (!o.key.empty())
+                out.push_back(std::move(o));
+            pos = end;
+        }
+        if (body.find("<IsTruncated>true</IsTruncated>") != std::string::npos)
+            spdlog::warn("s3 list: >1000 objects under '{}' — listing truncated", prefix);
+        std::sort(out.begin(), out.end(), [](const ObjectInfo& a, const ObjectInfo& b) {
+            return a.last_modified > b.last_modified;
+        });
+        return out;
+    }
+
     std::string url(const std::string& key) override {
         if (!key_is_safe(key))
             throw std::runtime_error("storage: unsafe key");
@@ -215,6 +304,24 @@ private:
         return out;
     }
 
+    // Query-value encoding: like the path form but '/' is percent-encoded too
+    // (SigV4 canonical query values must encode it).
+    static std::string uri_encode_query(const std::string& s) {
+        static const char* hex = "0123456789ABCDEF";
+        std::string out;
+        for (unsigned char c : s) {
+            if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_' ||
+                c == '.' || c == '~')
+                out.push_back(static_cast<char>(c));
+            else {
+                out.push_back('%');
+                out.push_back(hex[c >> 4]);
+                out.push_back(hex[c & 0xF]);
+            }
+        }
+        return out;
+    }
+
     static void amz_dates(std::string& amzdate, std::string& datestamp) {
         const std::time_t t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
         std::tm tm{};
@@ -237,17 +344,26 @@ private:
                  std::string* out) {
         if (!key_is_safe(key))
             throw std::runtime_error("storage: unsafe key '" + key + "'");
+        return signed_request(method, "/" + cfg_.bucket + "/" + uri_encode_path(key), "", body, content_type, out);
+    }
 
+    // SigV4-signed request against an explicit canonical URI + query (query
+    // must already be canonically encoded and '&'-joined in sorted key order).
+    long signed_request(const std::string& method,
+                        const std::string& canonical_uri,
+                        const std::string& canonical_query,
+                        const std::string& body,
+                        const std::string& content_type,
+                        std::string* out) {
         std::string amzdate, datestamp;
         amz_dates(amzdate, datestamp);
 
         const std::string payload_hash = Utils::Crypto::sha256_hex(body);
-        const std::string canonical_uri = "/" + cfg_.bucket + "/" + uri_encode_path(key);
         const std::string canonical_headers =
             "host:" + host_ + "\n" + "x-amz-content-sha256:" + payload_hash + "\n" + "x-amz-date:" + amzdate + "\n";
         const std::string signed_headers = "host;x-amz-content-sha256;x-amz-date";
-        const std::string canonical_request = method + "\n" + canonical_uri + "\n" + "" + "\n" + canonical_headers +
-                                              "\n" + signed_headers + "\n" + payload_hash;
+        const std::string canonical_request = method + "\n" + canonical_uri + "\n" + canonical_query + "\n" +
+                                              canonical_headers + "\n" + signed_headers + "\n" + payload_hash;
 
         const std::string scope = datestamp + "/" + cfg_.region + "/s3/aws4_request";
         const std::string string_to_sign =
@@ -268,7 +384,8 @@ private:
         if (!h)
             throw std::runtime_error("s3: curl_easy_init failed");
 
-        const std::string full_url = cfg_.endpoint + canonical_uri;
+        const std::string full_url =
+            cfg_.endpoint + canonical_uri + (canonical_query.empty() ? "" : "?" + canonical_query);
         curl_easy_setopt(h, CURLOPT_URL, full_url.c_str());
         curl_easy_setopt(h, CURLOPT_TIMEOUT, cfg_.timeout_sec);
 

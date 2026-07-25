@@ -45,9 +45,18 @@ public:
     void listPosts(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
         API_REQUIRE_ADMIN(req, callback);
         const auto page = parse_page_params(req, /*default_limit=*/50, /*max_limit=*/200);
+        Repositories::AdminListFilter f;
+        f.q = req->getParameter("q");
+        f.status = req->getParameter("status");
+        f.topic = req->getParameter("topic");
+        f.tag = req->getParameter("tag");
+        if (!f.status.empty() && f.status != "draft" && f.status != "published") {
+            callback(ErrorResponse::bad_request("invalid_status", "status must be draft or published"));
+            return;
+        }
         Repositories::PostRepository repo;
-        auto items = repo.list(page.limit, page.offset);
-        long total = repo.count();
+        auto items = repo.list_admin(f, page.limit, page.offset);
+        long total = repo.count_admin(f);
         json data = json::array();
         for (const auto& e : items)
             data.push_back(e);
