@@ -668,7 +668,12 @@ First tagged release. Highlights of the pre-release hardening pass:
 - OpenSSL linked explicitly for HMAC-SHA256 (JWT signature) and SHA-256
   (Idempotency-Key body hash); constant-time compare via `CRYPTO_memcmp`.
 
-[Unreleased]: https://github.com/moveeeax/tarassov.me/compare/v1.5.5...main
+[Unreleased]: https://github.com/moveeeax/tarassov.me/compare/v2.0.0...main
+[2.0.0]: https://github.com/moveeeax/tarassov.me/compare/v1.7.0...v2.0.0
+[1.7.0]: https://github.com/moveeeax/tarassov.me/compare/v1.6.2...v1.7.0
+[1.6.2]: https://github.com/moveeeax/tarassov.me/compare/v1.6.1...v1.6.2
+[1.6.1]: https://github.com/moveeeax/tarassov.me/compare/v1.6.0...v1.6.1
+[1.6.0]: https://github.com/moveeeax/tarassov.me/compare/v1.5.5...v1.6.0
 [1.5.5]: https://github.com/moveeeax/tarassov.me/compare/v1.5.4...v1.5.5
 [1.5.4]: https://github.com/moveeeax/tarassov.me/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/moveeeax/tarassov.me/compare/v1.5.2...v1.5.3

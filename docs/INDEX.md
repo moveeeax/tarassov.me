@@ -12,7 +12,7 @@ question instead of grepping the tree.
 | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | Pre-commit setup, dev workflow, commit-message convention, release flow |
 | [`../SECURITY.md`](../SECURITY.md) | Disclosure policy + production-hardening checklist |
 | [`../CHANGELOG.md`](../CHANGELOG.md) | Versioned change log (semver, edited under `## [Unreleased]`) |
-| [`../REMOVING-THE-DEMO.md`](../REMOVING-THE-DEMO.md) | What's reference-only (flask-base) vs the real app, and how to strip it (`init-project.sh --no-demo`) |
+| [`../REMOVING-THE-DEMO.md`](../REMOVING-THE-DEMO.md) | What's reference-only (flask-base) vs the real app, and how to strip it |
 
 ## Worked examples & deep-dives
 
@@ -23,7 +23,6 @@ question instead of grepping the tree.
 | [`CONFIG.md`](CONFIG.md) | Single table mapping every JSON key ↔ env var ↔ default |
 | [`TESTING.md`](TESTING.md) | Test buckets (unit/integration/api/e2e), what's covered vs not, coverage, the disabled-race note |
 | [`BENCHMARKS.md`](BENCHMARKS.md) | How to measure latency/throughput/footprint (`make bench` + presets) + a results template |
-| [`PATTERNS-FROM-FLASK-BASE.md`](PATTERNS-FROM-FLASK-BASE.md) | Authoritative list of patterns lifted from flask-base (file-level mapping included) |
 | [`openapi.yaml`](openapi.yaml) | OpenAPI 3.1 spec for every registered route. `scripts/check-openapi-drift.sh` keeps it honest; `frontend/npm run gen:api` consumes it for typed client |
 | [`Doxyfile`](Doxyfile) | `make docs` configuration; output goes to `docs/html/` (gitignored) |
 
@@ -78,7 +77,6 @@ question instead of grepping the tree.
 
 | Script | Purpose |
 |---|---|
-| `init-project.sh` | One-shot rename of template identity (project name, registry, helm charts) |
 | `new-resource.sh` | Scaffold a FULL CRUD resource (domain + repository + controller + registry + openapi + test) per docs/CONVENTIONS.md |
 | `new-endpoint.sh` | Scaffold a single controller + registry row + optional test + optional OpenAPI patch |
 | `new-job.sh` | Scaffold a background-job handler that self-registers with the dispatcher (one `#include` to wire into the worker) |
