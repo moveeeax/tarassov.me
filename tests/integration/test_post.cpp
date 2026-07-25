@@ -201,20 +201,29 @@ TEST_F(PostsFlowTest, PublicListClampsLimitTo50) {
 }
 
 TEST_F(PostsFlowTest, LeetCodeTopicBackfill) {
-    // Migration 008 persists the old JS derivation (numeric slug → LeetCode).
-    // A fresh test DB has already run it, so re-run the statement against a
-    // post created afterwards and assert the backfill semantics hold.
-    json body = {{"slug", "123-two-sum"}, {"title", "Two Sum"}, {"status", "published"}};
-    auto resp = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, body), std::move(cb)); });
-    ASSERT_EQ(resp->statusCode(), k201Created);
+    // Migrations 008+009 persist the old JS display rule: EVERY numeric-slug
+    // post folds into topic "LeetCode" — 008 covered blank topics, 009 folds
+    // category topics (Array/String/...) too, which the JS used to override.
+    // A fresh test DB has already run both; re-run the 009 statement against
+    // posts created afterwards and assert the fold semantics hold.
+    json blank = {{"slug", "123-two-sum"}, {"title", "Two Sum"}, {"status", "published"}};
+    auto r1 = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, blank), std::move(cb)); });
+    ASSERT_EQ(r1->statusCode(), k201Created);
+    json categorized = {{"slug", "124-max-path"}, {"title", "Max Path"}, {"status", "published"}, {"topic", "Tree"}};
+    auto r2 =
+        call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, categorized), std::move(cb)); });
+    ASSERT_EQ(r2->statusCode(), k201Created);
     Database::get().execute_write([](auto& txn) {
-        txn.exec("UPDATE posts SET topic = 'LeetCode' WHERE slug ~ '^\\d+-' AND btrim(topic) = ''");
+        txn.exec("UPDATE posts SET topic = 'LeetCode' WHERE slug ~ '^\\d+-' AND topic <> 'LeetCode'");
         return 0;
     });
     Repositories::PostRepository repo;
-    auto found = repo.find_published_by_slug("123-two-sum");
-    ASSERT_TRUE(found.has_value());
-    EXPECT_EQ(found->topic, "LeetCode");
+    auto blank_found = repo.find_published_by_slug("123-two-sum");
+    ASSERT_TRUE(blank_found.has_value());
+    EXPECT_EQ(blank_found->topic, "LeetCode");
+    auto cat_found = repo.find_published_by_slug("124-max-path");
+    ASSERT_TRUE(cat_found.has_value());
+    EXPECT_EQ(cat_found->topic, "LeetCode");
 }
 
 TEST_F(PostsFlowTest, DraftPreviewToken) {
