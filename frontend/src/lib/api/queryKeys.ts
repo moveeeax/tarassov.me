@@ -13,7 +13,14 @@ export const qk = {
       page === undefined ? (['admin', 'users'] as const) : (['admin', 'users', page] as const),
     user: (id: string) => ['admin', 'user', id] as const,
     roles: () => ['admin', 'roles'] as const,
-    posts: () => ['admin', 'posts'] as const,
+    /**
+     * Posts list. `filter` is the serialised active filter (q/status) — a
+     * changed filter is a fresh cache entry; the bare prefix still matches
+     * every variant for invalidation. usePagedQuery appends the page number.
+     */
+    posts: (filter?: string) =>
+      filter === undefined ? (['admin', 'posts'] as const) : (['admin', 'posts', filter] as const),
+    media: () => ['admin', 'media'] as const,
     jobs: (filter?: string, page?: number) => {
       if (filter === undefined) return ['admin', 'jobs'] as const;
       if (page === undefined) return ['admin', 'jobs', filter] as const;
