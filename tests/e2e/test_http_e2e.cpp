@@ -358,6 +358,93 @@ TEST(HttpE2E, IdempotencyKeyReplaysResponse) {
     EXPECT_EQ(send(third)->statusCode(), k422UnprocessableEntity);
 }
 
+TEST(HttpE2E, SsrSurfaceIsPublicUnderJwtAuth) {
+    // The SSR pages and sitemap must be reachable WITHOUT credentials while
+    // AUTH_MODE=jwt — they sit in the public-paths allowlist. Every other
+    // suite calls the controllers directly, bypassing the auth middleware,
+    // so only this wire-level test catches an allowlist regression (the
+    // exact bug that 401'd all of prod's post pages in v2.0.0).
+    REQUIRE_E2E_ENV();
+    const auto now = Utils::Time::now_epoch_seconds();
+    json admin_claims = {
+        {"sub", "e2e-ssr-admin"}, {"iat", now}, {"exp", now + 600}, {"permissions", Domain::Permission::kAdminister}};
+    const auto admin_jwt = Security::Auth::issue_hs256_jwt(admin_claims, kSecret);
+
+    // Publish a post through the admin API (authenticated).
+    auto create = HttpRequest::newHttpRequest();
+    create->setMethod(Post);
+    create->setPath("/api/v1/posts");
+    create->addHeader("Authorization", "Bearer " + admin_jwt);
+    create->setContentTypeCode(CT_APPLICATION_JSON);
+    create->setBody(json({{"slug", "e2e-ssr-post"},
+                          {"title", "E2E SSR"},
+                          {"summary", "s"},
+                          {"body", "# hi"},
+                          {"status", "published"}})
+                        .dump());
+    auto created = send(create);
+    ASSERT_TRUE(created->statusCode() == k201Created || created->statusCode() == k409Conflict)
+        << "got " << created->statusCode();
+
+    // SSR post page: anonymous 200 HTML with the island and exactly one
+    // public-site CSP (the API middleware's default-src 'none' must not leak).
+    auto page = HttpRequest::newHttpRequest();
+    page->setPath("/blog/e2e-ssr-post");
+    auto presp = send(page);
+    EXPECT_EQ(presp->statusCode(), k200OK);
+    const std::string html(presp->body());
+    EXPECT_NE(html.find("id=\"post-data\""), std::string::npos);
+    const std::string csp = presp->getHeader("content-security-policy");
+    EXPECT_NE(csp.find("script-src 'self'"), std::string::npos) << "page CSP: " << csp;
+    EXPECT_EQ(csp.find("default-src 'none'"), std::string::npos) << "API CSP leaked onto the SSR page";
+
+    // Sitemap: anonymous 200 XML, cacheable.
+    auto sm = HttpRequest::newHttpRequest();
+    sm->setPath("/sitemap.xml");
+    auto smresp = send(sm);
+    EXPECT_EQ(smresp->statusCode(), k200OK);
+    EXPECT_NE(std::string(smresp->body()).find("<urlset"), std::string::npos);
+    EXPECT_EQ(smresp->getHeader("cache-control"), "public, max-age=3600");
+
+    // Unknown slug: anonymous 404, not 401.
+    auto missing = HttpRequest::newHttpRequest();
+    missing->setPath("/blog/e2e-definitely-missing");
+    EXPECT_EQ(send(missing)->statusCode(), k404NotFound);
+}
+
+TEST(HttpE2E, PreviewTokenAndUploadsAreAdminGated) {
+    // The suites that exercise these handlers run with AUTH_MODE=none where
+    // API_REQUIRE_ADMIN is a no-op — this is the only place the gate itself
+    // is proven on the wire.
+    REQUIRE_E2E_ENV();
+    const auto now = Utils::Time::now_epoch_seconds();
+    json user_claims = {{"sub", "e2e-plain-user"}, {"iat", now}, {"exp", now + 600}, {"permissions", 1}};
+    const auto user_jwt = Security::Auth::issue_hs256_jwt(user_claims, kSecret);
+
+    const std::string uuid = "00000000-0000-0000-0000-000000000000";
+
+    // Anonymous → 401 everywhere.
+    for (auto [method, path] : {std::pair{Post, "/api/v1/posts/" + uuid + "/preview-token"},
+                                std::pair{Get, std::string("/api/v1/admin/uploads")},
+                                std::pair{Delete, std::string("/api/v1/admin/uploads/x.png")}}) {
+        auto req = HttpRequest::newHttpRequest();
+        req->setMethod(method);
+        req->setPath(path);
+        EXPECT_EQ(send(req)->statusCode(), k401Unauthorized) << path;
+    }
+
+    // Authenticated but NOT admin → 403.
+    for (auto [method, path] : {std::pair{Post, "/api/v1/posts/" + uuid + "/preview-token"},
+                                std::pair{Get, std::string("/api/v1/admin/uploads")},
+                                std::pair{Delete, std::string("/api/v1/admin/uploads/x.png")}}) {
+        auto req = HttpRequest::newHttpRequest();
+        req->setMethod(method);
+        req->setPath(path);
+        req->addHeader("Authorization", "Bearer " + user_jwt);
+        EXPECT_EQ(send(req)->statusCode(), k403Forbidden) << path;
+    }
+}
+
 TEST(HttpE2E, AdminGateChecksPermissionBitmask) {
     REQUIRE_E2E_ENV();
     const auto now = Utils::Time::now_epoch_seconds();

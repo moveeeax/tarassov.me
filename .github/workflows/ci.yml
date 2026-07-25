@@ -138,6 +138,8 @@ jobs:
         run: ./scripts/check-routes-registered.sh
       - name: Check test-bucket filter sync
         run: ./scripts/check-test-buckets.sh
+      - name: Check public-surface sync (CSP x3, nginx blocks, allowlist x4)
+        run: ./scripts/check-public-surface-sync.sh
 
   helm-charts:
     runs-on: ubuntu-latest
