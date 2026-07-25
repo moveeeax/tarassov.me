@@ -310,6 +310,45 @@ TEST_F(PostsFlowTest, CreateRejectsMissingFields) {
     EXPECT_EQ(resp->statusCode(), k400BadRequest);
 }
 
+TEST_F(PostsFlowTest, DuplicateSlugReturns409NotHtml500) {
+    json body = {{"slug", "dup-slug"}, {"title", "First"}, {"status", "draft"}};
+    auto r1 = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, body), std::move(cb)); });
+    ASSERT_EQ(r1->statusCode(), k201Created);
+    body["title"] = "Second";
+    auto r2 = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, body), std::move(cb)); });
+    EXPECT_EQ(r2->statusCode(), k409Conflict);  // was a bare 500 before typed errors
+}
+
+TEST_F(PostsFlowTest, NonStringFieldIs400Not500) {
+    // summary as a number used to throw type_error.306 out of the handler → 500.
+    json body = {{"slug", "num-summary"}, {"title", "T"}, {"summary", 42}};
+    auto resp = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, body), std::move(cb)); });
+    EXPECT_EQ(resp->statusCode(), k400BadRequest);
+}
+
+TEST_F(PostsFlowTest, RejectsUnsafeSlug) {
+    for (const char* bad : {"has space", "Upper", "slash/here", "has#hash", "-lead", "trail-"}) {
+        json body = {{"slug", bad}, {"title", "T"}};
+        auto resp = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, body), std::move(cb)); });
+        EXPECT_EQ(resp->statusCode(), k400BadRequest) << "slug: " << bad;
+    }
+    // A numeric LeetCode-style slug stays valid. (Unique to this test — the
+    // suite shares one DB, so reusing another test's slug would 409.)
+    json ok = {{"slug", "9999-slugcheck-ok"}, {"title", "T"}};
+    auto r = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, ok), std::move(cb)); });
+    EXPECT_EQ(r->statusCode(), k201Created);
+}
+
+TEST_F(PostsFlowTest, TagFilterEscapesLikeMetacharacters) {
+    // A '%' in a tag must match literally, not act as a SQL LIKE wildcard.
+    seed("pct-tag", "Pct", "T", {"c++", "50pct"});
+    seed("other-tag", "Other", "T", {"golang"});
+    auto req = TestHelpers::make_request(Get);
+    req->setParameter("tag", "50%");  // no such tag; '%' must NOT wildcard-match "50pct"
+    auto resp = call([&](auto cb) { controller.publicListPosts(req, std::move(cb)); });
+    EXPECT_EQ(json::parse(std::string(resp->body()))["total"], 0);
+}
+
 TEST_F(PostsFlowTest, CreateRejectsCommaInTag) {
     // A comma inside a tag would corrupt the comma-joined storage — reject it.
     json body = {{"slug", "bad-tag"}, {"title", "Bad tag"}, {"tags", {"a,b"}}};
