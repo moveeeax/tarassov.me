@@ -5,6 +5,9 @@
     "name": "${APP_NAME}",
     "base_url": "${APP_BASE_URL}"
   },
+  "site": {
+    "base_url": "${SITE_BASE_URL:-https://tarassov.me}"
+  },
   "server": {
     "host": "0.0.0.0",
     "port": 8080,

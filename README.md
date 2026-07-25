@@ -17,8 +17,11 @@
 
 - **Публичный сайт** (`/`) — статическая визитка BookCard (`frontend/public-site/`):
   обо мне, опыт/стек, блог, контакт-форма.
-- **Блог** — посты отдаются из API (`GET /api/v1/public/posts[/{slug}]`),
-  рендер Markdown на клиенте.
+- **Блог** — посты отдаются из API (`GET /api/v1/public/posts[/{slug}]`):
+  серверные фильтры/пагинация/фасеты (`?topic=&tag=&q=&page=&include=facets`),
+  соседние посты (`include=adjacent`), превью черновиков (`?preview=`);
+  рендер Markdown на клиенте, `<head>` пост-страниц — SSR из
+  `templates/pages/` с data-island.
 - **Контакт-форма** — `POST /api/v1/public/contact` → письмо через SMTP (Mailer).
 - **Админка** (`/admin/*`) — React/TS SPA: CRUD постов, загрузка изображений.
 

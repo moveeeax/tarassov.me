@@ -67,15 +67,17 @@ inline const std::vector<EndpointInfo>& get_endpoints() {
         {"GET", "/api/v1/posts", "List posts (admin)"},
         {"POST", "/api/v1/posts", "Create post (admin)"},
         {"GET", "/api/v1/posts/{id}", "Get post (admin)"},
+        {"POST", "/api/v1/posts/{id}/preview-token", "Admin: issue a draft preview link (1h)"},
         {"PATCH", "/api/v1/posts/{id}", "Update post (admin)"},
         {"DELETE", "/api/v1/posts/{id}", "Delete post (admin)"},
-        {"GET", "/api/v1/public/posts", "List published posts (public)"},
+        {"GET", "/api/v1/public/posts", "List published posts (public; filterable, paged, optional facets)"},
         {"GET", "/api/v1/public/posts/{slug}", "Get published post by slug (public)"},
         {"POST", "/api/v1/public/contact", "Send a contact message (public)"},
         {"POST", "/api/v1/admin/uploads", "Upload an image (admin)"},
+        {"GET", "/api/v1/admin/uploads", "Admin: list uploaded images"},
+        {"DELETE", "/api/v1/admin/uploads/{name}", "Admin: delete an uploaded image"},
         {"GET", "/sitemap.xml", "Dynamic sitemap (public)"},
         {"GET", "/blog/{slug}", "Server-rendered blog post page (public)"},
-        {"GET", "/blog-single.html", "Legacy blog-post URL redirect (public)"},
     };
     return endpoints;
 }
