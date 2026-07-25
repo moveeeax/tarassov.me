@@ -17,6 +17,8 @@ Set `CONFIG_FILE` to point at a different JSON file (e.g.
 |---|---|---|---|---|
 | `APP_NAME` | `app.name` | string | `App` | Display name used in email subjects / templates |
 | `APP_BASE_URL` | `app.base_url` | string | `http://localhost:8080` | Public origin used to build links in account emails (confirm / reset / change-email) |
+| `SITE_BASE_URL` | `site.base_url` | string | `""` | Canonical public origin for the SEO surface (sitemap `<loc>`, `rel=canonical`, og:url, JSON-LD). **Required non-empty `https://` URL in production** — the binary refuses to start otherwise; empty in dev falls back to request-header derivation |
+| `SITE_PAGES_TEMPLATES_DIR` | `site.pages_templates_dir` | string | `templates/pages` | Directory with server-rendered page templates (blog post shell, 404) |
 
 ## Server
 

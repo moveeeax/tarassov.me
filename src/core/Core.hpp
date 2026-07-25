@@ -203,6 +203,16 @@ private:
                 spdlog::warn(
                     "Config validation: docs.enabled=true in production — the API docs UI is publicly "
                     "exposed. Set DOCS_ENABLED=false.");
+            // Sitemap/canonical/OG URLs are generated from site.base_url; a
+            // header-derived origin behind a TLS-terminating ingress yields
+            // http:// links (SEO poison), so production requires the config.
+            {
+                const std::string site_base = cfg.get<std::string>("site.base_url", "SITE_BASE_URL", "");
+                if (site_base.empty() || site_base.rfind("https://", 0) != 0)
+                    throw std::runtime_error(
+                        "Config validation: site.base_url must be a non-empty https:// URL in production — "
+                        "sitemap/canonical/OG URLs are generated from it. Set SITE_BASE_URL=https://<domain>.");
+            }
             // CSRF defense-in-depth when cookie auth is on (mutations otherwise lean
             // on SameSite=Lax alone).
             if (auth_mode == "jwt" && cfg.get<bool>("auth.cookies.enabled", "AUTH_COOKIES_ENABLED", false) &&

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<meta name="description" content="{{DESC}}">
+<meta name="author" content="Michael Tarassov">
+{{ROBOTS}}<link rel="canonical" href="{{CANONICAL}}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="tarassov.me">
+<meta property="og:title" content="{{OG_TITLE}}">
+<meta property="og:description" content="{{DESC}}">
+<meta property="og:url" content="{{CANONICAL}}">
+<meta property="og:image" content="{{OG_IMAGE}}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{OG_TITLE}}">
+<meta name="twitter:description" content="{{DESC}}">
+<meta name="twitter:image" content="{{OG_IMAGE}}">
+<script type="application/ld+json">{{JSON_LD}}</script>
+<link rel="icon" type="image/svg+xml" href="/images/ico/favicon.svg">
+<link rel="icon" type="image/x-icon" href="/images/ico/favicon.ico">
+<link rel="apple-touch-icon" href="/images/ico/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" type="text/css" href="/css/normalize.css">
+<link rel="stylesheet" type="text/css" href="/css/blog.css">
+</head>
+<body class="blog">
+<div class="blog-progress" id="blog-progress"></div>
+<div class="blog-frame"><nav class="blog-nav"><a class="wordmark" href="/">M. TARASSOV</a><div class="links"><a href="/">HOME</a><a class="active" href="/blog.html">BLOG</a></div></nav></div>
+<article class="blog-article">
+<header class="blog-post-head">
+<a class="blog-back" href="/blog.html">← ALL NOTES</a>
+<div class="blog-post-topic" id="post-topic"{{TOPIC_HIDDEN}}>{{TOPIC}}</div>
+<h1 class="blog-post-title" id="post-title">{{H1}}</h1>
+<p class="blog-post-dek" id="post-dek"{{DEK_HIDDEN}}>{{DEK}}</p>
+<div class="blog-post-meta" id="post-meta" hidden></div>
+</header>
+<div class="blog-body" id="post-content"><p class="blog-loading">Loading…</p></div>
+<div class="blog-post-tags" id="post-tags" hidden></div>
+<nav class="blog-post-nav" id="post-pager" hidden aria-label="Adjacent posts">
+<a id="pager-prev" class="prev" hidden><div class="label">← PREVIOUS</div><div class="title"></div></a>
+<a id="pager-next" class="next" hidden><div class="label">NEXT →</div><div class="title"></div></a>
+</nav>
+</article>
+<div class="blog-frame"><footer class="blog-footer"><span>© 2026 MICHAEL TARASSOV</span><a href="https://github.com/moveeeax">GITHUB →</a></footer></div>
+<script type="application/json" id="post-data">{{POST_JSON}}</script>
+<script src="/js/marked.min.js"></script>
+<script src="/js/blog.js"></script>
+</body>
+</html>

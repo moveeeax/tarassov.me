@@ -20,8 +20,11 @@
 
 #include <nlohmann/json.hpp>
 
+#include "api/PostsController.hpp"
 #include "domain/Post.hpp"
+#include "pages/PageTemplates.hpp"
 #include "repositories/PostRepository.hpp"
+#include "utils/Config.hpp"
 
 namespace Api {
 
@@ -60,25 +63,25 @@ public:
         auto resp = HttpResponse::newHttpResponse();
         resp->setBody(std::move(xml));
         resp->setContentTypeString("application/xml; charset=utf-8");
+        // Cheap SQL, but crawlers poll: an hour of caching is plenty fresh.
+        resp->addHeader("Cache-Control", "public, max-age=3600");
         cb(resp);
     }
 
-    // GET /blog/{slug} — SSR head + the shell js/blog.js hydrates.
+    // GET /blog/{slug} — SSR head from a file template; the embedded
+    // #post-data island lets js/blog.js hydrate without a second fetch.
+    // ?preview=<token> renders a draft (noindex) — see PostsController.
     void blogPost(const HttpRequestPtr& req,
                   std::function<void(const HttpResponsePtr&)>&& cb,
                   const std::string& slug) {
-        Repositories::PostRepository repo;
-        auto post = repo.find_published_by_slug(slug);
+        auto post = PostsController::resolve_post(slug, req->getParameter("preview"));
         const std::string base = origin(req);
 
         if (!post) {
             auto resp = HttpResponse::newHttpResponse();
             resp->setStatusCode(k404NotFound);
             resp->setContentTypeCode(CT_TEXT_HTML);
-            resp->setBody(
-                "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">"
-                "<title>Not found — Michael Tarassov</title><meta name=\"robots\" content=\"noindex\">"
-                "</head><body><p>Post not found. <a href=\"/blog.html\">All notes</a>.</p></body></html>");
+            resp->setBody(Pages::render("blog_post_404", {}));
             cb(resp);
             return;
         }
@@ -108,61 +111,27 @@ public:
             ld["articleSection"] = p.topic;
         if (!p.tags.empty())
             ld["keywords"] = p.tags;
-        // Guard against a literal </script> inside the JSON breaking the tag.
-        std::string ldStr = ld.dump();
-        for (std::size_t pos = 0; (pos = ldStr.find("</", pos)) != std::string::npos; pos += 3)
-            ldStr.replace(pos, 2, "<\\/");
-
-        std::string html;
-        html.reserve(4096);
-        html += "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n";
-        html += "<meta charset=\"utf-8\">\n";
-        html += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n";
-        html += "<title>" + esc(title) + "</title>\n";
-        html += "<meta name=\"description\" content=\"" + esc(desc) + "\">\n";
-        html += "<meta name=\"author\" content=\"Michael Tarassov\">\n";
-        html += "<link rel=\"canonical\" href=\"" + esc(canonical) + "\">\n";
-        html += "<meta property=\"og:type\" content=\"article\">\n";
-        html += "<meta property=\"og:site_name\" content=\"tarassov.me\">\n";
-        html += "<meta property=\"og:title\" content=\"" + esc(p.title) + "\">\n";
-        html += "<meta property=\"og:description\" content=\"" + esc(desc) + "\">\n";
-        html += "<meta property=\"og:url\" content=\"" + esc(canonical) + "\">\n";
-        html += "<meta property=\"og:image\" content=\"" + esc(image) + "\">\n";
-        html += "<meta name=\"twitter:card\" content=\"summary_large_image\">\n";
-        html += "<meta name=\"twitter:title\" content=\"" + esc(p.title) + "\">\n";
-        html += "<meta name=\"twitter:description\" content=\"" + esc(desc) + "\">\n";
-        html += "<meta name=\"twitter:image\" content=\"" + esc(image) + "\">\n";
-        html += "<script type=\"application/ld+json\">" + ldStr + "</script>\n";
-        html += kHeadTail;  // icons + fonts + stylesheets (absolute paths)
-        html += "</head>\n<body class=\"blog\">\n";
-        html += "<div class=\"blog-progress\" id=\"blog-progress\"></div>\n";
-        html +=
-            "<div class=\"blog-frame\"><nav class=\"blog-nav\">"
-            "<a class=\"wordmark\" href=\"/\">M. TARASSOV</a>"
-            "<div class=\"links\"><a href=\"/\">HOME</a>"
-            "<a class=\"active\" href=\"/blog.html\">BLOG</a></div></nav></div>\n";
-        html += "<article class=\"blog-article\">\n";
-        html += "<header class=\"blog-post-head\">\n";
-        html += "<a class=\"blog-back\" href=\"/blog.html\">← ALL NOTES</a>\n";
-        html +=
-            "<div class=\"blog-post-topic\" id=\"post-topic\"" + hideIfEmpty(p.topic) + ">" + esc(p.topic) + "</div>\n";
-        html += "<h1 class=\"blog-post-title\" id=\"post-title\">" + esc(p.title) + "</h1>\n";
-        html += "<p class=\"blog-post-dek\" id=\"post-dek\"" + hideIfEmpty(p.summary) + ">" + esc(p.summary) + "</p>\n";
-        html += "<div class=\"blog-post-meta\" id=\"post-meta\" hidden></div>\n";
-        html += "</header>\n";
-        html += "<div class=\"blog-body\" id=\"post-content\"><p class=\"blog-loading\">Loading…</p></div>\n";
-        html += "<div class=\"blog-post-tags\" id=\"post-tags\" hidden></div>\n";
-        html += kPostNav;
-        html += "</article>\n";
-        html +=
-            "<div class=\"blog-frame\"><footer class=\"blog-footer\">"
-            "<span>© 2026 MICHAEL TARASSOV</span>"
-            "<a href=\"https://github.com/moveeeax\">GITHUB →</a></footer></div>\n";
-        html += "<script src=\"/js/marked.min.js\"></script>\n<script src=\"/js/blog.js\"></script>\n";
-        html += "</body>\n</html>\n";
 
         auto resp = HttpResponse::newHttpResponse();
-        resp->setBody(std::move(html));
+        resp->setBody(
+            Pages::render("blog_post",
+                          {
+                              {"TITLE", esc(title)},
+                              {"DESC", esc(desc)},
+                              {"CANONICAL", esc(canonical)},
+                              {"OG_TITLE", esc(p.title)},
+                              {"OG_IMAGE", esc(image)},
+                              {"JSON_LD", script_safe(ld.dump())},
+                              // Previewed drafts must never be indexed.
+                              {"ROBOTS", p.status == "published" ? "" : "<meta name=\"robots\" content=\"noindex\">\n"},
+                              {"TOPIC", esc(p.topic)},
+                              {"TOPIC_HIDDEN", hideIfEmpty(p.topic)},
+                              {"H1", esc(p.title)},
+                              {"DEK", esc(p.summary)},
+                              {"DEK_HIDDEN", hideIfEmpty(p.summary)},
+                              // Hydration island: same shape as the public by-slug `data`.
+                              {"POST_JSON", script_safe(json(p).dump())},
+                          }));
         resp->setContentTypeCode(CT_TEXT_HTML);
         cb(resp);
     }
@@ -175,9 +144,14 @@ public:
     }
 
 private:
-    // Public origin from the proxied request (self-adjusts across environments);
-    // APP_BASE_URL is a placeholder in prod, so we don't use it here.
+    // Canonical origin: site.base_url when configured (prod — validated at
+    // boot), header-derived only as a dev fallback with no configured base.
+    // Header derivation produced http:// URLs behind the TLS-terminating
+    // ingress; config is authoritative.
     static std::string origin(const HttpRequestPtr& req) {
+        const std::string cfg_base = Config::get().get<std::string>("site.base_url", "SITE_BASE_URL", "");
+        if (!cfg_base.empty())
+            return cfg_base.back() == '/' ? cfg_base.substr(0, cfg_base.size() - 1) : cfg_base;
         const std::string host = req->getHeader("host");
         if (host.empty())
             return "https://tarassov.me";
@@ -217,25 +191,12 @@ private:
 
     static std::string hideIfEmpty(const std::string& s) { return s.empty() ? " hidden" : ""; }
 
-    // ── Static markup fragments (keep in sync with blog-single.html) ─────────
-    // Absolute asset paths so they resolve under /blog/<slug>, not /blog/.
-    static constexpr const char* kHeadTail =
-        R"HEAD(<link rel="icon" type="image/svg+xml" href="/images/ico/favicon.svg">
-<link rel="icon" type="image/x-icon" href="/images/ico/favicon.ico">
-<link rel="apple-touch-icon" href="/images/ico/apple-touch-icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" type="text/css" href="/css/normalize.css">
-<link rel="stylesheet" type="text/css" href="/css/blog.css">
-)HEAD";
-
-    static constexpr const char* kPostNav =
-        R"NAV(<nav class="blog-post-nav" id="post-pager" hidden aria-label="Adjacent posts">
-<a id="pager-prev" class="prev" hidden><div class="label">← PREVIOUS</div><div class="title"></div></a>
-<a id="pager-next" class="next" hidden><div class="label">NEXT →</div><div class="title"></div></a>
-</nav>
-)NAV";
+    // Guard against a literal </script> inside embedded JSON breaking the tag.
+    static std::string script_safe(std::string s) {
+        for (std::size_t pos = 0; (pos = s.find("</", pos)) != std::string::npos; pos += 3)
+            s.replace(pos, 2, "<\\/");
+        return s;
+    }
 };
 
 }  // namespace Api

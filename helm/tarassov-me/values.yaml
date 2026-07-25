@@ -264,7 +264,15 @@ rateLimit:
 # AUTH_MODE=jwt). Includes the public blog + contact endpoints.
 # ---------------------------------------------------------------
 api:
-  publicPaths: "/healthz,/ready,/health,/api/v1/auth/login,/api/v1/auth/register,/api/v1/auth/refresh,/api/v1/account/confirm/*,/api/v1/account/reset-password-request,/api/v1/account/reset-password/*,/api/v1/account/change-email/*,/api/v1/account/join-from-invite/*,/api/v1/public/posts,/api/v1/public/posts/*,/api/v1/public/contact"
+  publicPaths: "/healthz,/ready,/health,/api/v1/auth/login,/api/v1/auth/register,/api/v1/auth/refresh,/api/v1/account/confirm/*,/api/v1/account/reset-password-request,/api/v1/account/reset-password/*,/api/v1/account/change-email/*,/api/v1/account/join-from-invite/*,/api/v1/public/posts,/api/v1/public/posts/*,/api/v1/public/contact,/sitemap.xml,/blog/*"
+
+# ---------------------------------------------------------------
+# Site — canonical public origin. Every absolute URL the backend generates
+# (sitemap <loc>, rel=canonical, og:url, JSON-LD) derives from this; the
+# binary refuses to start in production without a non-empty https:// value.
+# ---------------------------------------------------------------
+site:
+  baseUrl: "https://tarassov.me"
 
 # ---------------------------------------------------------------
 # Idempotency — de-duplicates retried mutating requests carrying an

@@ -67,6 +67,9 @@ data:
       "api": {
         "public_paths": {{ .Values.api.publicPaths | quote }}
       },
+      "site": {
+        "base_url": {{ .Values.site.baseUrl | quote }}
+      },
       "rate_limit": {
         "enabled": {{ .Values.rateLimit.enabled }},
         "requests": {{ .Values.rateLimit.requests }},
