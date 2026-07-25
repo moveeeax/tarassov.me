@@ -32,7 +32,7 @@
 | Backend | C++20, Drogon (HTTP), libpqxx (PostgreSQL), redis-plus-plus |
 | Frontend | React + TypeScript + Vite (админка), статический BookCard (визитка/блог) |
 | Хранилище медиа | S3-совместимое (MinIO / R2 / S3), бэкенд local для dev |
-| Инфраструктура | Docker Compose (dev), Helm (k8s), GitLab CI |
+| Инфраструктура | Docker Compose (dev), Helm (k8s), GitHub Actions |
 
 Один nginx-контейнер раздаёт BookCard на `/`, React-SPA как fallback
 (`/admin`, `/login`, `/account/*`) и проксирует `/api/*` в бэкенд.
@@ -66,9 +66,10 @@ external secrets, не в коде.
 ## Деплой
 
 Образы публикуются в Docker Hub (`docker.io/moveeeax/tarassov-me{,-worker,-frontend}`)
-через GitLab CI. Прод — Helm-чарт `helm/tarassov-me` (+ `-worker` / `-frontend`).
-Нужные CI-переменные и storage/SMTP-настройки описаны в `values.yaml` и
-`docker/docker-compose.yml`.
+через GitHub Actions (`.github/workflows/release.yml`, по тегу `vX.Y.Z`).
+Прод — Helm-чарт `helm/tarassov-me` (+ `-worker` / `-frontend`); выкат в кластер —
+ручной `helm upgrade`. Нужные CI-переменные и storage/SMTP-настройки описаны в
+`values.yaml` и `docker/docker-compose.yml`.
 
 ## Лицензия
 
