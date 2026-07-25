@@ -1,7 +1,7 @@
 # Operator runbook
 
 What to do when an alert fires or an incident lands. Each alert in
-`docs/prometheus-rules.yml` / the Helm `PrometheusRule` carries a
+`docker/prometheus-rules.yml` / the Helm `PrometheusRule` carries a
 `runbook_url` anchor that points here.
 
 Conventions: `make` targets assume the compose stack; in k8s substitute
@@ -28,7 +28,7 @@ Prometheus hasn't scraped the process for 2 min — it's down or wedged.
 >5% of responses are 5xx.
 
 1. Find the failing route: Grafana `http_requests_total{status=~"5.."}` by
-   `path`. The path is normalized (`/api/jobs/:id`), tokens redacted.
+   `path`. The path is normalized (`/api/v1/jobs/:id`), tokens redacted.
 2. Pull a failing trace (`tid=` in the log) — `make tail-trace TID=<id>` shows
    the `db.*` child spans with the SQL template + pool label.
 3. DB-driven? See [HighP99Latency](#p99). Dependency down? See
@@ -61,10 +61,10 @@ Read replica >60s behind. Stale reads are being served.
 Jobs exhausted their retries and landed in the DLQ.
 
 1. Inspect: admin UI **/admin/jobs → DLQ tab**, or
-   `GET /api/jobs/dlq` (admin token). Each row has the last `error` and a
+   `GET /api/v1/jobs/dlq` (admin token). Each row has the last `error` and a
    `trace_id` → open the worker trace.
 2. Transient cause now fixed (e.g. SMTP was down)? Requeue:
-   `POST /api/jobs/dlq/{id}/requeue` or the UI button.
+   `POST /api/v1/jobs/dlq/{id}/requeue` or the UI button.
 3. Code bug? Fix the handler, redeploy the worker, then requeue.
 4. Account emails specifically: check `WORKER_TYPES` includes `account_email`
    and the worker has `JWT_SECRET` + `MAIL_*` (a missing secret DLQ's every
@@ -101,7 +101,7 @@ then throws — surfacing as 5xx and high p99.
 1. Which pool? The alert is labeled `pool` (primary/replica).
 2. Slow queries holding connections? Check the DB's `pg_stat_activity` and the
    `db.statement` attribute on slow `db.*` spans.
-3. Real concurrency demand? Raise `DATABASE_POOL_SIZE` (and the server's
+3. Real concurrency demand? Raise `DB_POOL_SIZE` (and the server's
    `max_connections`), or shed load. A leaked connection (active stuck high
    while traffic is idle) points at a handler that never returns its txn.
 
@@ -147,6 +147,11 @@ schema will be brought forward automatically by the next deploy.
 ## Roll back a release {#rollback}
 
 - k8s: `helm rollback tarassov-me <REVISION>` (`helm history tarassov-me`).
-- Images are tagged `vX.Y.Z` in GHCR; pin the previous tag if needed.
+- Images are tagged `vX.Y.Z` on Docker Hub
+  (`docker.io/moveeeax/tarassov-me{,-worker,-frontend}`); pin the previous tag
+  if needed.
+- Note there is no GitOps auto-deploy: the tag-triggered
+  `.github/workflows/release.yml` only builds and publishes images. Rolling the
+  cluster forward (or back) is always a manual `helm upgrade` / `helm rollback`.
 - Migrations are forward-only — a rollback of the app does NOT revert schema.
   If a migration is the problem, write a new forward migration that fixes it.

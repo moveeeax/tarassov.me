@@ -1,13 +1,16 @@
 openapi: 3.1.0
 info:
-  title: C++ REST API Template
+  title: tarassov.me API
   description: |
-    Infrastructure endpoints for the C++ REST API template: health probes
-    and a background-job API. Authentication is opt-in (auth.mode=jwt|bearer|none).
-    Rate-limiting and idempotency are driven by headers.
-  version: 1.0.0
+    API behind tarassov.me: public blog (posts, sitemap, server-rendered pages,
+    contact form), auth + account lifecycle (JWT/cookie sessions, confirm /
+    reset-password / change-email / invites, API keys), admin (users, roles,
+    audit, posts, uploads), a background-job API with DLQ, and health probes.
+    Authentication is opt-in (auth.mode=jwt|bearer|none). Rate-limiting and
+    idempotency are driven by headers.
+  version: 2.0.0
   contact:
-    name: Platform team
+    name: Michael Tarassov
 servers:
   - url: http://localhost:8080
     description: Local dev

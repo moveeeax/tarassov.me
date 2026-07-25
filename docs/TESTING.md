@@ -1,19 +1,19 @@
 # Testing
 
 What the test suite does and does not cover, and how to run each part. The goal
-is that "the suite is green" means something specific — not "305 passed, 138 of
+is that "the suite is green" means something specific — not "388 passed, 138 of
 them skipped."
 
 ## Buckets
 
 | Bucket | Count | Needs | Runs with | What it covers |
 |---|---:|---|---|---|
-| **unit** | 167 | nothing (sidecar-free) | `make test-unit` | Pure logic: validation, tokens, JWT, password hashing, rate-limit math, serialization, the permission bitmask, retry/backoff, templates. |
-| **integration** | 109 | Postgres + Redis | `make test` | Repositories against a real Postgres, cache + rate limiter against a real Redis, migrations, the account/admin/audit/auth flows, job dispatch + DLQ. |
+| **unit** | 218 | nothing (sidecar-free) | `make test-unit` | Pure logic: validation, tokens, JWT, password hashing, rate-limit math, serialization, the permission bitmask, retry/backoff, templates. |
+| **integration** | 140 | Postgres + Redis | `make test` | Repositories against a real Postgres, cache + rate limiter against a real Redis, migrations, the account/admin/audit/auth flows, job dispatch + DLQ. |
 | **api** | 19 | Postgres + Redis | `make test` | Controller request/response behavior wired through the real handler stack. |
-| **e2e** | 10 | Postgres + Redis | `make test-e2e` | A real Drogon server + client on the wire: auth gate, cookie sessions, refresh rotation/revocation, Idempotency-Key replay, tracing headers. |
+| **e2e** | 11 | Postgres + Redis | `make test-e2e` | A real Drogon server + client on the wire: auth gate, cookie sessions, refresh rotation/revocation, Idempotency-Key replay, tracing headers. |
 
-Total: **305** test cases. `make test-unit` is the fast, dependency-free loop;
+Total: **388** test cases. `make test-unit` is the fast, dependency-free loop;
 `make test` brings up sidecars and runs unit + integration + api; `make test-e2e`
 runs the wire-level suite. `make ci-local` runs the lot the way CI does.
 
