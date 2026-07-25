@@ -956,23 +956,78 @@ paths:
       responses:
         '200': { description: Deleted }
         '404': { description: Not found }
+  /api/v1/posts/{id}/preview-token:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: "Admin: issue a draft preview link (stateless HMAC token, 1h TTL)"
+      tags: [posts]
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200': { description: "{ data: { url: '/blog/<slug>?preview=<token>', expires_at } }" }
+        '400': { description: Invalid UUID }
+        '403': { description: Not an admin }
+        '404': { description: Not found }
   /api/v1/public/posts:
     get:
-      summary: List published posts (public, no auth)
+      summary: List published posts (public, no auth) — server-filtered, paged, optional facets
       tags: [posts]
       parameters:
-        - { name: limit,  in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
-        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: page,    in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: limit,   in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 10 } }
+        - { name: topic,   in: query, schema: { type: string }, description: "Exact topic; 'Other' also matches blank topics" }
+        - { name: tag,     in: query, schema: { type: string }, description: Exact tag membership }
+        - { name: q,       in: query, schema: { type: string }, description: Case-insensitive search over title+summary }
+        - { name: include, in: query, schema: { type: string, enum: [facets] }, description: Embed facets computed over the current filter }
       responses:
-        '200': { description: "{ data, limit, offset } — published posts, newest first" }
+        '200':
+          description: Published posts, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page, limit, total]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [slug, title, summary, topic, tags, published_at, read_mins]
+                      properties:
+                        slug:         { type: string }
+                        title:        { type: string }
+                        summary:      { type: string }
+                        topic:        { type: string }
+                        tags:         { type: array, items: { type: string } }
+                        published_at: { type: string, format: date-time, nullable: true }
+                        read_mins:    { type: integer }
+                  page:  { type: integer }
+                  limit: { type: integer }
+                  total: { type: integer }
+                  facets:
+                    type: object
+                    properties:
+                      topics:
+                        type: array
+                        items:
+                          type: object
+                          properties: { name: { type: string }, count: { type: integer } }
+                      tags:
+                        type: array
+                        items:
+                          type: object
+                          properties: { name: { type: string }, count: { type: integer } }
   /api/v1/public/posts/{slug}:
     parameters:
       - { name: slug, in: path, required: true, schema: { type: string } }
     get:
       summary: Get a published post by slug (public, no auth)
       tags: [posts]
+      parameters:
+        - { name: include, in: query, schema: { type: string, enum: [adjacent] }, description: "Embed prev/next published neighbours: { adjacent: { prev, next } } (null at feed edges)" }
+        - { name: preview, in: query, schema: { type: string }, description: "Draft preview token (issued via /api/v1/posts/{id}/preview-token); invalid/expired behaves like 404" }
       responses:
-        '200': { description: OK }
+        '200': { description: "OK — { data } (+ data.adjacent with include=adjacent)" }
         '404': { description: Not found or not published }
   /api/v1/public/contact:
     post:

@@ -47,6 +47,7 @@ enum class Purpose {
     ResetPassword,  // forgot-password link
     ChangeEmail,    // confirm new email when changing
     Invite,         // admin-invited new user (matches flask-base /join-from-invite)
+    Preview,        // draft post preview link (sub = post id, not a user)
 };
 
 inline std::string purpose_string(Purpose p) {
@@ -59,6 +60,8 @@ inline std::string purpose_string(Purpose p) {
             return "change_email";
         case Purpose::Invite:
             return "invite";
+        case Purpose::Preview:
+            return "preview";
     }
     return "unknown";
 }
