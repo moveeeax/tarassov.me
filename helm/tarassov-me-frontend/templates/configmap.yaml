@@ -26,6 +26,12 @@ data:
         root /usr/share/nginx/html;
         index index.html;
 
+        # Redirects must never leak this pod's listen port: nginx's automatic
+        # "/blog → /blog/" 301 for a proxied prefix location produced
+        # http://<host>:8080/blog/ through the TLS ingress. Relative Locations
+        # keep the browser on the original origin.
+        absolute_redirect off;
+
         location = /healthz { return 200 'ok'; add_header Content-Type text/plain; }
 
         # Long cache for hashed Vite assets (the React build emits /assets/*).
@@ -72,6 +78,12 @@ data:
             proxy_set_header X-Forwarded-Proto $scheme;
             proxy_http_version 1.1;
         }
+        # /blog and /blog/ are not pages — the index lives at /blog.html. Exact
+        # locations beat the ^~ prefix below AND suppress nginx's automatic
+        # trailing-slash 301 for the proxied prefix (the :8080 leak).
+        location = /blog  { return 301 /blog.html; }
+        location = /blog/ { return 301 /blog.html; }
+
         # Clean per-post URLs. `^~` so /blog.html (static index) is NOT matched
         # here — only /blog/<slug> reaches the backend. Public-site CSP (the page
         # loads /js/blog.js and an inline JSON-LD script).
