@@ -10,6 +10,7 @@
 #include <pqxx/pqxx>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "database/Database.hpp"
@@ -25,6 +26,13 @@ struct DuplicatePost : std::runtime_error {
 
 struct PostNotFound : std::runtime_error {
     PostNotFound() : std::runtime_error("post not found") {}
+};
+
+// Public list filter (hybrid contract, spec 2026-07-25): every field optional.
+struct PublicListFilter {
+    std::string topic;  // exact; "Other" also matches blank topics
+    std::string tag;    // exact tag membership (comma-joined storage)
+    std::string q;      // ILIKE over title+summary
 };
 
 // Writable fields parsed from a request body (id/timestamps are server-owned;
@@ -119,20 +127,54 @@ public:
 
     // ── Public reads (published only) ─────────────────────────────────────
     // Used by the unauthenticated public site. Drafts are never exposed here.
-    //
+
+private:
+    // Escape LIKE metacharacters so a literal '%' in q can't scan everything.
+    static std::string escape_like(const std::string& s) {
+        std::string out;
+        out.reserve(s.size() + 4);
+        for (char c : s) {
+            if (c == '%' || c == '_' || c == '\\')
+                out += '\\';
+            out += c;
+        }
+        return out;
+    }
+
+    // WHERE clause for public reads. Values are inlined via the underlying
+    // pqxx transaction's esc() (TracingTxn::raw()) — pqxx has no named params
+    // and the clause shape varies per filter.
+    template <typename Txn>
+    static std::string public_where(Txn& txn, const PublicListFilter& f) {
+        std::string w = "status = 'published'";
+        if (!f.topic.empty()) {
+            if (f.topic == "Other")
+                w += " AND (btrim(topic) = '' OR topic = 'Other')";
+            else
+                w += " AND topic = '" + txn.raw().esc(f.topic) + "'";
+        }
+        if (!f.tag.empty())
+            w += " AND (',' || tags || ',') LIKE ('%,' || '" + txn.raw().esc(f.tag) + "' || ',%')";
+        if (!f.q.empty()) {
+            const std::string qq = txn.raw().esc(escape_like(f.q));
+            w += " AND (title ILIKE '%" + qq + "%' OR summary ILIKE '%" + qq + "%')";
+        }
+        return w;
+    }
+
+public:
     // Lightweight list projection: no body column, and read_mins computed in
     // SQL (ceil(words / 200), floor 1) so the public index ships without any
     // Markdown bodies. Word count = whitespace-split token count of the trimmed
     // body, matching the frontend's old readMins() formula.
-    std::vector<Domain::PostCard> list_published_cards(int limit = 50, int offset = 0) {
+    std::vector<Domain::PostCard> list_published_cards(const PublicListFilter& f, int limit, int offset) {
         return Database::get().execute_read([&](auto& txn) {
-            auto r = txn.exec_params(
+            auto r = txn.exec(
                 "SELECT slug, title, summary, topic, tags, published_at, "
                 "GREATEST(1, CEIL(array_length(regexp_split_to_array(trim(body), '\\s+'), 1)::numeric / 200))::int "
-                "AS read_mins "
-                "FROM posts WHERE status = 'published' ORDER BY published_at DESC LIMIT $1 OFFSET $2",
-                limit,
-                offset);
+                "AS read_mins FROM posts WHERE " +
+                public_where(txn, f) + " ORDER BY published_at DESC, id DESC LIMIT " + std::to_string(limit) +
+                " OFFSET " + std::to_string(offset));
             std::vector<Domain::PostCard> out;
             out.reserve(r.size());
             for (const auto& row : r)
@@ -141,10 +183,38 @@ public:
         });
     }
 
-    long count_published() {
+    long count_published(const PublicListFilter& f = {}) {
         return Database::get().execute_read([&](auto& txn) {
-            auto r = txn.exec_params("SELECT count(*) FROM posts WHERE status = 'published'");
+            auto r = txn.exec("SELECT count(*) FROM posts WHERE " + public_where(txn, f));
             return r[0][0].template as<long>();
+        });
+    }
+
+    // Facets over the CURRENT filter (the index chips reflect the result set):
+    // topics with counts (blank topic groups as "Other"), and the top tags.
+    struct FacetRow {
+        std::string name;
+        long count = 0;
+    };
+    std::pair<std::vector<FacetRow>, std::vector<FacetRow>> facets(const PublicListFilter& f) {
+        return Database::get().execute_read([&](auto& txn) {
+            std::pair<std::vector<FacetRow>, std::vector<FacetRow>> out;
+            auto topics = txn.exec(
+                "SELECT COALESCE(NULLIF(btrim(topic), ''), 'Other') AS name, count(*)::bigint AS c "
+                "FROM posts WHERE " +
+                public_where(txn, f) + " GROUP BY 1 ORDER BY c DESC, name ASC");
+            for (const auto& row : topics)
+                out.first.push_back({row["name"].template as<std::string>(), row["c"].template as<long>()});
+            auto tags = txn.exec(
+                "SELECT btrim(t) AS name, count(*)::bigint AS c FROM posts, "
+                "LATERAL unnest(string_to_array(tags, ',')) AS t "
+                "WHERE " +
+                public_where(txn, f) +
+                " AND btrim(t) <> '' "
+                "GROUP BY 1 ORDER BY c DESC, name ASC LIMIT 30");
+            for (const auto& row : tags)
+                out.second.push_back({row["name"].template as<std::string>(), row["c"].template as<long>()});
+            return out;
         });
     }
 
@@ -169,10 +239,51 @@ public:
         });
     }
 
+    // Prev (older) / next (newer) published neighbours in the public feed
+    // order (published_at DESC). (published_at, id) row comparison breaks
+    // equal-timestamp ties deterministically.
+    struct AdjacentRef {
+        std::string slug;
+        std::string title;
+    };
+    std::pair<std::optional<AdjacentRef>, std::optional<AdjacentRef>> find_adjacent(const std::string& id) {
+        return Database::get().execute_read([&](auto& txn) {
+            std::pair<std::optional<AdjacentRef>, std::optional<AdjacentRef>> out;
+            auto prev = txn.exec_params(  // older
+                "SELECT slug, title FROM posts WHERE status='published' AND "
+                "(published_at, id) < (SELECT published_at, id FROM posts WHERE id=$1) "
+                "ORDER BY published_at DESC, id DESC LIMIT 1",
+                id);
+            if (!prev.empty())
+                out.first = AdjacentRef{prev[0]["slug"].template as<std::string>(),
+                                        prev[0]["title"].template as<std::string>()};
+            auto next = txn.exec_params(  // newer
+                "SELECT slug, title FROM posts WHERE status='published' AND "
+                "(published_at, id) > (SELECT published_at, id FROM posts WHERE id=$1) "
+                "ORDER BY published_at ASC, id ASC LIMIT 1",
+                id);
+            if (!next.empty())
+                out.second = AdjacentRef{next[0]["slug"].template as<std::string>(),
+                                         next[0]["title"].template as<std::string>()};
+            return out;
+        });
+    }
+
     std::optional<Domain::Post> find_published_by_slug(const std::string& slug) {
         return Database::get().execute_read([&](auto& txn) -> std::optional<Domain::Post> {
             auto r = txn.exec_params(
                 std::string("SELECT ") + kColumns + " FROM posts WHERE slug = $1 AND status = 'published'", slug);
+            if (r.empty())
+                return std::nullopt;
+            return Domain::Post::from_row(r[0]);
+        });
+    }
+
+    // Any status — used only by the draft-preview path, which gates access on
+    // a signed token bound to the post id. Never expose without that check.
+    std::optional<Domain::Post> find_by_slug_any(const std::string& slug) {
+        return Database::get().execute_read([&](auto& txn) -> std::optional<Domain::Post> {
+            auto r = txn.exec_params(std::string("SELECT ") + kColumns + " FROM posts WHERE slug = $1", slug);
             if (r.empty())
                 return std::nullopt;
             return Domain::Post::from_row(r[0]);
