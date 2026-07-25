@@ -122,13 +122,18 @@ public:
 
     // ── Public site (unauthenticated) ─────────────────────────────────────
     void publicListPosts(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
-        const auto page = parse_page_params(req, /*default_limit=*/20, /*max_limit=*/100);
+        // Lightweight cards (no body) let the index fetch the whole feed in one
+        // small payload — the tag cloud is computed over all posts client-side,
+        // so slicing server-side would break it. max_limit is generous for that
+        // reason; total lets the client know the true count.
+        const auto page = parse_page_params(req, /*default_limit=*/50, /*max_limit=*/1000);
         Repositories::PostRepository repo;
-        auto items = repo.list_published(page.limit, page.offset);
+        auto items = repo.list_published_cards(page.limit, page.offset);
+        long total = repo.count_published();
         json data = json::array();
         for (const auto& e : items)
             data.push_back(e);
-        callback(Response::ok({{"data", data}, {"limit", page.limit}, {"offset", page.offset}}));
+        callback(Response::ok({{"data", data}, {"total", total}, {"limit", page.limit}, {"offset", page.offset}}));
     }
 
     void publicGetPost(const HttpRequestPtr&,
