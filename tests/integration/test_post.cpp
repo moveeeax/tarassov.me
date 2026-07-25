@@ -363,9 +363,13 @@ TEST_F(PublicPagesTest, BlogPostSsrHeadIsoDatesAndIsland) {
     EXPECT_NE(html.find("\"datePublished\":\"2"), std::string::npos);
     // No noindex on published posts.
     EXPECT_EQ(html.find("noindex"), std::string::npos);
-    // Unknown slug → 404 (template-rendered).
+    // The page carries the PUBLIC-SITE CSP — the API middleware's
+    // default-src 'none' would brick the page (browsers intersect CSPs).
+    EXPECT_NE(resp->getHeader("content-security-policy").find("script-src 'self'"), std::string::npos);
+    // Unknown slug → 404 (template-rendered), same CSP treatment.
     auto r404 = call([&](auto cb) { pages.blogPost(TestHelpers::make_request(Get), std::move(cb), "no-such-post"); });
     EXPECT_EQ(r404->statusCode(), k404NotFound);
+    EXPECT_NE(r404->getHeader("content-security-policy").find("script-src 'self'"), std::string::npos);
 }
 
 TEST_F(PublicPagesTest, BlogPostDraftPreviewIsNoindexed) {
