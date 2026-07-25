@@ -6,6 +6,8 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-07-26
+
 ### Changed
 - **Blog API contract v2 (breaking, in place).** The public list is
   `{items,page,limit,total}` with server-side `topic/tag/q` filters, 1-based
