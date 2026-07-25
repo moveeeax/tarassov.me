@@ -73,6 +73,9 @@ inline const std::vector<EndpointInfo>& get_endpoints() {
         {"GET", "/api/v1/public/posts/{slug}", "Get published post by slug (public)"},
         {"POST", "/api/v1/public/contact", "Send a contact message (public)"},
         {"POST", "/api/v1/admin/uploads", "Upload an image (admin)"},
+        {"GET", "/sitemap.xml", "Dynamic sitemap (public)"},
+        {"GET", "/blog/{slug}", "Server-rendered blog post page (public)"},
+        {"GET", "/blog-single.html", "Legacy blog-post URL redirect (public)"},
     };
     return endpoints;
 }

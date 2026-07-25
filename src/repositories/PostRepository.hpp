@@ -148,6 +148,27 @@ public:
         });
     }
 
+    // Slug + last-modified date for every published post, newest first — feeds
+    // the dynamic /sitemap.xml. lastmod prefers updated_at, falling back to
+    // published_at, truncated to a date (W3C sitemap date form).
+    struct SitemapEntry {
+        std::string slug;
+        std::string lastmod;  // YYYY-MM-DD
+    };
+    std::vector<SitemapEntry> list_published_for_sitemap() {
+        return Database::get().execute_read([&](auto& txn) {
+            auto r = txn.exec_params(
+                "SELECT slug, to_char(COALESCE(updated_at, published_at), 'YYYY-MM-DD') AS lastmod "
+                "FROM posts WHERE status = 'published' ORDER BY published_at DESC");
+            std::vector<SitemapEntry> out;
+            out.reserve(r.size());
+            for (const auto& row : r)
+                out.push_back({row["slug"].template as<std::string>(),
+                               row["lastmod"].is_null() ? std::string{} : row["lastmod"].template as<std::string>()});
+            return out;
+        });
+    }
+
     std::optional<Domain::Post> find_published_by_slug(const std::string& slug) {
         return Database::get().execute_read([&](auto& txn) -> std::optional<Domain::Post> {
             auto r = txn.exec_params(
