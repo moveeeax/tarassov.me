@@ -245,47 +245,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/blog-single.html": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Legacy blog-post URL — redirects to the clean /blog/{slug} path */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Permanent redirect to the canonical post URL */
-                301: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Unknown or missing post reference */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/auth/register": {
         parameters: {
             query?: never;
@@ -1858,12 +1817,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List posts (admin; offset-paginated) */
+        /** List posts (admin; offset-paginated, filterable) */
         get: {
             parameters: {
                 query?: {
                     limit?: number;
                     offset?: number;
+                    /** @description Case-insensitive search over title+slug+summary */
+                    q?: string;
+                    status?: "draft" | "published";
+                    topic?: string;
+                    tag?: string;
                 };
                 header?: never;
                 path?: never;
@@ -2087,6 +2051,65 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/posts/{id}/preview-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin: issue a draft preview link (stateless HMAC token, 1h TTL) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description { data: { url: '/blog/<slug>?preview=<token>', expires_at } } */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid UUID */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/posts": {
         parameters: {
             query?: never;
@@ -2094,12 +2117,20 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List published posts (public, no auth) */
+        /** List published posts (public, no auth) — server-filtered, paged, optional facets */
         get: {
             parameters: {
                 query?: {
+                    page?: number;
                     limit?: number;
-                    offset?: number;
+                    /** @description Exact topic; 'Other' also matches blank topics */
+                    topic?: string;
+                    /** @description Exact tag membership */
+                    tag?: string;
+                    /** @description Case-insensitive search over title+summary */
+                    q?: string;
+                    /** @description Embed facets computed over the current filter */
+                    include?: "facets";
                 };
                 header?: never;
                 path?: never;
@@ -2107,12 +2138,38 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description { data, limit, offset } — published posts, newest first */
+                /** @description Published posts, newest first */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            items: {
+                                slug: string;
+                                title: string;
+                                summary: string;
+                                topic: string;
+                                tags: string[];
+                                /** Format: date-time */
+                                published_at: string | null;
+                                read_mins: number;
+                            }[];
+                            page: number;
+                            limit: number;
+                            total: number;
+                            facets?: {
+                                topics?: {
+                                    name?: string;
+                                    count?: number;
+                                }[];
+                                tags?: {
+                                    name?: string;
+                                    count?: number;
+                                }[];
+                            };
+                        };
+                    };
                 };
             };
         };
@@ -2136,7 +2193,12 @@ export interface paths {
         /** Get a published post by slug (public, no auth) */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Embed prev/next published neighbours: { adjacent: { prev, next } } (null at feed edges) */
+                    include?: "adjacent";
+                    /** @description Draft preview token (issued via /api/v1/posts/{id}/preview-token); invalid/expired behaves like 404 */
+                    preview?: string;
+                };
                 header?: never;
                 path: {
                     slug: string;
@@ -2145,7 +2207,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description OK — { data } (+ data.adjacent with include=adjacent) */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -2234,7 +2296,42 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Admin: list uploaded images (media library) */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    offset?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description { data: [ { key, name, url, size_bytes, content_type, created_at } ], total, limit, offset } — newest first */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Storage backend not configured */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         put?: never;
         /** Upload an image (admin) → { key, url } */
         post: {
@@ -2284,6 +2381,74 @@ export interface paths {
             };
         };
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/uploads/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Single-segment basename of an upload key (posts/<name>) */
+                name: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Admin: delete an uploaded image */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Single-segment basename of an upload key (posts/<name>) */
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Name is not a single URL-safe segment */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description No such upload */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Storage backend not configured */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;

@@ -62,11 +62,31 @@ TEST_F(ConfigTest, ProdRefusesAuthModeNone) {
 TEST_F(ConfigTest, ProdAllowsJwt) {
     setenv("APP_ENV", "production", 1);
     setenv("AUTH_MODE", "jwt", 1);
+    // Prod also requires a canonical https site.base_url (SEO URL generation).
+    setenv("SITE_BASE_URL", "https://example.test", 1);
     Config::initialize(test_config_file);
     EXPECT_NO_THROW(Core::Application::validate_config(Config::get()));
     Config::shutdown();
     unsetenv("APP_ENV");
     unsetenv("AUTH_MODE");
+    unsetenv("SITE_BASE_URL");
+}
+
+TEST_F(ConfigTest, ProdRequiresHttpsSiteBaseUrl) {
+    setenv("APP_ENV", "production", 1);
+    setenv("AUTH_MODE", "jwt", 1);
+    // Missing → refuse to start.
+    Config::initialize(test_config_file);
+    EXPECT_THROW(Core::Application::validate_config(Config::get()), std::runtime_error);
+    Config::shutdown();
+    // http:// (not https) → refuse to start.
+    setenv("SITE_BASE_URL", "http://example.test", 1);
+    Config::initialize(test_config_file);
+    EXPECT_THROW(Core::Application::validate_config(Config::get()), std::runtime_error);
+    Config::shutdown();
+    unsetenv("APP_ENV");
+    unsetenv("AUTH_MODE");
+    unsetenv("SITE_BASE_URL");
 }
 
 TEST_F(ConfigTest, DevAllowsAuthModeNone) {

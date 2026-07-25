@@ -16,6 +16,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include "utils/Time.hpp"
+
 namespace Domain {
 
 // Tags travel between the DB and the domain as one comma-joined TEXT column
@@ -73,10 +75,13 @@ struct Post {
         e.status = row["status"].template as<std::string>();
         e.topic = row["topic"].template as<std::string>();
         e.tags = split_tags(row["tags"].template as<std::string>());
+        // API-facing timestamps are ISO 8601 UTC; libpqxx hands us Postgres
+        // text form ("YYYY-MM-DD HH:MM:SS.ffffff+00") — convert at this single
+        // DB→domain boundary so every serializer downstream inherits it.
         if (!row["published_at"].is_null())
-            e.published_at = row["published_at"].template as<std::string>();
-        e.created_at = row["created_at"].template as<std::string>();
-        e.updated_at = row["updated_at"].template as<std::string>();
+            e.published_at = Utils::Time::pg_to_iso8601(row["published_at"].template as<std::string>());
+        e.created_at = Utils::Time::pg_to_iso8601(row["created_at"].template as<std::string>());
+        e.updated_at = Utils::Time::pg_to_iso8601(row["updated_at"].template as<std::string>());
         return e;
     }
 };
@@ -119,7 +124,7 @@ struct PostCard {
         c.topic = row["topic"].template as<std::string>();
         c.tags = split_tags(row["tags"].template as<std::string>());
         if (!row["published_at"].is_null())
-            c.published_at = row["published_at"].template as<std::string>();
+            c.published_at = Utils::Time::pg_to_iso8601(row["published_at"].template as<std::string>());
         c.read_mins = row["read_mins"].template as<int>();
         return c;
     }

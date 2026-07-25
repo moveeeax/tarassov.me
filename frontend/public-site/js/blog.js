@@ -1,13 +1,14 @@
 /*
  * Public blog rendering for tarassov.me.
  *
- * Pulls posts from the backend's unauthenticated read API and renders the
- * "Field notes" design (tag cloud + filter + pagination on the index; progress
- * bar + prev/next on the article page). The static HTML stays static; content
- * is DB-backed (admin-authored).
+ * Renders the "Field notes" design on top of the hybrid API contract
+ * (spec 2026-07-25): the SERVER filters, pages and computes facets; this
+ * script draws and asks for the next page/filter — one request per
+ * interaction, never the whole feed.
  *
- *   blog.html          -> GET /api/v1/public/posts          (list)
- *   blog-single.html   -> GET /api/v1/public/posts/{slug}   (one, by ?slug=)
+ *   blog.html      -> GET /api/v1/public/posts?page&topic|tag&include=facets
+ *   /blog/<slug>   -> hydrates from the SSR #post-data island (adjacent via
+ *                     GET /api/v1/public/posts/{slug}?include=adjacent)
  *
  * Same-origin: nginx proxies /api/* to the backend, so no CORS.
  */
@@ -58,143 +59,104 @@
         var pagerEl = document.getElementById("blog-pager");
 
         var PER_PAGE = 10;
-        var state = { posts: [], active: [], page: 0, topicOrder: [] };
+        // active: {kind:"topic"|"tag", name} | null. Single-select — the API
+        // filters server-side (?topic= / ?tag=); one request per interaction.
+        // grandTotal remembers the unfiltered count for the "n / total" line.
+        var state = { active: null, page: 1, grandTotal: null };
 
-        // Display topic: problem posts (numeric slug) fold into "LeetCode";
-        // everything else keeps its section, empty topics become "Other".
-        function displayTopic(p) {
-            if (/^\d+-/.test(p.slug || "")) return "LeetCode";
-            var t = (p.topic || "").trim();
-            return t || "Other";
+        function load() {
+            var qs = "?page=" + state.page + "&limit=" + PER_PAGE + "&include=facets";
+            if (state.active) {
+                qs += "&" + state.active.kind + "=" + encodeURIComponent(state.active.name);
+            }
+            fetch(API + qs)
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    if (state.grandTotal === null && !state.active) state.grandTotal = res.total;
+                    draw(res);
+                })
+                .catch(function () {
+                    listEl.innerHTML = '<p class="blog-loading">Failed to load posts.</p>';
+                });
         }
 
-        // Cards are body-less (read_mins comes from the API), so the whole feed
-        // is one small payload — fetched in full so the filter and pager work
-        // across every post, applied client-side below.
-        fetch(API + "?limit=1000")
-            .then(function (r) { return r.json(); })
-            .then(function (res) {
-                state.posts = ((res && res.data) || []).slice().sort(function (x, y) {
-                    return (y.published_at || "").localeCompare(x.published_at || "");
-                });
-                // Topic chips: the real sections present, by count desc (ties
-                // alpha), with "Other" always last. Never the full vocabulary.
-                var counts = {};
-                state.posts.forEach(function (p) {
-                    var d = displayTopic(p);
-                    counts[d] = (counts[d] || 0) + 1;
-                });
-                state.topicOrder = Object.keys(counts).sort(function (a, b) {
-                    if (a === "Other") return 1;
-                    if (b === "Other") return -1;
-                    return counts[b] - counts[a] || a.localeCompare(b);
-                });
-                draw();
-            })
-            .catch(function () {
-                listEl.innerHTML = '<p class="blog-loading">Failed to load posts.</p>';
-            });
-
-        function toggle(name) {
-            var i = state.active.indexOf(name);
-            if (i === -1) state.active.push(name);
-            else state.active.splice(i, 1);
-            state.page = 0;
-            draw();
+        function setFilter(kind, name) {
+            var same = state.active && state.active.kind === kind && state.active.name === name;
+            state.active = same ? null : { kind: kind, name: name };
+            state.page = 1;
+            load();
         }
 
-        // OR filter: a post shows if its display topic is active OR it carries
-        // any active keyword tag.
-        function matches(p) {
-            if (!state.active.length) return true;
-            if (state.active.indexOf(displayTopic(p)) !== -1) return true;
-            return postTags(p).some(function (t) {
-                return state.active.indexOf(t) !== -1;
-            });
-        }
-
-        // One shared chip <button>; keyword chips render dimmer (is-dim).
+        // One shared chip <button>; keyword (tag) chips render dimmer (is-dim).
         function chip(name, kind) {
             var b = document.createElement("button");
             b.type = "button";
-            var on = state.active.indexOf(name) !== -1;
-            b.className =
-                "blog-chip-btn" + (kind === "keyword" ? " is-dim" : "") + (on ? " is-active" : "");
+            var on = state.active && state.active.kind === kind && state.active.name === name;
+            b.className = "blog-chip-btn" + (kind === "tag" ? " is-dim" : "") + (on ? " is-active" : "");
             b.textContent = name;
-            b.addEventListener("click", function () { toggle(name); });
+            b.addEventListener("click", function () { setFilter(kind, name); });
             return b;
         }
 
-        function drawTopics() {
+        function drawTopics(facets) {
             if (!topicsEl) return;
             topicsEl.innerHTML = "";
             // "All" clears the filter; active when nothing is selected.
             var all = document.createElement("button");
             all.type = "button";
-            all.className = "blog-chip-btn" + (state.active.length === 0 ? " is-active" : "");
+            all.className = "blog-chip-btn" + (state.active ? "" : " is-active");
             all.textContent = "All";
             all.addEventListener("click", function () {
-                state.active = [];
-                state.page = 0;
-                draw();
+                state.active = null;
+                state.page = 1;
+                load();
             });
             topicsEl.appendChild(all);
-            state.topicOrder.forEach(function (name) {
-                topicsEl.appendChild(chip(name, "topic"));
+            (facets.topics || []).forEach(function (t) {
+                topicsEl.appendChild(chip(t.name, "topic"));
             });
         }
 
-        // Top 14 tags of the current result set; row hidden when ≤1 keyword.
-        function drawKeywords(pool) {
+        // Top 14 tags of the current result (server orders by count desc);
+        // row hidden when ≤1 keyword.
+        function drawKeywords(facets) {
             if (!keywordsEl || !keywordRowEl) return;
-            var counts = {};
-            pool.forEach(function (p) {
-                postTags(p).forEach(function (t) { counts[t] = (counts[t] || 0) + 1; });
-            });
-            var names = Object.keys(counts)
-                .sort(function (a, b) { return counts[b] - counts[a] || a.localeCompare(b); })
-                .slice(0, 14);
+            var names = (facets.tags || []).slice(0, 14);
             if (names.length <= 1) {
                 keywordRowEl.setAttribute("hidden", "");
                 return;
             }
             keywordsEl.innerHTML = "";
-            names.forEach(function (name) { keywordsEl.appendChild(chip(name, "keyword")); });
+            names.forEach(function (t) { keywordsEl.appendChild(chip(t.name, "tag")); });
             keywordRowEl.removeAttribute("hidden");
         }
 
         function pad2(n) { return String(n).padStart(2, "0"); }
 
-        function draw() {
+        function draw(res) {
             if (filterEl) filterEl.removeAttribute("hidden");
-            drawTopics();
-
-            var filtered = state.posts.filter(matches);
-            drawKeywords(filtered);
+            var facets = res.facets || { topics: [], tags: [] };
+            drawTopics(facets);
+            drawKeywords(facets);
 
             if (resultEl) {
-                resultEl.textContent = state.active.length
-                    ? filtered.length + " / " + state.posts.length
-                    : state.posts.length + " ARTICLES";
+                resultEl.textContent = state.active
+                    ? res.total + " / " + (state.grandTotal === null ? res.total : state.grandTotal)
+                    : res.total + " ARTICLES";
             }
 
-            var totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
-            if (state.page > totalPages - 1) state.page = totalPages - 1;
-            if (state.page < 0) state.page = 0;
-            var page = state.page;
-            var slice = filtered.slice(page * PER_PAGE, page * PER_PAGE + PER_PAGE);
-
-            if (!filtered.length) {
+            var items = res.items || [];
+            if (!items.length) {
                 listEl.innerHTML =
                     '<p class="blog-empty">' +
-                    (state.active.length ? "No articles match this filter." : "No posts yet.") +
+                    (state.active ? "No articles match this filter." : "No posts yet.") +
                     "</p>";
             } else {
-                listEl.innerHTML = slice
+                listEl.innerHTML = items
                     .map(function (p) {
                         var chips = postTags(p)
                             .map(function (t) {
-                                var on = state.active.indexOf(t) !== -1;
+                                var on = state.active && state.active.kind === "tag" && state.active.name === t;
                                 return '<span class="blog-chip' + (on ? " is-active" : "") + '">' + esc(t) + "</span>";
                             })
                             .join("");
@@ -204,7 +166,7 @@
                             '">' +
                             '<div class="blog-row-meta">' +
                             "<div>" + esc(fmtDate(p.published_at)) + "</div>" +
-                            '<div class="blog-row-read">' + (p.read_mins || readMins(p.body)) + " MIN</div>" +
+                            '<div class="blog-row-read">' + (p.read_mins || 1) + " MIN</div>" +
                             "</div>" +
                             "<div>" +
                             (p.topic ? '<div class="blog-row-topic">' + esc(p.topic) + "</div>" : "") +
@@ -217,7 +179,7 @@
                     .join("");
             }
 
-            drawPager(filtered.length, totalPages, page);
+            drawPager(res.total, Math.max(1, Math.ceil(res.total / PER_PAGE)), state.page - 1);
         }
 
         // One quiet line: "<from>–<to> OF <total>" left, "← 01 / 73 →" right.
@@ -248,7 +210,7 @@
             prev.className = "blog-arrow";
             prev.textContent = "←";
             prev.disabled = page <= 0;
-            prev.addEventListener("click", function () { goTo(page - 1); });
+            prev.addEventListener("click", function () { goTo(page); });
             nav.appendChild(prev);
 
             var counter = document.createElement("span");
@@ -261,21 +223,23 @@
             next.className = "blog-arrow";
             next.textContent = "→";
             next.disabled = page >= totalPages - 1;
-            next.addEventListener("click", function () { goTo(page + 1); });
+            next.addEventListener("click", function () { goTo(page + 2); });
             nav.appendChild(next);
 
             pagerEl.appendChild(nav);
             pagerEl.removeAttribute("hidden");
         }
 
-        // No scroll-to-top on page change (per spec).
+        // goTo takes a 1-based page; no scroll-to-top on page change (per spec).
         function goTo(p) {
             state.page = p;
-            draw();
+            load();
         }
+
+        load();
     }
 
-    // ── Article (blog-single.html): header, body, tags, prev/next, progress ─
+    // ── Article (/blog/<slug>): header, body, tags, prev/next, progress ─────
     function renderSingle() {
         var topicEl = document.getElementById("post-topic");
         var titleEl = document.getElementById("post-title");
@@ -295,21 +259,38 @@
             contentEl.innerHTML = '<p class="blog-loading">' + esc(msg) + "</p>";
         }
 
-        // Clean URL /blog/<slug>, or the legacy ?slug= form (301'd in prod).
+        // Clean URL only: /blog/<slug> (the legacy ?slug= shell is gone).
         var pathMatch = location.pathname.match(/^\/blog\/(.+)$/);
-        var slug = pathMatch
-            ? decodeURIComponent(pathMatch[1])
-            : new URLSearchParams(location.search).get("slug");
+        var slug = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
         if (!slug) {
             fail("No post specified.");
             return;
         }
 
-        fetch(API + "/" + encodeURIComponent(slug))
-            .then(function (r) {
-                if (!r.ok) throw new Error("not found");
-                return r.json();
-            })
+        // SSR island first — the server embeds the post JSON so no second
+        // request is needed; fall back to the API if the island is missing.
+        // Adjacent posts always come from the API (the island carries none).
+        var island = document.getElementById("post-data");
+        var islandPost = null;
+        if (island) {
+            try {
+                islandPost = JSON.parse(island.textContent);
+            } catch (e) {
+                islandPost = null;
+            }
+        }
+        var preview = new URLSearchParams(location.search).get("preview");
+        var apiUrl =
+            API + "/" + encodeURIComponent(slug) +
+            "?include=adjacent" + (preview ? "&preview=" + encodeURIComponent(preview) : "");
+
+        (islandPost
+            ? Promise.resolve({ data: islandPost })
+            : fetch(apiUrl).then(function (r) {
+                  if (!r.ok) throw new Error("not found");
+                  return r.json();
+              })
+        )
             .then(function (res) {
                 var post = res && res.data;
                 if (!post) throw new Error("not found");
@@ -360,7 +341,7 @@
                 });
 
                 bindProgress(); // re-measure after content lands
-                renderPager(slug);
+                renderPager(slug, post.adjacent, preview);
             })
             .catch(function () {
                 fail("This post does not exist or has not been published yet.");
@@ -387,38 +368,39 @@
         bindProgress._onScroll();
     }
 
-    // Prev (older) / next (newer): the public index is newest-first
-    // (ORDER BY published_at DESC). A side with no neighbour stays hidden;
-    // with no neighbours at all the bar never shows.
-    function renderPager(slug) {
+    // Prev (older) / next (newer) from the by-slug include=adjacent payload —
+    // or a one-shot fetch when we hydrated from the SSR island (which carries
+    // no adjacent block). A side with no neighbour stays hidden; with no
+    // neighbours at all the bar never shows. Previewed drafts have no pager.
+    function renderPager(slug, adjacent, preview) {
         var pager = document.getElementById("post-pager");
         if (!pager) return;
-        fetch(API + "?limit=1000")
+        if (preview) return; // a draft has no position in the published feed
+        function apply(adj) {
+            if (!adj) return;
+            function side(id, ref) {
+                var a = document.getElementById(id);
+                if (!a || !ref) return false;
+                a.href = "/blog/" + encodeURIComponent(ref.slug);
+                a.querySelector(".title").textContent = ref.title;
+                a.removeAttribute("hidden");
+                return true;
+            }
+            var hasOlder = side("pager-prev", adj.prev);
+            var hasNewer = side("pager-next", adj.next);
+            if (hasOlder || hasNewer) pager.removeAttribute("hidden");
+            bindProgress(); // neighbours change page height
+        }
+        if (adjacent) {
+            apply(adjacent);
+            return;
+        }
+        fetch(API + "/" + encodeURIComponent(slug) + "?include=adjacent")
             .then(function (r) {
                 return r.json();
             })
             .then(function (res) {
-                var posts = ((res && res.data) || []).slice().sort(function (x, y) {
-                    return (y.published_at || "").localeCompare(x.published_at || "");
-                });
-                var i = posts.findIndex(function (p) {
-                    return p.slug === slug;
-                });
-                if (i === -1) return;
-                var newer = i > 0 ? posts[i - 1] : null;
-                var older = i + 1 < posts.length ? posts[i + 1] : null;
-                function side(id, post) {
-                    var a = document.getElementById(id);
-                    if (!a || !post) return false;
-                    a.href = "/blog/" + encodeURIComponent(post.slug);
-                    a.querySelector(".title").textContent = post.title;
-                    a.removeAttribute("hidden");
-                    return true;
-                }
-                var hasOlder = side("pager-prev", older);
-                var hasNewer = side("pager-next", newer);
-                if (hasOlder || hasNewer) pager.removeAttribute("hidden");
-                bindProgress(); // neighbours change page height
+                apply(res && res.data && res.data.adjacent);
             })
             .catch(function () {});
     }
@@ -437,7 +419,7 @@
                 return r.json();
             })
             .then(function (res) {
-                var posts = (res && res.data) || [];
+                var posts = (res && res.items) || [];
                 if (!posts.length) return;
                 el.innerHTML = posts
                     .map(function (p) {
@@ -512,7 +494,7 @@
         if (document.getElementById("latest-posts")) renderLatest();
         bindContact();
         // Element-based dispatch: the article shell (#post-content) is served
-        // both at the legacy /blog-single.html and the SSR /blog/<slug>.
+        // by the SSR /blog/<slug> page.
         if (document.getElementById("post-content")) renderSingle();
         else if (document.getElementById("blog-posts")) renderList();
     });
