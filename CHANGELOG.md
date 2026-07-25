@@ -6,6 +6,32 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-07-25
+
+### Added
+- **Blog is now indexable — dynamic sitemap + server-rendered post pages.** The
+  blog was effectively invisible to search: the sitemap listed only 2 URLs
+  (home + index) and every post served identical `<head>` metadata — same
+  `<title>`, same description, no per-post `canonical`, so 727 posts were
+  neither discoverable nor distinguishable to crawlers. A new
+  `PublicPagesController` (proxied by nginx) fixes both:
+  - `GET /sitemap.xml` — generated from the DB: home, `/blog.html`, and every
+    published post at its clean URL with `lastmod` (`robots.txt` already points
+    here).
+  - `GET /blog/<slug>` — server-rendered `<head>` with a real per-post
+    `<title>`, description, `rel=canonical`, OG/Twitter tags, and JSON-LD
+    `BlogPosting`, so crawlers get correct metadata before `js/blog.js` hydrates
+    the body. Origin derived from the request `Host` + `X-Forwarded-Proto`.
+  - `GET /blog-single.html?slug=X` → **301** to the clean `/blog/<slug>` URL
+    (back-compat).
+
+### Changed
+- Post links across the site (list, prev/next, latest, cover) now point at the
+  clean `/blog/<slug>` URLs; `renderSingle` reads the slug from the path and
+  falls back to `?slug=`. nginx proxies `/sitemap.xml`, `/blog/<slug>` (`^~` so
+  `/blog.html` stays static) and the legacy `/blog-single.html` to the backend
+  (dev `nginx.conf` + prod helm configmap kept in sync).
+
 ## [1.6.2] — 2026-07-25
 
 ### Fixed
