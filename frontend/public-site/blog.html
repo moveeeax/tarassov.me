@@ -53,16 +53,18 @@
             <p class="blog-sub">Write-ups on Kubernetes, Terraform, multi-cloud cost, Linux internals, the DevOps career, and the occasional algorithm. Filter by topic — click a tag.</p>
         </header>
 
-        <!-- Filter panel: tag cloud + result label, built by js/blog.js -->
+        <!-- Filter bar: TOPIC rail + KEYWORD rail, built by js/blog.js.
+             Constant height regardless of dataset size — never the full tag cloud. -->
         <section class="blog-filter" id="blog-filter" hidden>
-            <div class="blog-filter-head">
-                <div class="blog-filter-label">FILTER BY TOPIC</div>
-                <div class="blog-filter-result">
-                    <span id="blog-result"></span>
-                    <button type="button" class="blog-clear" id="blog-clear" hidden>CLEAR ✕</button>
-                </div>
+            <div class="blog-filter-row" id="blog-topic-row">
+                <span class="blog-rail">TOPIC</span>
+                <div class="blog-chip-set" id="blog-topics"></div>
+                <span class="blog-result" id="blog-result"></span>
             </div>
-            <div class="blog-cloud" id="blog-cloud"></div>
+            <div class="blog-filter-row blog-filter-row-kw" id="blog-keyword-row" hidden>
+                <span class="blog-rail">KEYWORD</span>
+                <div class="blog-chip-set" id="blog-keywords"></div>
+            </div>
         </section>
 
         <!-- Article list (filled by js/blog.js from /api/v1/public/posts) -->
