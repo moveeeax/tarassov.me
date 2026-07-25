@@ -35,12 +35,25 @@ inline std::string make_conninfo(const std::string& host,
                                  int port,
                                  const std::string& user,
                                  const std::string& dbname,
-                                 const std::string& password) {
+                                 const std::string& password,
+                                 int connect_timeout_sec = 5) {
     std::string dsn = "host=" + quote_value(host) + " port=" + std::to_string(port) + " user=" + quote_value(user) +
                       " dbname=" + quote_value(dbname);
     if (!password.empty())
         dsn += " password=" + quote_value(password);
+    // Bound the TCP connect: libpq's default is unbounded, so a blackholed DB
+    // endpoint (dead node, dropped packets) would park a reconnecting request
+    // thread for the OS SYN-retry window (~2 min) — far past acquire_timeout,
+    // which only bounds the wait for a free pool slot. Fail fast instead.
+    if (connect_timeout_sec > 0)
+        dsn += " connect_timeout=" + std::to_string(connect_timeout_sec);
     return dsn;
+}
+
+/// True if a libpq DSN (key=value form OR postgresql:// URL) already pins a
+/// connect_timeout — so we don't clobber an operator-supplied one.
+inline bool has_connect_timeout(const std::string& dsn) {
+    return dsn.find("connect_timeout") != std::string::npos;
 }
 
 }  // namespace Utils::Pg

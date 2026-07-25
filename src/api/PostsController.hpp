@@ -272,6 +272,25 @@ private:
                 }
             }
         }
+        // Optional fields must be strings when present — `body.value(k, "")`
+        // throws type_error.306 on a non-string (number/bool), which would
+        // otherwise escape the handler as a bare 500 instead of a 400.
+        for (const char* k : {"summary", "body", "status", "topic"})
+            if (body.contains(k) && !body[k].is_null() && !body[k].is_string())
+                errs.add(k, "not_string", std::string(k) + " must be a string");
+        // Slug is the public URL key: constrain it to a clean path segment so a
+        // slug with '/', spaces, '#', '?' can't create an unreachable post.
+        if (body.contains("slug") && body["slug"].is_string()) {
+            const std::string s = body["slug"].get<std::string>();
+            bool ok = !s.empty();
+            for (char c : s)
+                if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-'))
+                    ok = false;
+            if (!ok || s.front() == '-' || s.back() == '-')
+                errs.add("slug",
+                         "invalid",
+                         "slug must be lowercase letters, digits and hyphens (no leading/trailing hyphen)");
+        }
         if (errs.any()) {
             callback(Validation::response_400(errs));
             return false;
