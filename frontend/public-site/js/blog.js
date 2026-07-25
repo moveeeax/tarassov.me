@@ -56,7 +56,10 @@
 
         var state = { posts: [], active: [], page: 0 };
 
-        fetch(API + "?limit=100")
+        // Cards are body-less (read_mins comes from the API), so the whole feed
+        // is one small payload — fetched in full so the tag cloud and filter can
+        // work across every post, with pagination applied client-side below.
+        fetch(API + "?limit=1000")
             .then(function (r) {
                 return r.json();
             })
@@ -168,7 +171,7 @@
                             '">' +
                             '<div class="blog-row-meta">' +
                             "<div>" + esc(fmtDate(p.published_at)) + "</div>" +
-                            '<div class="blog-row-read">' + readMins(p.body) + " MIN</div>" +
+                            '<div class="blog-row-read">' + (p.read_mins || readMins(p.body)) + " MIN</div>" +
                             "</div>" +
                             "<div>" +
                             (p.topic ? '<div class="blog-row-topic">' + esc(p.topic) + "</div>" : "") +
@@ -371,7 +374,7 @@
     function renderPager(slug) {
         var pager = document.getElementById("post-pager");
         if (!pager) return;
-        fetch(API + "?limit=100")
+        fetch(API + "?limit=1000")
             .then(function (r) {
                 return r.json();
             })
