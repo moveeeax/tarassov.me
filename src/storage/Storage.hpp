@@ -203,14 +203,10 @@ public:
 
     bool exists(const std::string& key) override { return request("HEAD", key, "", "", nullptr) == 200; }
 
-    std::vector<ObjectInfo> list(const std::string& prefix) override {
-        // One ListObjectsV2 page (max 1000 keys) — plenty for a personal blog's
-        // uploads; a warning fires if S3 reports truncation.
-        std::string body;
-        const std::string query = "list-type=2&prefix=" + uri_encode_query(prefix);
-        const long code = signed_request("GET", "/" + cfg_.bucket, query, "", "", &body);
-        if (code != 200)
-            throw std::runtime_error("s3: LIST failed with HTTP " + std::to_string(code));
+    /// Parse a ListObjectsV2 XML body into ObjectInfo rows (newest first).
+    /// Static + pure so tests can feed canned MinIO/AWS responses without a
+    /// network. Sets @p truncated when S3 reports more than one page.
+    static std::vector<ObjectInfo> parse_list_objects_xml(const std::string& body, bool* truncated = nullptr) {
         std::vector<ObjectInfo> out;
         std::size_t pos = 0;
         while ((pos = body.find("<Contents>", pos)) != std::string::npos) {
@@ -240,11 +236,26 @@ public:
                 out.push_back(std::move(o));
             pos = end;
         }
-        if (body.find("<IsTruncated>true</IsTruncated>") != std::string::npos)
-            spdlog::warn("s3 list: >1000 objects under '{}' — listing truncated", prefix);
+        if (truncated)
+            *truncated = body.find("<IsTruncated>true</IsTruncated>") != std::string::npos;
         std::sort(out.begin(), out.end(), [](const ObjectInfo& a, const ObjectInfo& b) {
             return a.last_modified > b.last_modified;
         });
+        return out;
+    }
+
+    std::vector<ObjectInfo> list(const std::string& prefix) override {
+        // One ListObjectsV2 page (max 1000 keys) — plenty for a personal blog's
+        // uploads; a warning fires if S3 reports truncation.
+        std::string body;
+        const std::string query = "list-type=2&prefix=" + uri_encode_query(prefix);
+        const long code = signed_request("GET", "/" + cfg_.bucket, query, "", "", &body);
+        if (code != 200)
+            throw std::runtime_error("s3: LIST failed with HTTP " + std::to_string(code));
+        bool truncated = false;
+        auto out = parse_list_objects_xml(body, &truncated);
+        if (truncated)
+            spdlog::warn("s3 list: >1000 objects under '{}' — listing truncated", prefix);
         return out;
     }
 
