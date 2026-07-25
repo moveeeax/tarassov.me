@@ -199,7 +199,7 @@
                             })
                             .join("");
                         return (
-                            '<a class="blog-row" href="blog-single.html?slug=' +
+                            '<a class="blog-row" href="/blog/' +
                             encodeURIComponent(p.slug) +
                             '">' +
                             '<div class="blog-row-meta">' +
@@ -295,7 +295,11 @@
             contentEl.innerHTML = '<p class="blog-loading">' + esc(msg) + "</p>";
         }
 
-        var slug = new URLSearchParams(location.search).get("slug");
+        // Clean URL /blog/<slug>, or the legacy ?slug= form (301'd in prod).
+        var pathMatch = location.pathname.match(/^\/blog\/(.+)$/);
+        var slug = pathMatch
+            ? decodeURIComponent(pathMatch[1])
+            : new URLSearchParams(location.search).get("slug");
         if (!slug) {
             fail("No post specified.");
             return;
@@ -406,7 +410,7 @@
                 function side(id, post) {
                     var a = document.getElementById(id);
                     if (!a || !post) return false;
-                    a.href = "blog-single.html?slug=" + encodeURIComponent(post.slug);
+                    a.href = "/blog/" + encodeURIComponent(post.slug);
                     a.querySelector(".title").textContent = post.title;
                     a.removeAttribute("hidden");
                     return true;
@@ -438,7 +442,7 @@
                 el.innerHTML = posts
                     .map(function (p) {
                         return (
-                            '<h2><a href="blog-single.html?slug=' +
+                            '<h2><a href="/blog/' +
                             encodeURIComponent(p.slug) +
                             '">' +
                             esc(p.title) +
@@ -452,7 +456,7 @@
                 var line = document.getElementById("cover-blog-line");
                 var headline = document.getElementById("cover-blog-headline");
                 if (line && headline) {
-                    line.href = "blog-single.html?slug=" + encodeURIComponent(posts[0].slug);
+                    line.href = "/blog/" + encodeURIComponent(posts[0].slug);
                     headline.textContent = posts[0].title;
                     line.removeAttribute("hidden");
                 }
@@ -507,7 +511,9 @@
     document.addEventListener("DOMContentLoaded", function () {
         if (document.getElementById("latest-posts")) renderLatest();
         bindContact();
-        if (location.pathname.indexOf("blog-single") !== -1) renderSingle();
+        // Element-based dispatch: the article shell (#post-content) is served
+        // both at the legacy /blog-single.html and the SSR /blog/<slug>.
+        if (document.getElementById("post-content")) renderSingle();
         else if (document.getElementById("blog-posts")) renderList();
     });
 })();

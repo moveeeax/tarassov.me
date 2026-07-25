@@ -12,6 +12,7 @@
 #include <nlohmann/json.hpp>
 
 #include "api/PostsController.hpp"
+#include "api/PublicPagesController.hpp"
 #include "test_helpers.hpp"
 
 using json = nlohmann::json;
@@ -114,6 +115,49 @@ TEST_F(PostsFlowTest, CreateRejectsCommaInTag) {
     json body = {{"slug", "bad-tag"}, {"title", "Bad tag"}, {"tags", {"a,b"}}};
     auto resp = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, body), std::move(cb)); });
     EXPECT_EQ(resp->statusCode(), k400BadRequest);
+}
+
+TEST_F(PostsFlowTest, SsrSitemapAndRedirect) {
+    // Publish a post, then exercise the server-rendered SEO surfaces.
+    json body = {{"slug", "ssr-test"},
+                 {"title", "SSR Test"},
+                 {"summary", "A concise summary."},
+                 {"body", "# hi\n\nbody"},
+                 {"status", "published"},
+                 {"topic", "Kubernetes"},
+                 {"tags", {"kubernetes"}}};
+    auto resp = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, body), std::move(cb)); });
+    ASSERT_EQ(resp->statusCode(), k201Created);
+
+    Api::PublicPagesController pub;
+
+    // SSR post page: 200 HTML with a real per-post head + JSON-LD.
+    resp = call([&](auto cb) { pub.blogPost(TestHelpers::make_request(Get), std::move(cb), "ssr-test"); });
+    ASSERT_EQ(resp->statusCode(), k200OK);
+    std::string html(resp->body());
+    EXPECT_NE(html.find("<title>SSR Test"), std::string::npos);
+    EXPECT_NE(html.find("rel=\"canonical\""), std::string::npos);
+    EXPECT_NE(html.find("/blog/ssr-test"), std::string::npos);
+    EXPECT_NE(html.find("application/ld+json"), std::string::npos);
+    EXPECT_NE(html.find("BlogPosting"), std::string::npos);
+
+    // Unknown slug → 404.
+    resp = call([&](auto cb) { pub.blogPost(TestHelpers::make_request(Get), std::move(cb), "no-such-post"); });
+    EXPECT_EQ(resp->statusCode(), k404NotFound);
+
+    // Sitemap lists the published post at its clean URL.
+    resp = call([&](auto cb) { pub.sitemap(TestHelpers::make_request(Get), std::move(cb)); });
+    ASSERT_EQ(resp->statusCode(), k200OK);
+    std::string xml(resp->body());
+    EXPECT_NE(xml.find("<urlset"), std::string::npos);
+    EXPECT_NE(xml.find("/blog/ssr-test"), std::string::npos);
+
+    // Legacy ?slug= → 301 to the clean URL.
+    auto req = TestHelpers::make_request(Get);
+    req->setParameter("slug", "ssr-test");
+    resp = call([&](auto cb) { pub.blogSingleRedirect(req, std::move(cb)); });
+    EXPECT_EQ(resp->statusCode(), k301MovedPermanently);
+    EXPECT_EQ(resp->getHeader("location"), "/blog/ssr-test");
 }
 
 }  // namespace

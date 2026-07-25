@@ -284,6 +284,41 @@ paths:
         '200': { description: All components healthy }
         '503': { description: One or more components unhealthy }
 
+  # ── Public pages / SEO ──────────────────────────────────────────────────────
+  /sitemap.xml:
+    get:
+      summary: Dynamic sitemap of public pages and published posts
+      tags: [public]
+      responses:
+        '200':
+          description: Sitemap
+          content:
+            application/xml:
+              schema: { type: string }
+  /blog/{slug}:
+    get:
+      summary: Server-rendered blog post page
+      tags: [public]
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Rendered post page
+          content:
+            text/html:
+              schema: { type: string }
+        '404': { description: No published post with that slug }
+  /blog-single.html:
+    get:
+      summary: Legacy blog-post URL — redirects to the clean /blog/{slug} path
+      tags: [public]
+      responses:
+        '301': { description: Permanent redirect to the canonical post URL }
+        '404': { description: Unknown or missing post reference }
+
   # ── Auth ───────────────────────────────────────────────────────────────────
   /api/v1/auth/register:
     post:
