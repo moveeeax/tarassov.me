@@ -266,6 +266,35 @@ TEST_F(PostsFlowTest, DraftPreviewToken) {
         EXPECT_NE(it["slug"], "wip");
 }
 
+TEST_F(PostsFlowTest, AdminListFilters) {
+    json draft = {
+        {"slug", "admfilter-draft"}, {"title", "AdmFilter SLO Draft"}, {"status", "draft"}, {"topic", "AdmFilterSRE"}};
+    auto rc = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, draft), std::move(cb)); });
+    ASSERT_EQ(rc->statusCode(), k201Created);
+    seed("admfilter-pub", "AdmFilter Kube Pub", "AdmFilterK8s", {"admfilter-kube"});
+
+    // status filter sees drafts.
+    auto req = TestHelpers::make_request(Get);
+    req->setParameter("status", "draft");
+    req->setParameter("q", "admfilter");
+    auto resp = call([&](auto cb) { controller.listPosts(req, std::move(cb)); });
+    auto body = json::parse(std::string(resp->body()));
+    EXPECT_EQ(body["total"], 1);
+    EXPECT_EQ(body["data"][0]["slug"], "admfilter-draft");
+
+    // q over title+slug+summary.
+    auto req2 = TestHelpers::make_request(Get);
+    req2->setParameter("q", "admfilter");
+    auto r2 = call([&](auto cb) { controller.listPosts(req2, std::move(cb)); });
+    EXPECT_EQ(json::parse(std::string(r2->body()))["total"], 2);
+
+    // Bad status → 400.
+    auto req3 = TestHelpers::make_request(Get);
+    req3->setParameter("status", "nope");
+    auto r3 = call([&](auto cb) { controller.listPosts(req3, std::move(cb)); });
+    EXPECT_EQ(r3->statusCode(), k400BadRequest);
+}
+
 TEST_F(PostsFlowTest, CreateRejectsMissingFields) {
     json body = {{"summary", "no slug or title"}};
     auto resp = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, body), std::move(cb)); });
@@ -348,8 +377,9 @@ TEST_F(PublicPagesTest, BlogPostDraftPreviewIsNoindexed) {
     EXPECT_NE(std::string(rOk->body()).find("noindex"), std::string::npos);
 }
 
-TEST_F(PostsFlowTest, SsrSitemapAndRedirect) {
+TEST_F(PostsFlowTest, SsrSitemap) {
     // Publish a post, then exercise the server-rendered SEO surfaces.
+    // (The legacy /blog-single.html redirect is gone — spec 2026-07-25.)
     json body = {{"slug", "ssr-test"},
                  {"title", "SSR Test"},
                  {"summary", "A concise summary."},
@@ -382,13 +412,6 @@ TEST_F(PostsFlowTest, SsrSitemapAndRedirect) {
     std::string xml(resp->body());
     EXPECT_NE(xml.find("<urlset"), std::string::npos);
     EXPECT_NE(xml.find("/blog/ssr-test"), std::string::npos);
-
-    // Legacy ?slug= → 301 to the clean URL.
-    auto req = TestHelpers::make_request(Get);
-    req->setParameter("slug", "ssr-test");
-    resp = call([&](auto cb) { pub.blogSingleRedirect(req, std::move(cb)); });
-    EXPECT_EQ(resp->statusCode(), k301MovedPermanently);
-    EXPECT_EQ(resp->getHeader("location"), "/blog/ssr-test");
 }
 
 }  // namespace
