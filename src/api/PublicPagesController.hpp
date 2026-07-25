@@ -80,6 +80,7 @@ public:
             resp->setStatusCode(k404NotFound);
             resp->setContentTypeCode(CT_TEXT_HTML);
             resp->setBody(Pages::render("blog_post_404", {}));
+            resp->addHeader("Content-Security-Policy", kPublicSiteCsp);
             cb(resp);
             return;
         }
@@ -131,10 +132,22 @@ public:
                               {"POST_JSON", script_safe(json(p).dump())},
                           }));
         resp->setContentTypeCode(CT_TEXT_HTML);
+        // This HTML page loads scripts/styles — it must carry the public-site
+        // CSP, not the API-wide default-src 'none' the security middleware
+        // stamps on responses without one (browsers intersect multiple CSP
+        // headers, so the API policy alone bricks the page: no JS, no CSS).
+        // set_if_absent in the middleware honours what we set here.
+        resp->addHeader("Content-Security-Policy", kPublicSiteCsp);
         cb(resp);
     }
 
 private:
+    // Mirror of the public-site policy in frontend/nginx.conf (`location /`).
+    static constexpr const char* kPublicSiteCsp =
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; "
+        "font-src 'self' https://fonts.gstatic.com; connect-src 'self'; object-src 'none'; "
+        "base-uri 'self'; frame-ancestors 'none'";
     // Canonical origin: site.base_url when configured (prod — validated at
     // boot), header-derived only as a dev fallback with no configured base.
     // Header derivation produced http:// URLs behind the TLS-terminating

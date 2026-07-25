@@ -95,6 +95,11 @@ data:
             proxy_set_header X-Forwarded-Proto $scheme;
             proxy_http_version 1.1;
             proxy_read_timeout 30s;
+            # The backend stamps an API-grade CSP (default-src 'none') via its
+            # security middleware; browsers INTERSECT multiple CSP headers, so
+            # letting it through bricks the page (no JS/CSS). Hide it — the
+            # public-site policy is added below.
+            proxy_hide_header Content-Security-Policy;
             proxy_connect_timeout 5s;
             add_header Cache-Control "no-cache" always;
             add_header X-Content-Type-Options "nosniff" always;
