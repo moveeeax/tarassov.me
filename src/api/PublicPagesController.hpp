@@ -13,10 +13,10 @@
 
 #pragma once
 
+#include <string>
+
 #include <drogon/HttpController.h>
 #include <drogon/drogon.h>
-
-#include <string>
 
 #include <nlohmann/json.hpp>
 
@@ -136,15 +136,16 @@ public:
         html += kHeadTail;  // icons + fonts + stylesheets (absolute paths)
         html += "</head>\n<body class=\"blog\">\n";
         html += "<div class=\"blog-progress\" id=\"blog-progress\"></div>\n";
-        html += "<div class=\"blog-frame\"><nav class=\"blog-nav\">"
-                "<a class=\"wordmark\" href=\"/\">M. TARASSOV</a>"
-                "<div class=\"links\"><a href=\"/\">HOME</a>"
-                "<a class=\"active\" href=\"/blog.html\">BLOG</a></div></nav></div>\n";
+        html +=
+            "<div class=\"blog-frame\"><nav class=\"blog-nav\">"
+            "<a class=\"wordmark\" href=\"/\">M. TARASSOV</a>"
+            "<div class=\"links\"><a href=\"/\">HOME</a>"
+            "<a class=\"active\" href=\"/blog.html\">BLOG</a></div></nav></div>\n";
         html += "<article class=\"blog-article\">\n";
         html += "<header class=\"blog-post-head\">\n";
         html += "<a class=\"blog-back\" href=\"/blog.html\">← ALL NOTES</a>\n";
-        html += "<div class=\"blog-post-topic\" id=\"post-topic\"" + hideIfEmpty(p.topic) + ">" + esc(p.topic) +
-                "</div>\n";
+        html +=
+            "<div class=\"blog-post-topic\" id=\"post-topic\"" + hideIfEmpty(p.topic) + ">" + esc(p.topic) + "</div>\n";
         html += "<h1 class=\"blog-post-title\" id=\"post-title\">" + esc(p.title) + "</h1>\n";
         html += "<p class=\"blog-post-dek\" id=\"post-dek\"" + hideIfEmpty(p.summary) + ">" + esc(p.summary) + "</p>\n";
         html += "<div class=\"blog-post-meta\" id=\"post-meta\" hidden></div>\n";
@@ -153,9 +154,10 @@ public:
         html += "<div class=\"blog-post-tags\" id=\"post-tags\" hidden></div>\n";
         html += kPostNav;
         html += "</article>\n";
-        html += "<div class=\"blog-frame\"><footer class=\"blog-footer\">"
-                "<span>© 2026 MICHAEL TARASSOV</span>"
-                "<a href=\"https://github.com/moveeeax\">GITHUB →</a></footer></div>\n";
+        html +=
+            "<div class=\"blog-frame\"><footer class=\"blog-footer\">"
+            "<span>© 2026 MICHAEL TARASSOV</span>"
+            "<a href=\"https://github.com/moveeeax\">GITHUB →</a></footer></div>\n";
         html += "<script src=\"/js/marked.min.js\"></script>\n<script src=\"/js/blog.js\"></script>\n";
         html += "</body>\n</html>\n";
 
@@ -191,12 +193,23 @@ private:
         o.reserve(s.size() + 16);
         for (char c : s) {
             switch (c) {
-                case '&': o += "&amp;"; break;
-                case '<': o += "&lt;"; break;
-                case '>': o += "&gt;"; break;
-                case '"': o += "&quot;"; break;
-                case '\'': o += "&#39;"; break;
-                default: o += c;
+                case '&':
+                    o += "&amp;";
+                    break;
+                case '<':
+                    o += "&lt;";
+                    break;
+                case '>':
+                    o += "&gt;";
+                    break;
+                case '"':
+                    o += "&quot;";
+                    break;
+                case '\'':
+                    o += "&#39;";
+                    break;
+                default:
+                    o += c;
             }
         }
         return o;
@@ -206,7 +219,8 @@ private:
 
     // ── Static markup fragments (keep in sync with blog-single.html) ─────────
     // Absolute asset paths so they resolve under /blog/<slug>, not /blog/.
-    static constexpr const char* kHeadTail = R"HEAD(<link rel="icon" type="image/svg+xml" href="/images/ico/favicon.svg">
+    static constexpr const char* kHeadTail =
+        R"HEAD(<link rel="icon" type="image/svg+xml" href="/images/ico/favicon.svg">
 <link rel="icon" type="image/x-icon" href="/images/ico/favicon.ico">
 <link rel="apple-touch-icon" href="/images/ico/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -216,7 +230,8 @@ private:
 <link rel="stylesheet" type="text/css" href="/css/blog.css">
 )HEAD";
 
-    static constexpr const char* kPostNav = R"NAV(<nav class="blog-post-nav" id="post-pager" hidden aria-label="Adjacent posts">
+    static constexpr const char* kPostNav =
+        R"NAV(<nav class="blog-post-nav" id="post-pager" hidden aria-label="Adjacent posts">
 <a id="pager-prev" class="prev" hidden><div class="label">← PREVIOUS</div><div class="title"></div></a>
 <a id="pager-next" class="next" hidden><div class="label">NEXT →</div><div class="title"></div></a>
 </nav>
