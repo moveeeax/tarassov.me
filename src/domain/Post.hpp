@@ -97,4 +97,44 @@ inline void to_json(nlohmann::json& j, const Post& e) {
     };
 }
 
+// Lightweight list projection for the public index: everything a post card
+// needs (never the full Markdown body). read_mins is computed in SQL from the
+// body's word count, so the index can show reading time without shipping bodies
+// — the whole feed is one small payload. Full body comes from the by-slug read.
+struct PostCard {
+    std::string slug;
+    std::string title;
+    std::string summary;
+    std::string topic;
+    std::vector<std::string> tags;
+    std::optional<std::string> published_at;
+    int read_mins = 1;
+
+    template <typename Row>
+    static PostCard from_row(const Row& row) {
+        PostCard c;
+        c.slug = row["slug"].template as<std::string>();
+        c.title = row["title"].template as<std::string>();
+        c.summary = row["summary"].template as<std::string>();
+        c.topic = row["topic"].template as<std::string>();
+        c.tags = split_tags(row["tags"].template as<std::string>());
+        if (!row["published_at"].is_null())
+            c.published_at = row["published_at"].template as<std::string>();
+        c.read_mins = row["read_mins"].template as<int>();
+        return c;
+    }
+};
+
+inline void to_json(nlohmann::json& j, const PostCard& c) {
+    j = nlohmann::json{
+        {"slug", c.slug},
+        {"title", c.title},
+        {"summary", c.summary},
+        {"topic", c.topic},
+        {"tags", c.tags},
+        {"published_at", c.published_at ? nlohmann::json(*c.published_at) : nlohmann::json(nullptr)},
+        {"read_mins", c.read_mins},
+    };
+}
+
 }  // namespace Domain

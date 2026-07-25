@@ -119,18 +119,32 @@ public:
 
     // ── Public reads (published only) ─────────────────────────────────────
     // Used by the unauthenticated public site. Drafts are never exposed here.
-    std::vector<Domain::Post> list_published(int limit = 50, int offset = 0) {
+    //
+    // Lightweight list projection: no body column, and read_mins computed in
+    // SQL (ceil(words / 200), floor 1) so the public index ships without any
+    // Markdown bodies. Word count = whitespace-split token count of the trimmed
+    // body, matching the frontend's old readMins() formula.
+    std::vector<Domain::PostCard> list_published_cards(int limit = 50, int offset = 0) {
         return Database::get().execute_read([&](auto& txn) {
             auto r = txn.exec_params(
-                std::string("SELECT ") + kColumns +
-                    " FROM posts WHERE status = 'published' ORDER BY published_at DESC LIMIT $1 OFFSET $2",
+                "SELECT slug, title, summary, topic, tags, published_at, "
+                "GREATEST(1, CEIL(array_length(regexp_split_to_array(trim(body), '\\s+'), 1)::numeric / 200))::int "
+                "AS read_mins "
+                "FROM posts WHERE status = 'published' ORDER BY published_at DESC LIMIT $1 OFFSET $2",
                 limit,
                 offset);
-            std::vector<Domain::Post> out;
+            std::vector<Domain::PostCard> out;
             out.reserve(r.size());
             for (const auto& row : r)
-                out.push_back(Domain::Post::from_row(row));
+                out.push_back(Domain::PostCard::from_row(row));
             return out;
+        });
+    }
+
+    long count_published() {
+        return Database::get().execute_read([&](auto& txn) {
+            auto r = txn.exec_params("SELECT count(*) FROM posts WHERE status = 'published'");
+            return r[0][0].template as<long>();
         });
     }
 
