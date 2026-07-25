@@ -6,6 +6,21 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.6.2] — 2026-07-25
+
+### Fixed
+- **Blog index filter + pager rebuilt for scale.** At ~730 posts / 100+ tags the
+  tag cloud rendered the entire vocabulary (a ~15-row wall) and the pager showed
+  one numbered button per page (73 boxes). Both are replaced with the corrected,
+  constant-height design: a two-row filter bar (a fixed TOPIC row derived from
+  the real sections — problem posts fold into `LeetCode` — plus a KEYWORD row of
+  the top 14 tags of the current result set) and a one-line pager
+  (`1–10 OF 727` left, `← 01 / 73 →` right, no numbered buttons).
+- **Admin posts CMS.** The list was capped at 200 with no pagination — now uses
+  server offset paging (shared `usePagedQuery` + `PaginationFooter`). The
+  create/edit form rendered inline at the page bottom — now opens in a
+  focus-trapped, scrollable modal.
+
 ## [1.6.1] — 2026-07-25
 
 ### Fixed
