@@ -6,6 +6,19 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.6.1] — 2026-07-25
+
+### Fixed
+- **Blog index showed only 100 posts / 10 pages.** The public post list
+  fetched `?limit=100`, the API clamped `max_limit` to 100, and the list
+  envelope carried no `total`, so the index capped at 100 articles even
+  though many more are published. The list also shipped every post's full
+  Markdown body. The public list now returns a lightweight card projection
+  (no body; reading time computed in SQL) plus `total`, and the frontend
+  fetches the whole feed as one small payload — client-side tag cloud,
+  filter and pagination now span every post. Full body is unchanged on the
+  by-slug read.
+
 ## [1.6.0] — 2026-07-23
 
 ### Added
