@@ -66,14 +66,20 @@ TEST_F(PostsFlowTest, CreatePublishAndPublicRead) {
         EXPECT_EQ(created["tags"][0], "kubernetes");
     }
 
-    // Public list shows the published post.
+    // Public list shows the published post as a lightweight card: it carries a
+    // computed read_mins, omits the full body, and the envelope reports total.
     resp = call([&](auto cb) { controller.publicListPosts(TestHelpers::make_request(Get), std::move(cb)); });
     EXPECT_EQ(resp->statusCode(), k200OK);
     auto list = json::parse(std::string(resp->body()));
+    EXPECT_TRUE(list.contains("total"));
+    EXPECT_GE(list.value("total", 0), 1);
     bool found = false;
     for (const auto& p : list["data"])
-        if (p.value("slug", "") == "hello-test")
+        if (p.value("slug", "") == "hello-test") {
             found = true;
+            EXPECT_FALSE(p.contains("body"));       // cards never ship the body
+            EXPECT_GE(p.value("read_mins", 0), 1);  // reading time computed server-side
+        }
     EXPECT_TRUE(found);
 
     // Public get by slug.
