@@ -66,16 +66,22 @@ data:
         # Server-rendered SEO pages (dynamic, from the DB): the sitemap and clean
         # per-post URLs with a real per-post <head>. Proxied to the backend like
         # /api/. KEEP IN SYNC with frontend/nginx.conf.
+        # Forward the ORIGINAL scheme, not $scheme: TLS terminates at the
+        # ingress (which sets X-Forwarded-Proto: https) and reaches this nginx
+        # over plain http, so $scheme would be "http" and the backend would emit
+        # http:// URLs in the sitemap / og:url. Pass the ingress value through;
+        # when absent (dev, no ingress) the backend defaults an empty proto to
+        # https. KEEP IN SYNC with frontend/nginx.conf.
         location = /sitemap.xml {
             proxy_pass http://{{ .Values.backend.service }}:{{ .Values.backend.port }};
             proxy_set_header Host              $host;
-            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
             proxy_http_version 1.1;
         }
         location = /blog-single.html {
             proxy_pass http://{{ .Values.backend.service }}:{{ .Values.backend.port }};
             proxy_set_header Host              $host;
-            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
             proxy_http_version 1.1;
         }
         # Clean per-post URLs. `^~` so /blog.html (static index) is NOT matched
@@ -86,7 +92,7 @@ data:
             proxy_set_header Host              $host;
             proxy_set_header X-Real-IP         $http_x_real_ip;
             proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
             proxy_http_version 1.1;
             proxy_read_timeout 30s;
             proxy_connect_timeout 5s;
