@@ -44,28 +44,50 @@
         return Array.isArray(p.tags) ? p.tags : [];
     }
 
-    // ── Index (blog.html): tag cloud + OR-filter + client-side pagination ───
+    // ── Index (blog.html): two-row filter bar (TOPIC / KEYWORD) + one-line
+    //    pager. Constant height regardless of dataset size — the topic row is
+    //    the real sections, the keyword row is the top 14 tags of the result. ─
     function renderList() {
         var listEl = document.getElementById("blog-posts");
         if (!listEl) return;
         var filterEl = document.getElementById("blog-filter");
-        var cloudEl = document.getElementById("blog-cloud");
+        var topicsEl = document.getElementById("blog-topics");
+        var keywordsEl = document.getElementById("blog-keywords");
+        var keywordRowEl = document.getElementById("blog-keyword-row");
         var resultEl = document.getElementById("blog-result");
-        var clearEl = document.getElementById("blog-clear");
         var pagerEl = document.getElementById("blog-pager");
 
-        var state = { posts: [], active: [], page: 0 };
+        var PER_PAGE = 10;
+        var state = { posts: [], active: [], page: 0, topicOrder: [] };
+
+        // Display topic: problem posts (numeric slug) fold into "LeetCode";
+        // everything else keeps its section, empty topics become "Other".
+        function displayTopic(p) {
+            if (/^\d+-/.test(p.slug || "")) return "LeetCode";
+            var t = (p.topic || "").trim();
+            return t || "Other";
+        }
 
         // Cards are body-less (read_mins comes from the API), so the whole feed
-        // is one small payload — fetched in full so the tag cloud and filter can
-        // work across every post, with pagination applied client-side below.
+        // is one small payload — fetched in full so the filter and pager work
+        // across every post, applied client-side below.
         fetch(API + "?limit=1000")
-            .then(function (r) {
-                return r.json();
-            })
+            .then(function (r) { return r.json(); })
             .then(function (res) {
                 state.posts = ((res && res.data) || []).slice().sort(function (x, y) {
                     return (y.published_at || "").localeCompare(x.published_at || "");
+                });
+                // Topic chips: the real sections present, by count desc (ties
+                // alpha), with "Other" always last. Never the full vocabulary.
+                var counts = {};
+                state.posts.forEach(function (p) {
+                    var d = displayTopic(p);
+                    counts[d] = (counts[d] || 0) + 1;
+                });
+                state.topicOrder = Object.keys(counts).sort(function (a, b) {
+                    if (a === "Other") return 1;
+                    if (b === "Other") return -1;
+                    return counts[b] - counts[a] || a.localeCompare(b);
                 });
                 draw();
             })
@@ -81,77 +103,88 @@
             draw();
         }
 
+        // OR filter: a post shows if its display topic is active OR it carries
+        // any active keyword tag.
         function matches(p) {
             if (!state.active.length) return true;
+            if (state.active.indexOf(displayTopic(p)) !== -1) return true;
             return postTags(p).some(function (t) {
                 return state.active.indexOf(t) !== -1;
             });
         }
 
-        function drawCloud() {
-            if (!cloudEl) return;
+        // One shared chip <button>; keyword chips render dimmer (is-dim).
+        function chip(name, kind) {
+            var b = document.createElement("button");
+            b.type = "button";
+            var on = state.active.indexOf(name) !== -1;
+            b.className =
+                "blog-chip-btn" + (kind === "keyword" ? " is-dim" : "") + (on ? " is-active" : "");
+            b.textContent = name;
+            b.addEventListener("click", function () { toggle(name); });
+            return b;
+        }
+
+        function drawTopics() {
+            if (!topicsEl) return;
+            topicsEl.innerHTML = "";
+            // "All" clears the filter; active when nothing is selected.
+            var all = document.createElement("button");
+            all.type = "button";
+            all.className = "blog-chip-btn" + (state.active.length === 0 ? " is-active" : "");
+            all.textContent = "All";
+            all.addEventListener("click", function () {
+                state.active = [];
+                state.page = 0;
+                draw();
+            });
+            topicsEl.appendChild(all);
+            state.topicOrder.forEach(function (name) {
+                topicsEl.appendChild(chip(name, "topic"));
+            });
+        }
+
+        // Top 14 tags of the current result set; row hidden when ≤1 keyword.
+        function drawKeywords(pool) {
+            if (!keywordsEl || !keywordRowEl) return;
             var counts = {};
-            state.posts.forEach(function (p) {
-                postTags(p).forEach(function (t) {
-                    counts[t] = (counts[t] || 0) + 1;
-                });
+            pool.forEach(function (p) {
+                postTags(p).forEach(function (t) { counts[t] = (counts[t] || 0) + 1; });
             });
-            var names = Object.keys(counts).sort(function (a, b) {
-                return counts[b] - counts[a] || a.localeCompare(b);
-            });
-            if (!names.length) {
-                if (filterEl) filterEl.setAttribute("hidden", "");
+            var names = Object.keys(counts)
+                .sort(function (a, b) { return counts[b] - counts[a] || a.localeCompare(b); })
+                .slice(0, 14);
+            if (names.length <= 1) {
+                keywordRowEl.setAttribute("hidden", "");
                 return;
             }
-            var cmin = Infinity, cmax = -Infinity;
-            names.forEach(function (n) {
-                if (counts[n] < cmin) cmin = counts[n];
-                if (counts[n] > cmax) cmax = counts[n];
-            });
-            cloudEl.innerHTML = "";
-            names.forEach(function (name) {
-                var on = state.active.indexOf(name) !== -1;
-                // 12–20px: rarer tags smaller, most-used largest.
-                var size = 12 + Math.round(((counts[name] - cmin) / Math.max(1, cmax - cmin)) * 8);
-                var b = document.createElement("button");
-                b.type = "button";
-                b.className = "blog-tag" + (on ? " is-active" : "");
-                b.style.fontSize = size + "px";
-                b.textContent = name + " " + counts[name];
-                b.addEventListener("click", function () {
-                    toggle(name);
-                });
-                cloudEl.appendChild(b);
-            });
-            if (filterEl) filterEl.removeAttribute("hidden");
+            keywordsEl.innerHTML = "";
+            names.forEach(function (name) { keywordsEl.appendChild(chip(name, "keyword")); });
+            keywordRowEl.removeAttribute("hidden");
         }
 
-        function drawResult() {
-            var total = state.posts.length;
-            var matched = state.posts.filter(matches).length;
-            if (resultEl) {
-                resultEl.textContent = state.active.length
-                    ? matched + " OF " + total + " · " + state.active.join(" / ")
-                    : total + " ARTICLES";
-            }
-            if (clearEl) {
-                if (state.active.length) clearEl.removeAttribute("hidden");
-                else clearEl.setAttribute("hidden", "");
-            }
-        }
+        function pad2(n) { return String(n).padStart(2, "0"); }
 
         function draw() {
-            drawCloud();
-            drawResult();
+            if (filterEl) filterEl.removeAttribute("hidden");
+            drawTopics();
 
-            var posts = state.posts.filter(matches);
-            var totalPages = Math.max(1, Math.ceil(posts.length / PER_PAGE));
+            var filtered = state.posts.filter(matches);
+            drawKeywords(filtered);
+
+            if (resultEl) {
+                resultEl.textContent = state.active.length
+                    ? filtered.length + " / " + state.posts.length
+                    : state.posts.length + " ARTICLES";
+            }
+
+            var totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
             if (state.page > totalPages - 1) state.page = totalPages - 1;
             if (state.page < 0) state.page = 0;
             var page = state.page;
-            var slice = posts.slice(page * PER_PAGE, page * PER_PAGE + PER_PAGE);
+            var slice = filtered.slice(page * PER_PAGE, page * PER_PAGE + PER_PAGE);
 
-            if (!posts.length) {
+            if (!filtered.length) {
                 listEl.innerHTML =
                     '<p class="blog-empty">' +
                     (state.active.length ? "No articles match this filter." : "No posts yet.") +
@@ -184,80 +217,62 @@
                     .join("");
             }
 
-            drawPager(posts.length, totalPages, page);
+            drawPager(filtered.length, totalPages, page);
         }
 
+        // One quiet line: "<from>–<to> OF <total>" left, "← 01 / 73 →" right.
         function drawPager(count, totalPages, page) {
             if (!pagerEl) return;
             if (totalPages <= 1) {
                 pagerEl.innerHTML = "";
+                pagerEl.removeAttribute("class");
                 pagerEl.setAttribute("hidden", "");
                 return;
             }
             var from = page * PER_PAGE + 1;
             var to = Math.min(count, page * PER_PAGE + PER_PAGE);
 
-            var row = document.createElement("div");
-            row.className = "blog-pager";
+            pagerEl.className = "blog-pager";
+            pagerEl.innerHTML = "";
+
+            var range = document.createElement("div");
+            range.className = "blog-range";
+            range.textContent = count ? from + "–" + to + " OF " + count : "NOTHING HERE";
+            pagerEl.appendChild(range);
+
+            var nav = document.createElement("div");
+            nav.className = "blog-pager-nav";
 
             var prev = document.createElement("button");
             prev.type = "button";
             prev.className = "blog-arrow";
-            prev.textContent = "← PREV";
+            prev.textContent = "←";
             prev.disabled = page <= 0;
-            prev.addEventListener("click", function () {
-                goTo(page - 1);
-            });
-            row.appendChild(prev);
+            prev.addEventListener("click", function () { goTo(page - 1); });
+            nav.appendChild(prev);
 
-            var nums = document.createElement("div");
-            nums.className = "blog-pager-nums";
-            for (var n = 0; n < totalPages; n++) {
-                (function (n) {
-                    var btn = document.createElement("button");
-                    btn.type = "button";
-                    btn.className = "blog-num" + (n === page ? " is-active" : "");
-                    btn.textContent = String(n + 1);
-                    btn.addEventListener("click", function () {
-                        goTo(n);
-                    });
-                    nums.appendChild(btn);
-                })(n);
-            }
-            row.appendChild(nums);
+            var counter = document.createElement("span");
+            counter.className = "blog-counter";
+            counter.textContent = pad2(page + 1) + " / " + pad2(totalPages);
+            nav.appendChild(counter);
 
             var next = document.createElement("button");
             next.type = "button";
             next.className = "blog-arrow";
-            next.textContent = "NEXT →";
+            next.textContent = "→";
             next.disabled = page >= totalPages - 1;
-            next.addEventListener("click", function () {
-                goTo(page + 1);
-            });
-            row.appendChild(next);
+            next.addEventListener("click", function () { goTo(page + 1); });
+            nav.appendChild(next);
 
-            var range = document.createElement("div");
-            range.className = "blog-range";
-            range.textContent = from + "–" + to + " OF " + count;
-
-            pagerEl.innerHTML = "";
-            pagerEl.appendChild(row);
-            pagerEl.appendChild(range);
+            pagerEl.appendChild(nav);
             pagerEl.removeAttribute("hidden");
         }
 
+        // No scroll-to-top on page change (per spec).
         function goTo(p) {
             state.page = p;
             draw();
-            window.scrollTo(0, 0);
         }
-
-        if (clearEl)
-            clearEl.addEventListener("click", function () {
-                state.active = [];
-                state.page = 0;
-                draw();
-            });
     }
 
     // ── Article (blog-single.html): header, body, tags, prev/next, progress ─
