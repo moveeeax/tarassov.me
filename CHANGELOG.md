@@ -6,6 +6,41 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.0.1] — 2026-07-26
+
+### Fixed
+- **SSR pages now set the public-site CSP at the source** (backend layer of
+  the #9 fix): the security middleware's API-grade `default-src 'none'` no
+  longer needs the nginx `proxy_hide_header` to be stripped — both layers
+  now agree, and an e2e test pins exactly one CSP on the page.
+- **Postgres connects are bounded** (`connect_timeout=5`): a blackholed DB
+  endpoint fails fast instead of parking request threads for the ~2-minute
+  OS SYN-retry window.
+- **Typed post errors**: duplicate slug → 409 `slug_taken`, missing post →
+  404 (both were bare 500s); non-string post fields → 400; slugs are
+  validated to lowercase/digits/hyphens so a post can't be created at an
+  unreachable URL.
+- **Tag filter LIKE-escape**: `%`/`_` in a tag match literally.
+- **Uploads no longer 413 at the proxy**: `client_max_body_size 6m` in both
+  nginx configs + ingress `proxy-body-size` in the prod example (backend
+  accepts 5 MB).
+- **Article tag links** point at `/blog.html` (relative href resolved to the
+  dead `/blog/blog.html`).
+- **`Pages::render` is single-pass**: post content containing a literal
+  `{{PLACEHOLDER}}` renders literally instead of being expanded.
+
+### Added
+- `scripts/check-public-surface-sync.sh` in CI: the public-site CSP (×3),
+  the nginx blog/sitemap blocks (×2) and the public-paths allowlist (×4)
+  can no longer drift apart silently — three of this week's production
+  incidents are now CI failures.
+- e2e coverage through the real auth middleware (SSR surface anonymous under
+  jwt; preview-token/uploads admin-gated) and unit coverage for S3
+  ListObjectsV2 parsing.
+- `rateLimit.trustProxy: true` in the prod values example — behind the
+  ingress chain the limiter must key on the real client IP, not the shared
+  frontend-pod IP.
+
 ## [2.0.0] — 2026-07-26
 
 ### Changed
@@ -668,7 +703,8 @@ First tagged release. Highlights of the pre-release hardening pass:
 - OpenSSL linked explicitly for HMAC-SHA256 (JWT signature) and SHA-256
   (Idempotency-Key body hash); constant-time compare via `CRYPTO_memcmp`.
 
-[Unreleased]: https://github.com/moveeeax/tarassov.me/compare/v2.0.0...main
+[Unreleased]: https://github.com/moveeeax/tarassov.me/compare/v2.0.1...main
+[2.0.1]: https://github.com/moveeeax/tarassov.me/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/moveeeax/tarassov.me/compare/v1.7.0...v2.0.0
 [1.7.0]: https://github.com/moveeeax/tarassov.me/compare/v1.6.2...v1.7.0
 [1.6.2]: https://github.com/moveeeax/tarassov.me/compare/v1.6.1...v1.6.2
