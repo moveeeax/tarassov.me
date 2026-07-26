@@ -41,7 +41,11 @@ pdb:
 
 # ── Worker queues ──────────────────────────────────────────────
 worker:
-  id: worker-1
+  # EMPTY on purpose with replicaCount > 1: the Deployment then derives
+  # WORKER_ID from the pod name, so each replica owns its own processing list.
+  # A shared literal made every starting pod re-queue (and delete) the jobs its
+  # live siblings were executing — duplicate emails/webhooks on every rollout.
+  id: ""
   # MUST include account_email + email.send — a worker that only drains "default"
   # silently leaves all transactional email undrained.
   types: "account_email,email.send,webhook.deliver"
@@ -53,6 +57,12 @@ jobs:
   enabled: true
   resultTtl: 86400
   maxRetries: 3
+  # Retry backoff + processing lease — both are 0 (disabled) in code, so an
+  # overlay that omits them burns all 3 attempts in milliseconds and leaves
+  # reap_expired_leases() dead. Mirrors config/config.production.json.
+  retryBackoffBaseMs: 1000
+  retryBackoffMaxMs: 60000
+  visibilityTimeoutSec: 300
 
 # ── Database (identical to the tarassov-me overlay) ────────────────
 externalDatabase:

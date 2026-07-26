@@ -257,10 +257,11 @@ public:
                     callback(key, payload);
                     ok = true;
                 } catch (const std::exception& e) {
-                    spdlog::error("Error in message callback (offset NOT committed, will redeliver): {}", e.what());
+                    spdlog::error(
+                        "Error in message callback (offset {} will be re-fetched): {}", msg->offset(), e.what());
                 } catch (...) {
                     // Don't let a non-std throw escape and kill the consumer thread.
-                    spdlog::error("Unknown (non-std) error in message callback — offset not committed");
+                    spdlog::error("Unknown (non-std) error in message callback at offset {}", msg->offset());
                 }
 
                 if (ok) {
@@ -271,7 +272,13 @@ public:
                     if (cerr != RdKafka::ERR_NO_ERROR)
                         spdlog::error("Failed to commit offset: {}", RdKafka::err2str(cerr));
                 } else {
-                    // Failure: leave uncommitted to redeliver — but bound it.
+                    // Failure. Skipping the commit is NOT enough to redeliver:
+                    // librdkafka's local fetch position has already advanced
+                    // past this message, so the next consume() returns the
+                    // FOLLOWING one and the eventual success commits over the
+                    // failure. Seek the partition back explicitly — that is what
+                    // actually re-delivers it, and it is what makes the poison
+                    // counter below reachable at all.
                     const int64_t off = msg->offset();
                     if (off == poison_offset_) {
                         ++poison_count_;
@@ -290,6 +297,17 @@ public:
                         consumer->commitSync(msg.get());
                         poison_offset_ = -1;
                         poison_count_ = 0;
+                    } else {
+                        std::unique_ptr<RdKafka::TopicPartition> tp(
+                            RdKafka::TopicPartition::create(msg->topic_name(), msg->partition(), off));
+                        const RdKafka::ErrorCode serr = consumer->seek(*tp, 5000);
+                        if (serr != RdKafka::ERR_NO_ERROR) {
+                            spdlog::error("Failed to seek {}[{}] back to {} ({}) — message will be SKIPPED",
+                                          msg->topic_name(),
+                                          msg->partition(),
+                                          off,
+                                          RdKafka::err2str(serr));
+                        }
                     }
                 }
             }
