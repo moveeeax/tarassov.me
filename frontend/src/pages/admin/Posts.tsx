@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Trash2, Pencil, ExternalLink, Eye } from 'lucide-react';
 
@@ -92,13 +92,35 @@ export function AdminPostsPage() {
     setPage(1);
   }, [filterKey, setPage]);
 
+  // The preview tab is opened SYNCHRONOUSLY in the click handler (see the
+  // Eye button below) and only navigated once the token comes back: Safari's
+  // popup blocker does not carry user activation across a fetch continuation,
+  // so a window.open() from onSuccess is silently dropped.
+  const previewWin = useRef<Window | null>(null);
   const preview = useApiMutation(
     (id: string) =>
       api.postJson<{ data: { url: string; expires_at: string } }>(
         `/api/v1/posts/${id}/preview-token`,
         { body: {} },
       ),
-    { onSuccess: (res) => window.open(res.data.url, '_blank', 'noopener') },
+    {
+      onSuccess: (res) => {
+        const w = previewWin.current;
+        previewWin.current = null;
+        if (!w) {
+          window.open(res.data.url, '_blank', 'noopener');
+          return;
+        }
+        // Drop the opener link to keep the `noopener` guarantee the direct
+        // window.open() call had, then navigate the blank tab.
+        w.opener = null;
+        w.location.replace(res.data.url);
+      },
+      onError: () => {
+        previewWin.current?.close();
+        previewWin.current = null;
+      },
+    },
   );
 
   const create = useApiMutation(
@@ -124,6 +146,18 @@ export function AdminPostsPage() {
   });
 
   useErrorToast(create.error ?? update.error ?? remove.error ?? preview.error);
+
+  // Editor draft protection: the whole form lives in PostFormCard's local
+  // state, so an implicit close (Escape / backdrop click) would destroy it with
+  // no server copy. The card reports whether it differs from `initial`; the
+  // Modal asks before honouring those closes. Explicit Cancel/Save still close
+  // straight away.
+  const dirtyRef = useRef(false);
+  const setDirty = useCallback((d: boolean) => {
+    dirtyRef.current = d;
+  }, []);
+  const confirmDiscard = () =>
+    !dirtyRef.current || window.confirm('Discard unsaved changes to this post?');
 
   const columns: Column<Post>[] = [
     { header: 'Title', className: 'font-medium', cell: (p) => p.title },
@@ -154,7 +188,10 @@ export function AdminPostsPage() {
               variant="ghost"
               title="Preview draft (1-hour link)"
               disabled={preview.isPending}
-              onClick={() => preview.mutate(p.id)}
+              onClick={() => {
+                previewWin.current = window.open('', '_blank');
+                preview.mutate(p.id);
+              }}
             >
               <Eye className="h-3.5 w-3.5" />
             </Button>
@@ -230,10 +267,11 @@ export function AdminPostsPage() {
       </Card>
 
       {creating && (
-        <Modal onClose={() => setCreating(false)}>
+        <Modal onClose={() => setCreating(false)} confirmClose={confirmDiscard}>
           <PostFormCard
             key="new"
             title="New post"
+            onDirtyChange={setDirty}
             initial={{
               slug: '',
               title: '',
@@ -250,10 +288,11 @@ export function AdminPostsPage() {
         </Modal>
       )}
       {editing && (
-        <Modal onClose={() => setEditing(null)}>
+        <Modal onClose={() => setEditing(null)} confirmClose={confirmDiscard}>
           <PostFormCard
             key={editing.id}
             title={`Edit: ${editing.title}`}
+            onDirtyChange={setDirty}
             initial={{
               slug: editing.slug,
               title: editing.title,
@@ -290,6 +329,12 @@ interface PostFormCardProps {
   submitting: boolean;
   onSubmit: (form: PostForm) => void;
   onCancel: () => void;
+  /**
+   * Reports whether any field still differs from `initial`, so a containing
+   * Modal can confirm before an implicit close throws the draft away. Called
+   * with false on unmount.
+   */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 function slugify(s: string): string {
@@ -300,7 +345,14 @@ function slugify(s: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-function PostFormCard({ title, initial, submitting, onSubmit, onCancel }: PostFormCardProps) {
+function PostFormCard({
+  title,
+  initial,
+  submitting,
+  onSubmit,
+  onCancel,
+  onDirtyChange,
+}: PostFormCardProps) {
   const [slug, setSlug] = useState(initial.slug);
   const [titleField, setTitleField] = useState(initial.title);
   const [summary, setSummary] = useState(initial.summary);
@@ -313,6 +365,22 @@ function PostFormCard({ title, initial, submitting, onSubmit, onCancel }: PostFo
   const [slugTouched, setSlugTouched] = useState(initial.slug !== '');
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState('');
+
+  // Dirty = any editable field diverged from the loaded post. Compared against
+  // the same normalisation the fields were seeded with (tags as the joined
+  // string), so re-typing the original value marks the form clean again.
+  const dirty =
+    slug !== initial.slug ||
+    titleField !== initial.title ||
+    summary !== initial.summary ||
+    body !== initial.body ||
+    status !== initial.status ||
+    topic !== initial.topic ||
+    tagsText !== initial.tags.join(', ');
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
 
   // Multipart upload to /api/v1/admin/uploads (raw fetch: FormData, cookie auth
   // is same-origin). On success, append the returned URL as a Markdown image.

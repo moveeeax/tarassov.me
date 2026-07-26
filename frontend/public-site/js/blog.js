@@ -61,8 +61,9 @@
         var PER_PAGE = 10;
         // active: {kind:"topic"|"tag", name} | null. Single-select — the API
         // filters server-side (?topic= / ?tag=); one request per interaction.
-        // grandTotal remembers the unfiltered count for the "n / total" line.
-        var state = { active: null, page: 1, grandTotal: null };
+        // grandTotal remembers the unfiltered count for the "n / total" line,
+        // and topics remembers the unfiltered topics facet (see draw()).
+        var state = { active: null, page: 1, grandTotal: null, topics: null };
 
         function load() {
             var qs = "?page=" + state.page + "&limit=" + PER_PAGE + "&include=facets";
@@ -98,7 +99,9 @@
             return b;
         }
 
-        function drawTopics(facets) {
+        // The rail is the fixed set of sections, so it is drawn from the
+        // remembered UNFILTERED topics facet — not from the current response.
+        function drawTopics(topics) {
             if (!topicsEl) return;
             topicsEl.innerHTML = "";
             // "All" clears the filter; active when nothing is selected.
@@ -112,7 +115,7 @@
                 load();
             });
             topicsEl.appendChild(all);
-            (facets.topics || []).forEach(function (t) {
+            (topics || []).forEach(function (t) {
                 topicsEl.appendChild(chip(t.name, "topic"));
             });
         }
@@ -136,7 +139,12 @@
         function draw(res) {
             if (filterEl) filterEl.removeAttribute("hidden");
             var facets = res.facets || { topics: [], tags: [] };
-            drawTopics(facets);
+            // Facets are scoped to the active filter (server contract), so a
+            // ?topic= response carries exactly one topic. Cache the rail from
+            // the first unfiltered load and keep drawing it, or selecting a
+            // topic would erase every other section from the bar.
+            if (!state.active && facets.topics) state.topics = facets.topics;
+            drawTopics(state.topics || facets.topics);
             drawKeywords(facets);
 
             if (resultEl) {
