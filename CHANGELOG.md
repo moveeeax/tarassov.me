@@ -6,6 +6,20 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.0.2] — 2026-07-26
+
+### Fixed
+- **Image uploads worked again.** The global content-type middleware 415'd
+  every `multipart/form-data` body, so `POST /api/v1/admin/uploads` (the
+  editor's "+ Image") had been rejected before the handler ran since the
+  media library shipped in v2.0.0. Multipart is now exempted (the upload
+  handler keeps its admin gate + magic-byte sniff + size cap); an e2e test
+  carries a real multipart body through the middleware.
+- **Read replicas get a bounded connect too.** The v2.0.1 `connect_timeout`
+  fix covered the primary but not `DATABASE_REPLICA_URLS`; a blackholed
+  replica could still hang read traffic for ~2 min. Applied to every
+  replica DSN via `Utils::Pg::with_connect_timeout`.
+
 ## [2.0.1] — 2026-07-26
 
 ### Fixed
@@ -703,7 +717,8 @@ First tagged release. Highlights of the pre-release hardening pass:
 - OpenSSL linked explicitly for HMAC-SHA256 (JWT signature) and SHA-256
   (Idempotency-Key body hash); constant-time compare via `CRYPTO_memcmp`.
 
-[Unreleased]: https://github.com/moveeeax/tarassov.me/compare/v2.0.1...main
+[Unreleased]: https://github.com/moveeeax/tarassov.me/compare/v2.0.2...main
+[2.0.2]: https://github.com/moveeeax/tarassov.me/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/moveeeax/tarassov.me/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/moveeeax/tarassov.me/compare/v1.7.0...v2.0.0
 [1.7.0]: https://github.com/moveeeax/tarassov.me/compare/v1.6.2...v1.7.0
