@@ -330,8 +330,8 @@ paths:
               properties:
                 email:      { type: string, format: email }
                 password:   { type: string, minLength: 8, maxLength: 128 }
-                first_name: { type: string }
-                last_name:  { type: string }
+                first_name: { type: string, maxLength: 64 }
+                last_name:  { type: string, maxLength: 64 }
       responses:
         '201':
           description: User created — confirmation email queued
@@ -595,8 +595,8 @@ paths:
               properties:
                 email:      { type: string, format: email }
                 password:   { type: string, minLength: 8, maxLength: 128 }
-                first_name: { type: string }
-                last_name:  { type: string }
+                first_name: { type: string, maxLength: 64 }
+                last_name:  { type: string, maxLength: 64 }
                 role_id:    { type: integer }
       responses:
         '201':
@@ -621,8 +621,8 @@ paths:
               required: [email]
               properties:
                 email:      { type: string, format: email }
-                first_name: { type: string }
-                last_name:  { type: string }
+                first_name: { type: string, maxLength: 64 }
+                last_name:  { type: string, maxLength: 64 }
                 role_id:    { type: integer }
       responses:
         '201':
@@ -661,8 +661,8 @@ paths:
               properties:
                 email:      { type: string, format: email }
                 role_id:    { type: integer }
-                first_name: { type: string }
-                last_name:  { type: string }
+                first_name: { type: string, maxLength: 64 }
+                last_name:  { type: string, maxLength: 64 }
       responses:
         '200':
           description: Updated
@@ -936,7 +936,10 @@ paths:
           application/json:
             schema:
               type: object
-              required: [slug, title]
+              # No `required` list: this is a partial update, so any subset of
+              # the properties below is a valid body. `minProperties: 1` only
+              # rejects the no-op empty object.
+              minProperties: 1
               properties:
                 slug:    { type: string, minLength: 1, maxLength: 160 }
                 title:   { type: string, minLength: 1, maxLength: 255 }
@@ -1054,6 +1057,24 @@ paths:
         '200': { description: Sent }
         '400': { description: Validation failed }
         '503': { description: Contact form not configured }
+  /uploads/{key}:
+    get:
+      summary: Serve a stored upload (public, no auth, local storage backend only)
+      description: >
+        Same-origin read path for the objects written by POST /api/v1/admin/uploads.
+        With no CDN origin configured Storage::url() returns /uploads/<key>, which is
+        what the editor embeds in post bodies, and it must be same-origin because the
+        public-site CSP is "img-src 'self' data:". The key spans path segments
+        (posts/<hex>.<ext>), so the route is registered by regex. Content type comes
+        from the extension allowlist, never from the request. When
+        storage.public_base_url IS set the URLs are absolute and this route answers 404.
+      tags: [uploads]
+      parameters:
+        - { name: key, in: path, required: true, schema: { type: string }, description: "Full storage key, e.g. posts/9f2c0a....png" }
+      responses:
+        '200': { description: "The stored object, with Cache-Control: public, max-age=31536000, immutable" }
+        '404': { description: "Unsafe key, extension outside the raster allowlist, no such object, or a CDN origin is configured" }
+        '503': { description: Storage read failed }
   /api/v1/admin/uploads:
     post:
       summary: Upload an image (admin) → { key, url }
@@ -1069,7 +1090,7 @@ paths:
                 file: { type: string, format: binary }
       responses:
         '201': { description: "Stored — { data: { key, url } }" }
-        '400': { description: Missing/unsupported/oversized file }
+        '400': { description: "no_file | unsupported_type (raster only — SVG is rejected) | bad_size (1 byte – 5 MB) | bad_content (magic bytes do not match the extension)" }
         '403': { description: Not an admin }
         '503': { description: Storage backend not configured }
     get:

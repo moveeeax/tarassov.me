@@ -12,7 +12,11 @@
 #include <fstream>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
+#include <type_traits>
+
+#include <spdlog/spdlog.h>
 
 #include <nlohmann/json.hpp>
 
@@ -71,6 +75,11 @@ public:
      * @param env_var Environment variable name to check for override
      * @param default_value Default value if key not found
      * @return Configuration value
+     * @details The default is returned only when the key is genuinely absent.
+     *          A key that is present but cannot be converted to T is a config
+     *          bug, so it is logged at ERROR rather than silently replaced —
+     *          the old blanket `catch (...)` made a typo look like a
+     *          deliberately unset key.
      */
     template <typename T>
     T get(const std::string& key, const std::string& env_var = "", const T& default_value = T{}) const {
@@ -83,9 +92,23 @@ public:
         }
 
         // Fall back to config file
+        const json* node = find_nested_node(key);
+        if (node == nullptr) {
+            return default_value;
+        }
+        // `"port": "${DB_PORT}"` with DB_PORT unset expands to "" — that means
+        // "not set", not 0/false, so it takes the default without an error.
+        if constexpr (!std::is_same_v<T, std::string>) {
+            if (node->is_string() && node->get_ref<const std::string&>().empty()) {
+                return default_value;
+            }
+        }
         try {
-            return get_nested_value<T>(key);
-        } catch (...) {
+            return coerce_value<T>(*node);
+        } catch (const std::exception& e) {
+            spdlog::error("Config: key '{}' is present but not usable as the expected type ({}); using default",
+                          key,
+                          e.what());
             return default_value;
         }
     }
@@ -225,24 +248,69 @@ private:
     }
 
     /**
+     * @brief Resolve a dot-separated path to the node it names.
+     * @param key Dot-separated path (e.g., "database.host")
+     * @return Pointer to the node, or nullptr if any segment is missing (or an
+     *         intermediate segment is not an object). Never throws — callers
+     *         need to tell "absent" apart from "present but wrong type".
+     * @details Walk by pointer — get() is called dozens of times at boot, so
+     *          copying the whole config document per segment (the original
+     *          behaviour) was pure waste.
+     */
+    const json* find_nested_node(const std::string& key) const {
+        const json* current = &config_data;
+        size_t start = 0;
+        while (true) {
+            const size_t pos = key.find('.', start);
+            const std::string segment = (pos == std::string::npos) ? key.substr(start) : key.substr(start, pos - start);
+            if (!current->is_object())
+                return nullptr;
+            const auto it = current->find(segment);
+            if (it == current->end())
+                return nullptr;
+            current = &it.value();
+            if (pos == std::string::npos)
+                return current;
+            start = pos + 1;
+        }
+    }
+
+    /**
+     * @brief Convert one config leaf to T.
+     * @details `substitute_env_placeholders` writes every `${VAR:-default}`
+     *          expansion back as a JSON *string*, so a typed key written as
+     *          `"enabled": "${MAIL_ENABLED:-true}"` reaches us as the string
+     *          "true". Parse such leaves exactly the way the equivalent
+     *          environment variable would be parsed, so the file's declared
+     *          default wins instead of nlohmann's type_error and the C++
+     *          fallback.
+     * @throws nlohmann::json::exception / std::invalid_argument / std::out_of_range
+     *         when the leaf cannot be converted.
+     */
+    template <typename T>
+    T coerce_value(const json& leaf) const {
+        if constexpr (std::is_same_v<T, int> || std::is_same_v<T, long> || std::is_same_v<T, double> ||
+                      std::is_same_v<T, bool>) {
+            if (leaf.is_string())
+                return parse_env_value<T>(leaf.get_ref<const std::string&>().c_str());
+        }
+        return leaf.get<T>();
+    }
+
+    /**
      * @brief Get value from nested JSON path (e.g., "database.host")
      * @tparam T Target type
      * @param key Dot-separated path
      * @return Value at path
+     * @throws std::out_of_range if the path is absent; a json/conversion
+     *         exception if the value is present but not usable as T.
      */
     template <typename T>
     T get_nested_value(const std::string& key) const {
-        // Walk by pointer — get() is called dozens of times at boot, so
-        // copying the whole config document per segment (the old behaviour)
-        // was pure waste.
-        const json* current = &config_data;
-        size_t start = 0;
-        size_t pos;
-        while ((pos = key.find('.', start)) != std::string::npos) {
-            current = &current->at(key.substr(start, pos - start));
-            start = pos + 1;
-        }
-        return current->at(key.substr(start)).get<T>();
+        const json* node = find_nested_node(key);
+        if (node == nullptr)
+            throw std::out_of_range("config key not found: " + key);
+        return coerce_value<T>(*node);
     }
 };
 

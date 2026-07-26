@@ -109,7 +109,11 @@ public:
         if (!Validation::parse_body(req, body, callback))
             return;
         Repositories::PostRepository repo;
-        auto existing = repo.find(id);
+        // Read the merge base from the PRIMARY: this is a read-modify-write, so
+        // a lagging replica would make a partial PATCH silently revert whatever
+        // the omitted fields were last set to. Same reason as
+        // AdminController::updateUser's post-write re-read.
+        auto existing = repo.find(id, /*from_primary=*/true);
         if (!existing) {
             callback(ErrorResponse::not_found("post"));
             return;
@@ -316,12 +320,16 @@ private:
             callback(Validation::response_400(errs));
             return false;
         }
+        // Null-safe reads: validate_present_fields lets an explicit null through
+        // (absent and null both mean "take the default"), but body.value(k, d)
+        // throws type_error.302 on a null — a 500 for a client that serializes
+        // empty optionals as null. Same pattern merge_input uses.
         in.slug = body["slug"].get<std::string>();
         in.title = body["title"].get<std::string>();
-        in.summary = body.value("summary", std::string{});
-        in.body = body.value("body", std::string{});
-        in.status = body.value("status", std::string{"draft"});
-        in.topic = body.value("topic", std::string{});
+        in.summary = Validation::opt_string(body, "summary").value_or(std::string{});
+        in.body = Validation::opt_string(body, "body").value_or(std::string{});
+        in.status = Validation::opt_string(body, "status").value_or(std::string{"draft"});
+        in.topic = Validation::opt_string(body, "topic").value_or(std::string{});
         in.tags = std::move(tags);
         return true;
     }
