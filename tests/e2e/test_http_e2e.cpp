@@ -412,6 +412,44 @@ TEST(HttpE2E, SsrSurfaceIsPublicUnderJwtAuth) {
     EXPECT_EQ(send(missing)->statusCode(), k404NotFound);
 }
 
+TEST(HttpE2E, MultipartUploadPassesContentTypeGate) {
+    // The global content-type advice 415s any non-JSON POST body; without the
+    // multipart exemption EVERY image upload dies at the gate before
+    // UploadController runs. This is the only wire-level test that carries a
+    // real multipart body through the middleware (the integration tests call
+    // the controller object directly, bypassing sync advices).
+    REQUIRE_E2E_ENV();
+    const auto now = Utils::Time::now_epoch_seconds();
+    json admin_claims = {{"sub", "e2e-upload-admin"},
+                         {"iat", now},
+                         {"exp", now + 600},
+                         {"permissions", Domain::Permission::kAdminister}};
+    const auto admin_jwt = Security::Auth::issue_hs256_jwt(admin_claims, kSecret);
+
+    // Minimal valid PNG (8-byte signature is all the magic-byte sniff checks).
+    const std::string png = std::string("\x89PNG\r\n\x1a\n", 8) + "payloadbytes";
+    const std::string boundary = "----e2eBoundary1234";
+    std::string body;
+    body += "--" + boundary + "\r\n";
+    body += "Content-Disposition: form-data; name=\"file\"; filename=\"pic.png\"\r\n";
+    body += "Content-Type: image/png\r\n\r\n";
+    body += png + "\r\n";
+    body += "--" + boundary + "--\r\n";
+
+    auto req = HttpRequest::newHttpRequest();
+    req->setMethod(Post);
+    req->setPath("/api/v1/admin/uploads");
+    req->addHeader("Authorization", "Bearer " + admin_jwt);
+    req->setContentTypeString("multipart/form-data; boundary=" + boundary);
+    req->setBody(body);
+    auto resp = send(req);
+    // Must NOT be 415 (the bug) — 201 with local storage up, or 503 if storage
+    // isn't configured; both prove the multipart body reached the handler.
+    EXPECT_NE(resp->statusCode(), k415UnsupportedMediaType) << "multipart 415'd at the content-type gate";
+    EXPECT_TRUE(resp->statusCode() == k201Created || resp->statusCode() == k503ServiceUnavailable)
+        << "got " << resp->statusCode();
+}
+
 TEST(HttpE2E, PreviewTokenAndUploadsAreAdminGated) {
     // The suites that exercise these handlers run with AUTH_MODE=none where
     // API_REQUIRE_ADMIN is a no-op — this is the only place the gate itself

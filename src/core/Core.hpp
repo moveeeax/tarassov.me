@@ -257,8 +257,12 @@ private:
         std::vector<std::string> replicas;
         const char* replica_env = std::getenv("DATABASE_REPLICA_URLS");
         if (replica_env && std::strlen(replica_env) > 0) {
+            // Operator-supplied replica URLs need the same bounded connect as
+            // the primary — a blackholed replica must fail fast, not hang read
+            // traffic for the ~2-min OS SYN-retry window. (The HOSTS form below
+            // goes through make_conninfo, which already appends it.)
             for (auto& s : Utils::Strings::split_csv_vec(replica_env)) {
-                replicas.push_back(std::move(s));
+                replicas.push_back(Utils::Pg::with_connect_timeout(s));
             }
             return replicas;
         }
@@ -300,15 +304,8 @@ private:
         } else {
             check_password_safety(primary);
             // A user-supplied URL/DSN also needs a bounded connect, else a
-            // blackholed endpoint wedges request threads for ~2 min (see
-            // make_conninfo). Append a default only when none is pinned; the
-            // URL form takes ?connect_timeout=, the key=value form a space kv.
-            if (!Utils::Pg::has_connect_timeout(primary)) {
-                const bool url_form = primary.rfind("postgres", 0) == 0 && primary.find("://") != std::string::npos;
-                primary += url_form
-                               ? (primary.find('?') == std::string::npos ? "?connect_timeout=5" : "&connect_timeout=5")
-                               : " connect_timeout=5";
-            }
+            // blackholed endpoint wedges request threads for ~2 min.
+            primary = Utils::Pg::with_connect_timeout(primary);
         }
         int pool_size = cfg.get<int>("database.pool_size", "DB_POOL_SIZE", 10);
         int acquire_ms = cfg.get<int>("database.acquire_timeout_ms", "DB_ACQUIRE_TIMEOUT_MS", 5000);
