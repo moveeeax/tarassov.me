@@ -106,9 +106,7 @@ public:
         try {
             return coerce_value<T>(*node);
         } catch (const std::exception& e) {
-            spdlog::error("Config: key '{}' is present but not usable as the expected type ({}); using default",
-                          key,
-                          e.what());
+            spdlog::error("Config: key '{}' unusable as the expected type ({}); using default", key, e.what());
             return default_value;
         }
     }
