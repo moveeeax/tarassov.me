@@ -3,10 +3,14 @@
  * @brief Refresh-token revocation store (Redis), shared by the auth and
  *        account controllers.
  * @details Each issued refresh token has a JTI written to
- *          `<prefix><jti> = "1"` with the refresh TTL; /refresh checks it,
+ *          `<prefix><jti> = <sub>` with the refresh TTL; /refresh checks it,
  *          logout deletes it. To support "log out everywhere" on a password
  *          change/reset we ALSO index every JTI in a per-user set
- *          `<prefix>user:<sub>` so revoke_all() can sweep them.
+ *          `<prefix>user:<sub>` so revoke_all() can sweep them. The marker's
+ *          VALUE is the owning subject purely so revoke_jti() can also SREM the
+ *          JTI from that index — only its presence is ever tested. (Markers
+ *          written by older builds hold the literal "1"; those are ignored for
+ *          the SREM and age out with their TTL.)
  *
  *          All ops are best-effort (Redis fail-open); callers that need the
  *          fail-closed signal (mint_session) check the bool return.
@@ -39,7 +43,9 @@ inline std::string user_set_key(const Auth::CookieConfig& cfg, const std::string
 inline bool record(const Auth::CookieConfig& cfg, const std::string& sub, const std::string& jti, int ttl_sec) {
     if (!Cache::is_initialized())
         return false;
-    if (!Cache::get().set(jti_key(cfg, jti), "1", ttl_sec))
+    // Value = the owning subject; see the file header (revoke_jti reads it back
+    // to un-index the JTI). Presence is what makes the session live.
+    if (!Cache::get().set(jti_key(cfg, jti), sub, ttl_sec))
         return false;
     // Index for revoke_all. Best-effort: a missed sadd only means this JTI
     // won't be swept by a future "log out everywhere" — the per-JTI marker
@@ -63,10 +69,24 @@ inline bool is_live(const Auth::CookieConfig& cfg, const std::string& jti) {
     }
 }
 
+/**
+ * @brief Revoke ONE refresh JTI (logout, or the rotation half of /refresh) and
+ *        drop it from its user's index — without the SREM, every rotation left
+ *        a dead member behind and revoke_all() swept a set that grew all week.
+ */
 inline void revoke_jti(const Auth::CookieConfig& cfg, const std::string& jti) {
     try {
-        if (Cache::is_initialized())
-            Cache::get().del(jti_key(cfg, jti));
+        if (!Cache::is_initialized())
+            return;
+        const auto sub = Cache::get().get(jti_key(cfg, jti));
+        Cache::get().del(jti_key(cfg, jti));
+        // "1" is the legacy marker value (no subject recorded) — nothing to
+        // un-index then; the set entry expires with the set's TTL.
+        if (sub && !sub->empty() && *sub != "1") {
+            try {
+                Cache::get().get_client().srem(user_set_key(cfg, *sub), jti);
+            } catch (...) {}
+        }
     } catch (...) {}
 }
 
@@ -85,12 +105,15 @@ inline void revoke_all(const Auth::CookieConfig& cfg, const std::string& sub) {
         auto& redis = Cache::get().get_client();
         std::vector<std::string> jtis;
         redis.smembers(user_set_key(cfg, sub), std::back_inserter(jtis));
-        for (const auto& jti : jtis) {
-            try {
-                redis.del(jti_key(cfg, jti));
-            } catch (...) {}
-        }
-        redis.del(user_set_key(cfg, sub));
+        // One DEL for every live-marker plus the index itself. The old form
+        // issued an unpipelined blocking DEL per member, so a user with many
+        // sessions paid one round-trip each while the request thread waited.
+        std::vector<std::string> keys;
+        keys.reserve(jtis.size() + 1);
+        for (const auto& jti : jtis)
+            keys.push_back(jti_key(cfg, jti));
+        keys.push_back(user_set_key(cfg, sub));
+        Cache::get().del(keys);
     } catch (...) {}
 }
 

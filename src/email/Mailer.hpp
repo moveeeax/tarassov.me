@@ -116,6 +116,18 @@ inline std::string strip_crlf(const std::string& s) {
     return out;
 }
 
+// Same, for a value emitted inside an RFC 5322 quoted-string (the From
+// display name): a bare '"' or '\' would end the quoting early and let the
+// rest of the value be read as address/header syntax.
+inline std::string strip_quoted_string(const std::string& s) {
+    std::string out;
+    out.reserve(s.size());
+    for (char c : s)
+        if (c != '\r' && c != '\n' && c != '"' && c != '\\')
+            out += c;
+    return out;
+}
+
 inline std::string build_mime(const MailerConfig& cfg, const Message& msg, const std::string& message_id) {
     static thread_local std::mt19937_64 rng{
         static_cast<std::uint64_t>(std::chrono::steady_clock::now().time_since_epoch().count())};
@@ -125,14 +137,19 @@ inline std::string build_mime(const MailerConfig& cfg, const Message& msg, const
 
     const std::string to = strip_crlf(msg.to);
     const std::string subject = strip_crlf(msg.subject);
+    const std::string from = strip_crlf(cfg.from);
+    const std::string from_name = strip_quoted_string(cfg.from_name);
+    // Same treatment as cfg.from: config-derived, but it lands unfolded in a
+    // header, so a stray CRLF would start a new one.
+    const std::string subject_prefix = strip_crlf(cfg.subject_prefix);
 
     std::ostringstream out;
     out << "Date: " << format_rfc5322_date() << "\r\n";
     out << "From: ";
-    if (!cfg.from_name.empty())
-        out << "\"" << cfg.from_name << "\" <" << cfg.from << ">\r\n";
+    if (!from_name.empty())
+        out << "\"" << from_name << "\" <" << from << ">\r\n";
     else
-        out << cfg.from << "\r\n";
+        out << from << "\r\n";
     out << "To: " << to << "\r\n";
     // Reply-To lets the recipient hit "Reply" and reach the real author (the
     // envelope From must stay our authenticated MAIL_FROM for SPF/DKIM).
@@ -140,8 +157,8 @@ inline std::string build_mime(const MailerConfig& cfg, const Message& msg, const
         out << "Reply-To: " << strip_crlf(msg.reply_to) << "\r\n";
     // Join prefix and subject with a space unless the prefix already ends
     // with one — env-file values tend to lose trailing whitespace.
-    out << "Subject: " << cfg.subject_prefix;
-    if (!cfg.subject_prefix.empty() && cfg.subject_prefix.back() != ' ')
+    out << "Subject: " << subject_prefix;
+    if (!subject_prefix.empty() && subject_prefix.back() != ' ')
         out << ' ';
     out << subject << "\r\n";
     out << "Message-ID: " << message_id << "\r\n";

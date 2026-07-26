@@ -31,5 +31,12 @@ Create an admin once Postgres is ready:
     env METRICS_ADDRESS= /app/tarassov_me config/config.json \
     --create-admin admin@{{ .Values.env }}.{{ .Values.baseDomain }} 'change-me'
 
-NOTE: credentials here are TEST defaults (see values.yaml credentials:). For a
-sensitive env, override all of them via --set.
+NOTE: this chart ships NO credentials — values.yaml `credentials:` is empty and
+every env must inject its own via --set (see the comment on that block, and
+scripts/deploy-demo.sh). If the API pod fail-closes at boot with an empty JWT
+secret, the --set flags are missing.
+{{- if not .Values.credentials.jwtSecret }}
+
+WARNING: credentials.jwtSecret is empty — the API cannot mint sessions and will
+  refuse to start. Re-run the upgrade with the --set flags above.
+{{- end }}
