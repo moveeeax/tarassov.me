@@ -304,6 +304,61 @@ TEST_F(PostsFlowTest, AdminListFilters) {
     EXPECT_EQ(r3->statusCode(), k400BadRequest);
 }
 
+TEST_F(PostsFlowTest, PatchIsPartialAndPreservesPublishState) {
+    // Create + publish.
+    json create = {{"slug", "patch-me"},
+                   {"title", "Original"},
+                   {"summary", "orig sum"},
+                   {"body", "orig body"},
+                   {"status", "published"},
+                   {"topic", "SRE"},
+                   {"tags", {"a", "b"}}};
+    auto c = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, create), std::move(cb)); });
+    ASSERT_EQ(c->statusCode(), k201Created);
+    auto created = json::parse(std::string(c->body()))["data"];
+    const std::string id = created["id"];
+    const std::string pub_at = created["published_at"];
+    ASSERT_FALSE(pub_at.empty());
+
+    // PATCH only the title. Everything else — incl. published status and the
+    // original published_at — must survive.
+    json patch = {{"title", "Fixed typo"}};
+    auto p = call([&](auto cb) { controller.updatePost(TestHelpers::make_request(Patch, patch), std::move(cb), id); });
+    ASSERT_EQ(p->statusCode(), k200OK);
+    auto after = json::parse(std::string(p->body()))["data"];
+    EXPECT_EQ(after["title"], "Fixed typo");
+    EXPECT_EQ(after["body"], "orig body");    // NOT wiped
+    EXPECT_EQ(after["summary"], "orig sum");  // NOT wiped
+    EXPECT_EQ(after["topic"], "SRE");
+    EXPECT_EQ(after["status"], "published");   // NOT unpublished
+    EXPECT_EQ(after["published_at"], pub_at);  // original publish date kept
+    ASSERT_TRUE(after["tags"].is_array());
+    EXPECT_EQ(after["tags"].size(), 2u);  // NOT emptied
+
+    // Still visible on the public site (would 404 if it had been unpublished).
+    auto pub =
+        call([&](auto cb) { controller.publicGetPost(TestHelpers::make_request(Get), std::move(cb), "patch-me"); });
+    EXPECT_EQ(pub->statusCode(), k200OK);
+
+    // Explicit status=draft DOES unpublish (partial != immutable).
+    json unpub = {{"status", "draft"}};
+    auto u = call([&](auto cb) { controller.updatePost(TestHelpers::make_request(Patch, unpub), std::move(cb), id); });
+    ASSERT_EQ(u->statusCode(), k200OK);
+    EXPECT_TRUE(json::parse(std::string(u->body()))["data"]["published_at"].is_null());
+
+    // PATCH on a missing id → 404 (not 500).
+    auto miss = call([&](auto cb) {
+        controller.updatePost(
+            TestHelpers::make_request(Patch, patch), std::move(cb), "00000000-0000-0000-0000-000000000000");
+    });
+    EXPECT_EQ(miss->statusCode(), k404NotFound);
+
+    // A bad field in a PATCH is still validated (400).
+    json bad = {{"slug", "Bad Slug!"}};
+    auto b = call([&](auto cb) { controller.updatePost(TestHelpers::make_request(Patch, bad), std::move(cb), id); });
+    EXPECT_EQ(b->statusCode(), k400BadRequest);
+}
+
 TEST_F(PostsFlowTest, CreateRejectsMissingFields) {
     json body = {{"summary", "no slug or title"}};
     auto resp = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, body), std::move(cb)); });
