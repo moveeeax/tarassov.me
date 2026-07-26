@@ -56,4 +56,20 @@ inline bool has_connect_timeout(const std::string& dsn) {
     return dsn.find("connect_timeout") != std::string::npos;
 }
 
+/// Append a bounded connect_timeout to an operator-supplied DSN (URL or
+/// key=value form) unless it already pins one. Same rationale as make_conninfo:
+/// libpq's default connect is unbounded. Applied to the primary AND every read
+/// replica so a blackholed replica can't hang read traffic either.
+inline std::string with_connect_timeout(std::string dsn, int connect_timeout_sec = 5) {
+    if (connect_timeout_sec <= 0 || has_connect_timeout(dsn))
+        return dsn;
+    const bool url_form = dsn.rfind("postgres", 0) == 0 && dsn.find("://") != std::string::npos;
+    if (url_form)
+        dsn += (dsn.find('?') == std::string::npos ? "?connect_timeout=" : "&connect_timeout=") +
+               std::to_string(connect_timeout_sec);
+    else
+        dsn += " connect_timeout=" + std::to_string(connect_timeout_sec);
+    return dsn;
+}
+
 }  // namespace Utils::Pg
