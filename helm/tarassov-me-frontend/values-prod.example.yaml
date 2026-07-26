@@ -27,6 +27,15 @@ backend:
   service: api-tarassov-me   # TODO: match your tarassov-me release fullname
   port: 8080
 
+# Origin of the object storage the API rewrites image URLs to — REQUIRED when
+# the tarassov-me overlay sets storage.backend=s3, otherwise the CSP's
+# `img-src 'self' data:` blocks every uploaded image. Scheme + host only, no
+# path: the origin part of tarassov-me's storage.publicBaseUrl.
+# NOTE: reaches the admin/SPA CSP only for now — see the comment on this key in
+# values.yaml for why the public-site CSPs can't template it yet.
+uploads:
+  publicOrigin: "https://cdn.example.com"   # TODO: match tarassov-me storage.publicBaseUrl
+
 ingress:
   enabled: true
   className: nginx

@@ -80,7 +80,7 @@ public:
             resp->setStatusCode(k404NotFound);
             resp->setContentTypeCode(CT_TEXT_HTML);
             resp->setBody(Pages::render("blog_post_404", {}));
-            resp->addHeader("Content-Security-Policy", kPublicSiteCsp);
+            resp->addHeader("Content-Security-Policy", public_site_csp());
             cb(resp);
             return;
         }
@@ -137,17 +137,54 @@ public:
         // stamps on responses without one (browsers intersect multiple CSP
         // headers, so the API policy alone bricks the page: no JS, no CSS).
         // set_if_absent in the middleware honours what we set here.
-        resp->addHeader("Content-Security-Policy", kPublicSiteCsp);
+        resp->addHeader("Content-Security-Policy", public_site_csp());
         cb(resp);
     }
 
 private:
     // Mirror of the public-site policy in frontend/nginx.conf (`location /`).
+    // scripts/check-public-surface-sync.sh reassembles this literal and asserts
+    // it is byte-identical to both nginx copies — keep it a plain literal and
+    // add per-deployment sources through public_site_csp() below.
     static constexpr const char* kPublicSiteCsp =
         "default-src 'self'; script-src 'self' 'unsafe-inline'; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; "
         "font-src 'self' https://fonts.gstatic.com; connect-src 'self'; object-src 'none'; "
         "base-uri 'self'; frame-ancestors 'none'";
+
+    // Origin (scheme://host[:port]) of @p url, or "" when it carries no scheme
+    // — a bare path is same-origin and needs no CSP source of its own.
+    static std::string origin_of(const std::string& url) {
+        const auto scheme_end = url.find("://");
+        if (scheme_end == std::string::npos)
+            return {};
+        const auto slash = url.find('/', scheme_end + 3);
+        return slash == std::string::npos ? url : url.substr(0, slash);
+    }
+
+    // The base policy above plus the configured upload origin in img-src.
+    // storage.public_base_url is the S3/CDN host serving post images; under a
+    // bare `img-src 'self' data:` the browser blocks every one of them. Empty
+    // (local backend) → uploads are same-origin at /uploads/<key>, which 'self'
+    // already covers, and the policy is the literal verbatim. Resolved once —
+    // the config is immutable after boot.
+    static const std::string& public_site_csp() {
+        static const std::string csp = [] {
+            std::string policy = kPublicSiteCsp;
+            const std::string base =
+                Config::get().get<std::string>("storage.public_base_url", "STORAGE_PUBLIC_BASE_URL", "");
+            const std::string upload_origin = origin_of(base);
+            if (upload_origin.empty())
+                return policy;
+            const std::string needle = "img-src 'self' data:";
+            const auto at = policy.find(needle);
+            if (at != std::string::npos)
+                policy.insert(at + needle.size(), " " + upload_origin);
+            return policy;
+        }();
+        return csp;
+    }
+
     // Canonical origin: site.base_url when configured (prod — validated at
     // boot), header-derived only as a dev fallback with no configured base.
     // Header derivation produced http:// URLs behind the TLS-terminating
@@ -195,11 +232,23 @@ private:
 
     static std::string hideIfEmpty(const std::string& s) { return s.empty() ? " hidden" : ""; }
 
-    // Guard against a literal </script> inside embedded JSON breaking the tag.
-    static std::string script_safe(std::string s) {
-        for (std::size_t pos = 0; (pos = s.find("</", pos)) != std::string::npos; pos += 3)
-            s.replace(pos, 2, "<\\/");
-        return s;
+    // Keep embedded JSON from ever steering the HTML tokenizer: escape EVERY
+    // '<' as its JSON unicode escape (u003c). That form is legal inside a JSON
+    // string and parses back to the same text, and with no literal '<' left in
+    // the block none of the script-data state transitions can fire. Subsumes
+    // the old `</`-only rule, which an UNBALANCED `<!--` (no `-->`) walked
+    // straight past — driving the tokenizer into script-data-double-escaped
+    // state and swallowing the rest of the document.
+    static std::string script_safe(const std::string& s) {
+        std::string o;
+        o.reserve(s.size() + 16);
+        for (char c : s) {
+            if (c == '<')
+                o += "\\u003c";
+            else
+                o += c;
+        }
+        return o;
     }
 };
 
