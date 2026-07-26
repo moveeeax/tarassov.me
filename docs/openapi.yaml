@@ -922,7 +922,12 @@ paths:
         '200': { description: OK }
         '404': { description: Not found }
     patch:
-      summary: Update post (admin)
+      summary: Update post (admin) — partial; omitted fields keep their current value
+      description: >
+        Partial update. Only the fields present in the body are changed;
+        omitted fields (including status) keep their current value, so a
+        title-only PATCH does not unpublish the post or clear published_at.
+        Send status=draft explicitly to unpublish.
       tags: [posts]
       security: [{ BearerAuth: [] }]
       requestBody:
