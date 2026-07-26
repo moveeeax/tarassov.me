@@ -73,6 +73,12 @@ ENV PATH="${VCPKG_ROOT}:${PATH}"
 # jobs — the mounts live in buildkitd state that dies with the pod). Previously
 # the deps were installed inside the build RUN below, after COPY . ., so every
 # commit rebuilt all ~29 packages (~10 min) despite a "warm" layer cache.
+#
+# Corollary: ANY edit to vcpkg.json rebuilds all ~29 packages, including a
+# change to its cosmetic `version` field. Do not bump that field per release —
+# it describes this repo as a vcpkg port and nothing resolves against it, while
+# bumping it costs a full from-source dependency build (which overruns the
+# 25-minute clang-tidy and sanitizers job timeouts). See scripts/check-version-sync.sh.
 WORKDIR /app
 COPY vcpkg.json ./
 

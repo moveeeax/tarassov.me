@@ -35,8 +35,11 @@ if [ "$cmake_version" != "$changelog_version" ]; then
         echo "    CHANGELOG.md    newest release heading [$changelog_version]"
         echo ""
         echo "Bump project(VERSION ...) in CMakeLists.txt to $changelog_version in the"
-        echo "same commit as the changelog entry. helm/*/Chart.yaml appVersion and"
-        echo "vcpkg.json version are bumped by hand alongside it."
+        echo "same commit as the changelog entry. helm/*/Chart.yaml appVersion is"
+        echo "bumped by hand alongside it. Leave vcpkg.json's version alone: the"
+        echo "Dockerfile keys the whole dependency-install layer on that manifest,"
+        echo "so touching it rebuilds ~29 packages from source and blows the"
+        echo "25-minute clang-tidy/sanitizers timeouts."
     } >&2
     exit 1
 fi

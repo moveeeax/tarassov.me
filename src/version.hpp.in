@@ -14,9 +14,14 @@
  * configured.
  *
  * Nothing propagates from here to Helm: the appVersion in every chart's
- * Chart.yaml and the version in vcpkg.json are bumped by hand in the release
- * commit. (Spelled without a glob on purpose — a slash-star pair inside a
- * block comment trips -Wcomment, and CI builds with -Werror.)
+ * Chart.yaml is bumped by hand in the release commit. (Spelled without a glob
+ * on purpose — a slash-star pair inside a block comment trips -Wcomment, and
+ * CI builds with -Werror.)
+ *
+ * vcpkg.json's version field is deliberately NOT kept in step: docker/Dockerfile
+ * copies that manifest alone to key the dependency-install layer, so editing it
+ * rebuilds all ~29 packages from source. It describes this repo as a vcpkg port,
+ * which nothing consumes.
  */
 
 #pragma once
