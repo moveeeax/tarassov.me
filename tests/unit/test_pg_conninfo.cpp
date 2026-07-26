@@ -37,3 +37,19 @@ TEST(PgConninfoTest, HasConnectTimeoutDetectsBothForms) {
     EXPECT_TRUE(Utils::Pg::has_connect_timeout("postgresql://u@h/db?connect_timeout=3"));
     EXPECT_FALSE(Utils::Pg::has_connect_timeout("postgresql://u@h/db"));
 }
+
+TEST(PgConninfoTest, WithConnectTimeoutAppendsPerForm) {
+    // key=value form → space kv.
+    EXPECT_EQ(Utils::Pg::with_connect_timeout("host='h' dbname='d'"), "host='h' dbname='d' connect_timeout=5");
+    // URL without query → ?connect_timeout.
+    EXPECT_EQ(Utils::Pg::with_connect_timeout("postgresql://u@h/db"), "postgresql://u@h/db?connect_timeout=5");
+    // URL with existing query → &connect_timeout.
+    EXPECT_EQ(Utils::Pg::with_connect_timeout("postgres://u@h/db?sslmode=require"),
+              "postgres://u@h/db?sslmode=require&connect_timeout=5");
+    // Already pinned → untouched (both forms).
+    EXPECT_EQ(Utils::Pg::with_connect_timeout("postgresql://u@h/db?connect_timeout=9"),
+              "postgresql://u@h/db?connect_timeout=9");
+    EXPECT_EQ(Utils::Pg::with_connect_timeout("host='h' connect_timeout=9"), "host='h' connect_timeout=9");
+    // Disabled.
+    EXPECT_EQ(Utils::Pg::with_connect_timeout("host='h'", 0), "host='h'");
+}
