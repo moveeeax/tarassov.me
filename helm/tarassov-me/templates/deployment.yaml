@@ -39,7 +39,7 @@ spec:
           env:
             - name: RUN_MIGRATIONS_ONLY
               value: "true"
-            {{- if .Values.externalDatabase.password }}
+            {{- if include "tarassov-me.hasSecret" (list . .Values.externalDatabase.password "database-password") }}
             - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -118,10 +118,11 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 3
           env:
-            # Database password — injected from Secret. The binary assembles the
-            # DSN from the discrete DATABASE_* parts below, so the password is
-            # never embedded in a URL env var.
-            {{- if .Values.externalDatabase.password }}
+            # Database password — injected from Secret (inline or ExternalSecret;
+            # see the hasSecret helper). The binary assembles the DSN from the
+            # discrete DATABASE_* parts below, so the password is never embedded
+            # in a URL env var.
+            {{- if include "tarassov-me.hasSecret" (list . .Values.externalDatabase.password "database-password") }}
             - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -138,7 +139,7 @@ spec:
               # replica race for the migration advisory lock.
               value: {{ ternary "true" "false" (.Values.externalDatabase.migrationsEnabled | default false) | quote }}
             # Redis / Cache
-            {{- if .Values.externalRedis.password }}
+            {{- if include "tarassov-me.hasSecret" (list . .Values.externalRedis.password "redis-password") }}
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -246,7 +247,7 @@ spec:
               value: {{ .Values.app.env | default "production" | quote }}
             - name: AUTH_MODE
               value: {{ .Values.auth.mode | quote }}
-            {{- if .Values.auth.jwtSecret }}
+            {{- if include "tarassov-me.hasSecret" (list . .Values.auth.jwtSecret "jwt-secret") }}
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
@@ -301,7 +302,7 @@ spec:
             - name: MAIL_SMTP_USERNAME
               value: {{ .Values.mail.smtpUsername | quote }}
             {{- end }}
-            {{- if .Values.mail.smtpPassword }}
+            {{- if include "tarassov-me.hasSecret" (list . .Values.mail.smtpPassword "mail-smtp-password") }}
             - name: MAIL_SMTP_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -319,7 +320,7 @@ spec:
             {{- end }}
             # Object storage: non-secret config is rendered into the ConfigMap;
             # only the S3 secret key is injected here from the Secret.
-            {{- if .Values.storage.s3.secretKey }}
+            {{- if include "tarassov-me.hasSecret" (list . .Values.storage.s3.secretKey "s3-secret-key") }}
             - name: S3_SECRET_KEY
               valueFrom:
                 secretKeyRef:

@@ -77,7 +77,7 @@ spec:
             severity: warning
             service: {{ include "tarassov-me.fullname" . }}
           annotations:
-            runbook_url: "https://github.com/moveeeax/tarassov.me/blob/main/docs/RUNBOOK.md#p99"
+            runbook_url: "https://github.com/moveeeax/tarassov.me/blob/main/docs/RUNBOOK.md#dbpool"
             summary: "DB connection pool >{{ mulf (.Values.monitoring.thresholds.dbPoolSaturation | default 0.9) 100.0 | int }}% saturated ({{`{{ $labels.pool }}`}} pool)"
             description: "Increase externalDatabase.poolSize or scale replicas to reduce connection pressure."
 
@@ -94,7 +94,7 @@ spec:
             severity: warning
             service: {{ include "tarassov-me.fullname" . }}
           annotations:
-            runbook_url: "https://github.com/moveeeax/tarassov.me/blob/main/docs/RUNBOOK.md#dlq"
+            runbook_url: "https://github.com/moveeeax/tarassov.me/blob/main/docs/RUNBOOK.md#queuebacklog"
             summary: "Jobs queue backlog above {{ .Values.monitoring.thresholds.queueDepth | default 100 }}"
             description: "Waiting-jobs queue is growing — scale the tarassov-me-worker deployment or investigate slow job handlers."
         {{- end }}
@@ -122,6 +122,7 @@ spec:
             severity: warning
             service: {{ include "tarassov-me.fullname" . }}
           annotations:
+            runbook_url: "https://github.com/moveeeax/tarassov.me/blob/main/docs/RUNBOOK.md#replag"
             summary: "Read replica lagging > {{ .Values.monitoring.thresholds.replicaLagSec | default 10 }}s behind primary"
             description: "Read-after-write reads may serve stale rows. Check replica health, network, or WAL apply load (only fires when replicas are configured)."
 
@@ -190,7 +191,14 @@ spec:
             runbook_url: "https://github.com/moveeeax/tarassov.me/blob/main/docs/RUNBOOK.md#dlq"
             summary: "DLQ growing for job type {{`{{ $labels.type }}`}}"
             description: "A specific job type keeps failing all retries — bug in the handler or a chronically-bad input."
+        {{- end }}
 
+        {{- /* Backup alerts are a SIBLING of the jobs/DLQ set, not part of it:
+               they watch the pg_dump CronJob, which is gated on backup.enabled
+               and is routinely on while monitoring.jobsAlerts is off (the prod
+               overlay does exactly that). Nesting them under jobsAlerts shipped
+               a backup with no failure alerting at all — a broken nightly dump
+               then surfaces only when someone needs a restore. */}}
         {{- if .Values.backup.enabled }}
         - alert: CppApiBackupJobFailed
           # The pg_dump CronJob's most recent run failed. Needs kube-state-metrics.
@@ -218,6 +226,5 @@ spec:
             runbook_url: "https://github.com/moveeeax/tarassov.me/blob/main/docs/RUNBOOK.md#backup"
             summary: "No recent Postgres backup"
             description: "No successful backup completed within the staleness window — the CronJob may be broken or no longer scheduled."
-        {{- end }}
         {{- end }}
 {{- end }}
