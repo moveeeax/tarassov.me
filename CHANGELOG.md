@@ -6,6 +6,113 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-07-27
+
+Round-3 full-project review (#15): 14 area sweeps, 70 findings adversarially
+verified, 57 confirmed, applied as 45 fixes. Minor rather than patch because a
+public route and several chart values were added, and because the config fix
+below changes what a documented production profile actually does.
+
+### Security
+- **A working JWT signing key was shipped in git and used by a live host.**
+  `helm/tarassov-me-env` carried `credentials.jwtSecret` as a chart *default*
+  and `values-stage.yaml` inherited it on `api.stage.tarassov.me`. This repo is
+  public, so the key was published: 62 chars clears the `>=32` guard, no
+  issuer/audience binding, and anyone could mint an admin token against the
+  live stage API. Every plaintext credential default is now `""` (the API
+  fail-closes on an empty secret) and each env injects them via `--set`.
+  `scripts/check-helm-render.sh` renders the umbrella under a new
+  no-committed-credential assertion so one cannot return unnoticed.
+  **Operators: rotate the stage secret — this change only stops it being
+  served from git; the published key stays valid until you do.**
+- **Transactional mail was an open, DKIM-signed HTML relay.** inja does not
+  autoescape and `Templates::render` fed it user-controlled display names,
+  while `POST /api/v1/account/change-email-request` delivers the result to a
+  caller-supplied address — so any self-registered account could mail
+  arbitrary attacker-authored HTML from `noreply@`. The `.html` path now
+  escapes every string in the context (`.txt` stays verbatim), names are
+  length-capped and reject markup and CRLF at all four write sites, mail
+  headers strip CRLF and quoted-string metacharacters, and the endpoint joins
+  the 10/min protected tier it had been missing.
+- **The secret scanner had no rules.** `.gitleaks.toml` contained only an
+  `[allowlist]`, and gitleaks v8 *replaces* the embedded ruleset with a
+  repo-root config instead of merging it — so CI and pre-commit had been
+  scanning with zero rules while the file's first line claimed the opposite.
+- Password reset and change now revoke the user's API keys, not just refresh
+  sessions: a stolen session could previously mint a `cpk_` key that survived
+  the reset and minted replacements.
+- Successful logins, API-key mint/revoke and password reset/change now write
+  audit records; the trail held failed logins and nothing else.
+
+### Added
+- `GET /uploads/{key}` — same-origin read path for stored uploads, public and
+  read-only, with a traversal guard and content type from the extension
+  allowlist only. Part of the uploads fix below.
+- Worker chart knobs that existed in code but were unreachable from Helm:
+  `jobs.retryBackoffBaseMs`, `jobs.retryBackoffMaxMs`, `jobs.visibilityTimeoutSec`.
+- `uploads.publicOrigin` on the frontend chart, spliced into `img-src`.
+- A CI job that builds both runtime images, asserts `ldd` resolves every
+  library and starts each binary — the runtime stages had never been built or
+  executed outside a release tag.
+- `scripts/check-version-sync.sh`, gating the baked version against the newest
+  changelog heading.
+
+### Fixed
+- **Uploaded images were unreachable in every configuration.** `Storage::url()`
+  returned a bare key, nothing served that path, and `img-src 'self' data:`
+  blocked the S3/CDN alternative in seven places. Local storage now yields an
+  absolute same-origin URL that the API serves and nginx proxies; the S3 origin
+  is spliced into every CSP copy.
+- **Every worker rollout duplicated in-flight jobs.** All replicas shared
+  `WORKER_ID`, so a starting pod re-queued its sibling's work and deleted that
+  sibling's crash-recovery tracking — with non-idempotent handlers, meaning
+  duplicate mail and webhook POSTs. Identity is now per pod, and recovery is
+  ownership-checked.
+- **Cancelling a job was not durable**: `cancel()` never cleared the backoff
+  set, so a job parked between retries was deterministically resurrected.
+- **`${VAR:-default}` was silently discarded for every non-string config key.**
+  The expansion is written back as a JSON string and the type error was
+  swallowed by a blanket `catch`, so running the binary on
+  `config.production.json` with the env unset silently disabled mail and jobs
+  and halved the rate limit. String leaves are now coerced; an unusable value
+  is logged instead of vanishing.
+- **Short-circuited responses were invisible.** Every 401, 403-CSRF, 415, 429
+  and idempotency replay shipped with no `X-Request-Id`, no `traceparent`, no
+  security headers, no access-log line and no metric, because Drogon skips the
+  whole pre/post-handling chain for a sync-advice response.
+- **`externalSecrets.enabled` rendered no secret env vars at all** — pods came
+  up without `JWT_SECRET` and crashed at boot.
+- **The backup CronJob could fail an entire `helm upgrade`** by rendering an
+  empty `secretKeyRef.name`, and backup-failure alerts were nested inside a
+  conditional prod sets to false, so a failing nightly `pg_dump` paged nobody.
+- The partial `PATCH /posts/{id}` merged over a **replica** read outside a
+  transaction, so a partial update inside the WAL-lag window silently reverted
+  the omitted fields and returned 200.
+- Malformed JSON types returned a bare 500 instead of a 400 envelope, including
+  on the unauthenticated login and public contact endpoints.
+- `CI_REQUIRE_INFRA` was exported nowhere, so all 164 infra-backed cases could
+  SKIP and CI go green with zero coverage; `check-test-buckets.sh` dropped its
+  second argument and never scanned `tests/api`.
+- Admin UI: the Administer bit could not be revoked through the only control
+  that sets it, and Escape or a backdrop click destroyed an unsaved post draft.
+- Public site: selecting a topic erased every other section from the rail, and
+  hidden pager elements rendered as empty cards.
+- The reported application version had been frozen at 1.5.0 for three releases.
+
+### Changed
+- **Deployers:** `helm/tarassov-me-env` no longer carries credentials. Stage
+  and demo deploys must pass `--set credentials.*` (and the mirrored subchart
+  fields) — see the block comment in its `values.yaml`. `values-ci.yaml` keeps
+  its throwaway fixtures; it is a render fixture and is never deployed.
+- Both ConfigMaps stopped assembling `database.primary` as a URL, so the
+  primary DSN goes through the same quoting as the replicas and survives a
+  password containing `/ ? # %`.
+- `docs/RUNBOOK.md`'s replica-lag mitigation was a silent no-op in Kubernetes
+  (it set an env var the charts never emit) and is now the `helm --set` form.
+- `vcpkg.json`'s version is deliberately no longer bumped per release: the
+  Dockerfile keys the whole dependency-install layer on that manifest, so
+  touching it rebuilds ~29 packages from source.
+
 ## [2.0.2] — 2026-07-26
 
 ### Fixed

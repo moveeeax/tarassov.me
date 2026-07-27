@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(tarassov_me VERSION 2.0.2 LANGUAGES CXX)
+project(tarassov_me VERSION 2.1.0 LANGUAGES CXX)
 
 # Release builds stamp the git tag in instead of the baked value above:
 # docker/Dockerfile declares ARG APP_VERSION and forwards it as

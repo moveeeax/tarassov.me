@@ -3,6 +3,6 @@ name: tarassov-me-frontend
 description: A Helm chart for the C++ REST template React SPA (nginx + /api proxy)
 type: application
 version: 0.1.0
-appVersion: "2.0.2"
+appVersion: "2.1.0"
 maintainers:
   - name: tarassov-me-team
