@@ -49,6 +49,34 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+Is a given secret actually available to the pod?
+
+Two sources: the inline value (rendered into templates/secret.yaml), or — with
+externalSecrets.enabled — the ExternalSecret, which materializes EXACTLY the
+keys listed in externalSecrets.data. Gating a secretKeyRef on the inline value
+alone is wrong in ESO mode, where those values are empty by design: the pod
+then comes up with no DATABASE_PASSWORD / REDIS_PASSWORD / JWT_SECRET at all
+and crashes at boot. Gating on externalSecrets.enabled alone is wrong too — it
+would reference keys the ExternalSecret may not declare, which the kubelet
+rejects with CreateContainerConfigError.
+
+Returns "true" (truthy) or "" (falsy).
+Usage: {{- if include "tarassov-me.hasSecret" (list . .Values.auth.jwtSecret "jwt-secret") }}
+*/}}
+{{- define "tarassov-me.hasSecret" -}}
+{{- $ctx := index . 0 -}}
+{{- $inline := index . 1 -}}
+{{- $key := index . 2 -}}
+{{- if $inline -}}
+true
+{{- else if $ctx.Values.externalSecrets.enabled -}}
+{{- range $ctx.Values.externalSecrets.data -}}
+{{- if eq .secretKey $key -}}true{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Database connection env as DISCRETE parts (host/port/user/name) — the binary
 assembles the libpq DSN in code so the password stays only in DATABASE_PASSWORD
 (never materialized into a URL env var that would leak via `kubectl exec -- env`).

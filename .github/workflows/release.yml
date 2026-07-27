@@ -65,6 +65,10 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }}-staging
+          # Stamps the tag version into the binary (Dockerfile ARG APP_VERSION
+          # -> -DPROJECT_VERSION_OVERRIDE). Without it the image reports
+          # whatever project(VERSION ...) was last hand-edited to.
+          build-args: APP_VERSION=${{ steps.ver.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           sbom: true
@@ -79,6 +83,8 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.IMAGE_NAME }}-worker:${{ steps.ver.outputs.version }}-staging
+          # Same version stamp as the app image — both link Core::version().
+          build-args: APP_VERSION=${{ steps.ver.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           sbom: true

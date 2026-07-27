@@ -74,10 +74,11 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 3
           env:
-            # Database password — injected from Secret. The binary assembles the
-            # DSN from the discrete DATABASE_* parts below; the password is never
-            # embedded in a URL env var.
-            {{- if .Values.externalDatabase.password }}
+            # Database password — injected from Secret (inline or ExternalSecret;
+            # see the hasSecret helper). The binary assembles the DSN from the
+            # discrete DATABASE_* parts below; the password is never embedded in
+            # a URL env var.
+            {{- if include "tarassov-me-worker.hasSecret" (list . .Values.externalDatabase.password "database-password") }}
             - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -96,7 +97,7 @@ spec:
             - name: DB_MIGRATIONS_ENABLED
               value: {{ ternary "true" "false" (.Values.externalDatabase.migrationsEnabled | default false) | quote }}
             # Redis / Cache
-            {{- if .Values.externalRedis.password }}
+            {{- if include "tarassov-me-worker.hasSecret" (list . .Values.externalRedis.password "redis-password") }}
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -122,9 +123,30 @@ spec:
               value: {{ .Values.jobs.resultTtl | quote }}
             - name: JOBS_MAX_RETRIES
               value: {{ .Values.jobs.maxRetries | quote }}
+            # Retry backoff + processing lease. Both default to 0 in code, which
+            # silently disables them (instant re-queue, no lease reaper) — render
+            # them explicitly or the reliability machinery is dead in the cluster.
+            - name: JOBS_RETRY_BACKOFF_BASE_MS
+              value: {{ .Values.jobs.retryBackoffBaseMs | quote }}
+            - name: JOBS_RETRY_BACKOFF_MAX_MS
+              value: {{ .Values.jobs.retryBackoffMaxMs | quote }}
+            - name: JOBS_VISIBILITY_TIMEOUT_SEC
+              value: {{ .Values.jobs.visibilityTimeoutSec | quote }}
             # Worker
+            # Per-pod identity. Every replica MUST own a distinct processing
+            # list: recover_processing() runs at every startup and unconditionally
+            # re-queues + DELetes jobs:processing:<WORKER_ID>-<n>, so a shared id
+            # means a starting pod steals and duplicates a live sibling's in-flight
+            # jobs. The pod name is unique per replica and stable across restarts
+            # of the same pod, so crash recovery still finds its own jobs.
             - name: WORKER_ID
+              {{- if .Values.worker.id }}
               value: {{ .Values.worker.id | quote }}
+              {{- else }}
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+              {{- end }}
             - name: WORKER_TYPES
               value: {{ .Values.worker.types | quote }}
             - name: WORKER_CONCURRENCY
@@ -153,7 +175,7 @@ spec:
             # API uses (sourced from the chart Secret / ExternalSecret).
             - name: AUTH_MODE
               value: {{ .Values.auth.mode | quote }}
-            {{- if .Values.auth.jwtSecret }}
+            {{- if include "tarassov-me-worker.hasSecret" (list . .Values.auth.jwtSecret "jwt-secret") }}
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
@@ -188,7 +210,7 @@ spec:
             - name: MAIL_SMTP_USERNAME
               value: {{ .Values.mail.smtpUsername | quote }}
             {{- end }}
-            {{- if .Values.mail.smtpPassword }}
+            {{- if include "tarassov-me-worker.hasSecret" (list . .Values.mail.smtpPassword "mail-smtp-password") }}
             - name: MAIL_SMTP_PASSWORD
               valueFrom:
                 secretKeyRef:

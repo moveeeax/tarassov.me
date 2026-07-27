@@ -61,6 +61,13 @@ public:
     virtual std::string url(const std::string& key) = 0;
 };
 
+/// Same-origin path prefix under which the backend serves LocalStorage objects
+/// when no CDN/public base URL is configured — see the `GET /uploads/{key}`
+/// route and nginx's `/uploads/` proxy. url() returns `<prefix><key>`, which is
+/// absolute, so a stored `![](…)` still resolves from /blog/<slug> or
+/// /admin/media (a bare key did not).
+inline constexpr const char* kLocalPublicPrefix = "/uploads/";
+
 /// Reject keys that could escape the storage root (path traversal / absolute
 /// paths). Keys are meant to be opaque ids; this is defense-in-depth.
 inline bool key_is_safe(const std::string& key) {
@@ -142,10 +149,14 @@ public:
         return out;
     }
 
+    /// With a public base (CDN/S3 gateway) → `<base>/<key>`. Without one →
+    /// the same-origin `/uploads/<key>` path the backend serves this root on;
+    /// returning the bare key made every stored image resolve relative to the
+    /// page that embedded it, and 404.
     std::string url(const std::string& key) override {
         if (!key_is_safe(key))
             throw std::runtime_error("storage: unsafe key");
-        return public_base_.empty() ? key : public_base_ + "/" + key;
+        return public_base_.empty() ? std::string(kLocalPublicPrefix) + key : public_base_ + "/" + key;
     }
 
 private:
@@ -172,7 +183,11 @@ public:
         std::string access_key;
         std::string secret_key;
         std::string public_base;  // public URL prefix for url(); empty → endpoint/bucket
-        long timeout_sec = 30;
+        // Whole-request and TCP-connect budgets. Every S3 call runs inline on a
+        // Drogon IO thread, so these bound how long one blackholed object store
+        // can pin 1 of N event loops — keep them well under the readiness probe.
+        long timeout_sec = 10;
+        long connect_timeout_sec = 2;
     };
 
     explicit S3Storage(Config cfg) : cfg_(std::move(cfg)) {
@@ -180,6 +195,12 @@ public:
         host_ = host_from_endpoint(cfg_.endpoint);
         if (cfg_.region.empty())
             cfg_.region = "us-east-1";
+        // curl reads 0 as "no limit" — never let a misconfigured value disable
+        // the budgets entirely.
+        if (cfg_.timeout_sec <= 0)
+            cfg_.timeout_sec = 10;
+        if (cfg_.connect_timeout_sec <= 0)
+            cfg_.connect_timeout_sec = 2;
     }
 
     void put(const std::string& key, const std::string& bytes, const std::string& content_type) override {
@@ -399,6 +420,12 @@ private:
             cfg_.endpoint + canonical_uri + (canonical_query.empty() ? "" : "?" + canonical_query);
         curl_easy_setopt(h, CURLOPT_URL, full_url.c_str());
         curl_easy_setopt(h, CURLOPT_TIMEOUT, cfg_.timeout_sec);
+        // A dead/blackholed endpoint must fail fast rather than hold the calling
+        // IO thread for the full request budget.
+        curl_easy_setopt(h, CURLOPT_CONNECTTIMEOUT, cfg_.connect_timeout_sec);
+        // Multi-threaded process: without this libcurl uses SIGALRM for its own
+        // timeouts and the resolver, which is not thread-safe here.
+        curl_easy_setopt(h, CURLOPT_NOSIGNAL, 1L);
 
         ReadCtx rctx{&body, 0};
         if (method == "PUT") {
@@ -471,6 +498,11 @@ inline void initialize(Config::AppConfig& cfg) {
         s3.access_key = cfg.get<std::string>("storage.s3.access_key", "S3_ACCESS_KEY", "");
         s3.secret_key = cfg.get<std::string>("storage.s3.secret_key", "S3_SECRET_KEY", "");
         s3.public_base = cfg.get<std::string>("storage.public_base_url", "STORAGE_PUBLIC_BASE_URL", "");
+        // Was a dead knob: the struct default applied no matter what was
+        // configured, and the connect budget did not exist at all.
+        s3.timeout_sec = static_cast<long>(cfg.get<int>("storage.s3.timeout_sec", "S3_TIMEOUT_SEC", 10));
+        s3.connect_timeout_sec =
+            static_cast<long>(cfg.get<int>("storage.s3.connect_timeout_sec", "S3_CONNECT_TIMEOUT_SEC", 2));
         if (s3.endpoint.empty() || s3.bucket.empty())
             throw std::runtime_error("storage.backend=s3 requires S3_ENDPOINT and S3_BUCKET");
         global_storage = std::make_unique<S3Storage>(std::move(s3));

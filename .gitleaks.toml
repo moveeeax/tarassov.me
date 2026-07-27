@@ -1,12 +1,49 @@
-# Gitleaks config. The default ruleset applies; allowlist below covers
-# local-only artifacts that must never be committed but can sit in the
-# work tree (gitleaks protect scans staged files).
+# Gitleaks config.
+#
+# [extend] useDefault IS LOAD-BEARING. Gitleaks v8 REPLACES its embedded
+# ruleset with a repo-root config instead of merging into it, so a file that
+# carries only an [allowlist] table scans with ZERO rules — both consumers
+# (the pinned gitleaks-action in .github/workflows/ci.yml and the pre-commit
+# hook in .pre-commit-config.yaml, neither of which passes --config) then
+# report "no leaks found" for anything at all.
+[extend]
+useDefault = true
+
+# ── Allowlist ────────────────────────────────────────────────────────────────
+# Scoped by VALUE, not by path. The global allowlist ORs `paths` and
+# `regexes`, so a path entry blinds that file entirely — a real key pasted
+# into it later would ride through. The regexes below cover the fake
+# placeholders the default ruleset flags in this repo's history.
+#
+# Deliberately NOT excluded here: helm/*/values-prod.yaml. Those overlays are
+# gitignored and have never been committed, and the only two consumers of this
+# file scan git content (staged diff / full history) — in both, a hit means a
+# real prod credential is about to land or already has. Excluding them would
+# blind exactly the file class documented to hold real db/redis/jwt secrets.
+# For a work-tree scan that would otherwise trip on the local overlays use the
+# sibling config: gitleaks detect --no-git --config .gitleaks.worktree.toml
 [allowlist]
-description = "Local dev artifacts (gitignored)"
+description = "Known non-secret placeholders (docs + test fixtures)"
+regexes = [
+  # README quickstart: curl -H 'Authorization: Bearer dev-secret-123'
+  # (rule: curl-auth-header). A documented dev bearer token; still in history.
+  '''dev-secret-123''',
+  # tests/e2e/test_http_e2e.cpp kSecret (rule: generic-api-key). The >=32-char
+  # dummy the Auth boot guard demands; it authenticates nothing.
+  '''e2e-test-jwt-secret-0123456789-abcdef''',
+  # The rest of the same fixture family. generic-api-key fires on `kSecret =
+  # "..."` / `jwtSecret: "..."` above its entropy floor, and these siblings of
+  # the e2e literal above are all over it (3.5–4.5) — tests/integration/
+  # test_{auth,admin,audit,account}_flow.cpp, tests/unit/test_{tokens,
+  # require_confirmed}.cpp, the email-jobs + preview fixtures, and the
+  # test-*-pass-change-me placeholders that lived in helm/*/values-ci.yaml.
+  # Still VALUE-scoped: nothing that starts "test-…-secret-" / "test-<svc>-
+  # pass-change-me" is ever a real credential, and no file is blinded.
+  '''test-(?:jwt-|preview-)?secret-[0-9a-z-]{4,}''',
+  '''test-(?:db|redis)-pass-change-me''',
+]
 paths = [
+  # Local dev artifact, gitignored and never committed — allowlisted so a
+  # stray work-tree scan doesn't trip on it.
   '''docker/\.jwt-dev-secret''',
-  # Per-environment Helm overlays — hold real db/redis/jwt secrets but are
-  # gitignored (local only). Allowlisted so a stray scan of the work tree
-  # doesn't trip on them; they must never be committed.
-  '''helm/.*/values-prod\.yaml''',
 ]

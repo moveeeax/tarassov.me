@@ -4,6 +4,11 @@
  *        file in the configured Storage backend (local or S3/MinIO) under a
  *        random key and returns its public URL. The admin post editor inserts
  *        that URL into the Markdown body as an image.
+ *
+ *        With the local backend that URL is same-origin (/uploads/<key>) and
+ *        this controller also SERVES it — see serveUpload. With an S3/CDN
+ *        origin configured (storage.public_base_url) the URL is absolute and
+ *        the read route is dead weight: it 404s.
  */
 
 #pragma once
@@ -12,6 +17,7 @@
 #include <cctype>
 #include <cstddef>
 #include <initializer_list>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -25,6 +31,7 @@
 #include "api/HandlerSupport.hpp"
 #include "api/RequestUtils.hpp"
 #include "storage/Storage.hpp"
+#include "utils/Config.hpp"
 #include "utils/Crypto.hpp"
 #include "utils/ErrorResponse.hpp"
 
@@ -63,6 +70,11 @@ public:
     // Media library: list + delete what the editor uploaded.
     ADD_METHOD_TO(UploadController::listUploads, "/api/v1/admin/uploads", Get);
     ADD_METHOD_TO(UploadController::deleteUpload, "/api/v1/admin/uploads/{1}", Delete);
+    // Public read of a stored object (local backend only) — this is the URL
+    // Storage::url() hands the editor when no CDN origin is configured. Via
+    // regex because keys contain a '/' (posts/<hex>.<ext>) and a {1} path
+    // parameter only ever matches a single segment.
+    ADD_METHOD_VIA_REGEX(UploadController::serveUpload, "/uploads/(.*)", Get);
     METHOD_LIST_END
 
     void upload(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
@@ -173,7 +185,67 @@ public:
         callback(Response::ok({{"message", "Upload deleted"}}));
     }
 
+    // GET /uploads/{key} — read an uploaded image back out of local storage.
+    // Public (post bodies link to it) and read-only. Everything that isn't a
+    // safe key naming an object with an allowlisted raster extension is a 404,
+    // including every request in S3/CDN mode: there storage.public_base_url is
+    // set, the stored URLs point at that origin, and nothing links here.
+    void serveUpload(const HttpRequestPtr&,
+                     std::function<void(const HttpResponsePtr&)>&& callback,
+                     const std::string& key) {
+        auto no_such_upload = [&] { callback(ErrorResponse::not_found("upload")); };
+        // Traversal guard: keys are opaque ids under posts/. key_is_safe covers
+        // "..", a leading '/' or '\', empty and NUL; the backslash can also sit
+        // mid-key on a Windows-style path, so reject it anywhere.
+        if (!Storage::key_is_safe(key) || key.find('\\') != std::string::npos) {
+            no_such_upload();
+            return;
+        }
+        // Content type comes from the extension allowlist — never from the
+        // request — and anything outside it (no extension, .svg, .html) is a
+        // 404 rather than an octet-stream download.
+        const std::string type = content_type_for(key.substr(key.rfind('/') + 1));
+        if (type == "application/octet-stream") {
+            no_such_upload();
+            return;
+        }
+        if (!Storage::is_initialized() || !serves_uploads_locally()) {
+            no_such_upload();
+            return;
+        }
+        std::optional<std::string> bytes;
+        try {
+            bytes = Storage::get().get(key);
+        } catch (const std::exception& e) {
+            spdlog::error("serveUpload: storage get failed for {}: {}", key, e.what());
+            callback(ErrorResponse::service_unavailable("storage_error", "Could not read the file"));
+            return;
+        }
+        if (!bytes) {
+            no_such_upload();
+            return;
+        }
+        auto resp = HttpResponse::newHttpResponse();
+        resp->setBody(std::move(*bytes));
+        resp->setContentTypeString(type);
+        // Keys are random and an object is never rewritten in place.
+        resp->addHeader("Cache-Control", "public, max-age=31536000, immutable");
+        callback(resp);
+    }
+
 private:
+    // True when this process is the origin for uploads: the local backend with
+    // no external public base URL, which is exactly when Storage::url() returns
+    // the same-origin /uploads/<key> path that serveUpload answers.
+    static bool serves_uploads_locally() {
+        if (!Config::is_initialized())
+            return false;
+        auto& cfg = Config::get();
+        if (cfg.get<std::string>("storage.backend", "STORAGE_BACKEND", "local") != "local")
+            return false;
+        return cfg.get<std::string>("storage.public_base_url", "STORAGE_PUBLIC_BASE_URL", "").empty();
+    }
+
     // Extension → content type for listings (uploads are raster images only).
     static std::string content_type_for(const std::string& name) {
         const auto dot = name.rfind('.');

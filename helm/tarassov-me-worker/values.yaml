@@ -83,6 +83,12 @@ monitoring:
 # consumes the ExternalSecret-materialized Secret instead.
 # Keep aligned with the tarassov-me chart — the worker shares the same
 # JWT signing key / DB / Redis credentials.
+#
+# `data` below is the SOURCE OF TRUTH for which secret env vars the Deployment
+# renders in this mode (see the hasSecret helper): the ExternalSecret
+# materializes exactly these keys, so a key you omit here produces no env var —
+# list every one the worker needs. Recognised keys: database-password,
+# redis-password, jwt-secret, mail-smtp-password.
 # ---------------------------------------------------------------
 externalSecrets:
   enabled: false
@@ -106,7 +112,14 @@ externalSecrets:
 #               WORKER_HEALTH_PORT, WORKER_BRPOP_TIMEOUT
 # ---------------------------------------------------------------
 worker:
-  id: worker-1
+  # Leave EMPTY in Kubernetes: the Deployment then sources WORKER_ID from the
+  # pod name (fieldRef metadata.name), which is unique per replica. A static id
+  # shared by >1 replica makes every pod use the same jobs:processing:<id>-N
+  # Redis lists, so a starting pod's recover_processing() sweep re-queues (and
+  # then DELetes) the jobs a live sibling is still executing — duplicate emails
+  # and webhook POSTs on every rollout. Set a literal only for a single-instance
+  # deployment that must keep a stable id across pod names.
+  id: ""
   # Comma-separated queue types the worker pulls from (matches WORKER_TYPES env).
   # MUST include "account_email" (transactional confirm/reset/change-email) and
   # "email.send" (generic ad-hoc email) — a worker that only drains "default"
@@ -140,12 +153,26 @@ startupProbe:
 
 # ---------------------------------------------------------------
 # Jobs configuration
-# Env vars set: JOBS_ENABLED, JOBS_RESULT_TTL, JOBS_MAX_RETRIES
+# Env vars set: JOBS_ENABLED, JOBS_RESULT_TTL, JOBS_MAX_RETRIES,
+#               JOBS_RETRY_BACKOFF_BASE_MS, JOBS_RETRY_BACKOFF_MAX_MS,
+#               JOBS_VISIBILITY_TIMEOUT_SEC
 # ---------------------------------------------------------------
 jobs:
   enabled: true
   resultTtl: 86400
   maxRetries: 3
+  # Exponential retry backoff. Core.hpp defaults the BASE to 0, which makes
+  # fail() re-queue instantly: all `maxRetries` attempts then burn in single-
+  # digit milliseconds and a 3-second SMTP blip permanently dead-letters a
+  # signup email. Defaults below mirror config/config.production.json.
+  retryBackoffBaseMs: 1000
+  retryBackoffMaxMs: 60000
+  # Processing lease. 0 (the code default) disables reap_expired_leases()
+  # entirely, so a job whose worker pod is OOMKilled or evicted is stranded in
+  # that pod's processing list until a pod with the same name starts again.
+  # With a lease, another worker reclaims it after this many seconds — set it
+  # comfortably above the slowest handler's runtime.
+  visibilityTimeoutSec: 300
 
 # ---------------------------------------------------------------
 # External PostgreSQL connection

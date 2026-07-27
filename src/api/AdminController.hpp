@@ -86,6 +86,9 @@ public:
         Validation::require(errs, body, "password");
         Validation::email(errs, body, "email");
         Validation::string_length(errs, body, "password", Validation::kPasswordMinLen, Validation::kPasswordMaxLen);
+        // VARCHAR(64) + rendered into HTML email — see Validation::person_name.
+        Validation::person_name(errs, body, "first_name");
+        Validation::person_name(errs, body, "last_name");
         if (errs.any()) {
             callback(Validation::response_400(errs));
             return;
@@ -129,6 +132,9 @@ public:
         Validation::Errors errs;
         Validation::require(errs, body, "email");
         Validation::email(errs, body, "email");
+        // VARCHAR(64) + rendered into the HTML invitation email.
+        Validation::person_name(errs, body, "first_name");
+        Validation::person_name(errs, body, "last_name");
         if (errs.any()) {
             callback(Validation::response_400(errs));
             return;
@@ -224,6 +230,16 @@ public:
                 }
                 new_role_id = body["role_id"].get<int>();
             }
+            // The admin edit form posts raw fields with no client-side check —
+            // cap the length (VARCHAR(64) → SQLSTATE 22001 → 500) and reject
+            // markup/CRLF before the value can reach an HTML email.
+            Validation::Errors name_errs;
+            Validation::person_name(name_errs, body, "first_name");
+            Validation::person_name(name_errs, body, "last_name");
+            if (name_errs.any()) {
+                callback(Validation::response_400(name_errs));
+                return;
+            }
             const auto first_name = Validation::opt_string(body, "first_name");
             const auto last_name = Validation::opt_string(body, "last_name");
 
@@ -295,12 +311,16 @@ public:
         if (!body.contains("permissions") || !body["permissions"].is_number_integer()) {
             errs.add("permissions", "invalid_type", "must be an integer bitmask");
         }
+        Validation::boolean(errs, body, "is_default");
         if (errs.any()) {
             callback(Validation::response_400(errs));
             return;
         }
         const auto perms = static_cast<std::uint32_t>(body["permissions"].get<long>());
-        const bool is_default = body.value("is_default", false);
+        // Explicit null passes Validation::boolean (absent == null == "default"),
+        // but body.value(k, false) would throw type_error.302 on it.
+        const bool has_is_default = body.contains("is_default") && body["is_default"].is_boolean();
+        const bool is_default = has_is_default && body["is_default"].get<bool>();
         with_repo_errors(callback, "admin createRole", [&] {
             Repositories::RoleRepository repo;
             auto created = repo.create(body["name"].get<std::string>(), perms, is_default);

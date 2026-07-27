@@ -11,6 +11,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <fstream>
 #include <memory>
@@ -113,6 +114,101 @@ inline void ensure_http_metric_families() {
                                                      "HTTP request duration in seconds by method and path");
 }
 
+namespace detail {
+
+/// Baseline security-header settings, resolved once at registration time by
+/// register_security_headers() and read by BOTH the post-handling advice and
+/// the sync-advice short-circuit path (which never reaches that advice).
+inline bool hsts_enabled = false;
+inline int hsts_max_age_sec = 31536000;
+
+/// @see register_security_headers for why each header is here. set_if_absent
+/// never clobbers a header a handler (or the CORS advice) deliberately set.
+inline void apply_security_headers(const drogon::HttpResponsePtr& resp) {
+    auto set_if_absent = [&](const char* key, const std::string& value) {
+        if (resp->getHeader(key).empty())
+            resp->addHeader(key, value);
+    };
+    set_if_absent("X-Content-Type-Options", "nosniff");
+    set_if_absent("X-Frame-Options", "DENY");
+    set_if_absent("Referrer-Policy", "no-referrer");
+    set_if_absent("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
+    if (hsts_enabled)
+        set_if_absent("Strict-Transport-Security",
+                      "max-age=" + std::to_string(hsts_max_age_sec) + "; includeSubDomains");
+}
+
+/// Echo the limiter's budget for this request. Shared by the rate-limit
+/// post-handling advice and the short-circuit path, so the 429 the limiter
+/// itself returns carries the same headers as an allowed response.
+inline void apply_rate_limit_headers(const drogon::HttpRequestPtr& req, const drogon::HttpResponsePtr& resp) {
+    // Only emit when the limiter actually ran (public paths skip it).
+    // get<int>() returns 0 on a missing key rather than throwing, so without
+    // this find() we'd stamp "X-RateLimit-Limit: 0" on every public response.
+    if (!req->attributes()->find("_rl_limit"))
+        return;
+    resp->addHeader("X-RateLimit-Limit", std::to_string(req->attributes()->get<int>("_rl_limit")));
+    resp->addHeader("X-RateLimit-Remaining", std::to_string(req->attributes()->get<int>("_rl_remaining")));
+}
+
+/**
+ * @brief Mint (once per request) the start timestamp, the normalized route and
+ *        the request/trace ids, and return the resolved string trace context.
+ * @details Registered as the FIRST sync advice (register_request_id) so that
+ *          responses produced by a later sync advice — which skip the entire
+ *          pre/post-handling chain — still have an id to stamp. Idempotent:
+ *          the tracing pre-advice calls it again and reuses what's there
+ *          instead of generating a second, conflicting id.
+ */
+inline Observability::Trace::TraceContext ensure_request_ids(const drogon::HttpRequestPtr& req) {
+    if (req->attributes()->find(Observability::Trace::kTraceIdAttr)) {
+        return {req->attributes()->get<std::string>(Observability::Trace::kTraceIdAttr),
+                req->attributes()->get<std::string>(Observability::Trace::kSpanIdAttr),
+                req->attributes()->get<std::string>(Observability::Trace::kTraceFlagsAttr)};
+    }
+    req->attributes()->insert("_req_start", std::chrono::steady_clock::now());
+    // W3C Trace Context: continue the caller's `traceparent` or generate a new
+    // trace ID so downstream advice + logs can reference the same ID.
+    const auto parsed = Observability::Trace::parse_traceparent(std::string_view(req->getHeader("traceparent")));
+    const auto tctx = parsed ? *parsed : Observability::Trace::generate_context();
+    // Compute the normalized route ONCE — the access log reuses it instead of
+    // running the segment scan again. It also redacts UUIDs and account tokens,
+    // so it's what we log (the raw path would leak password-reset tokens).
+    req->attributes()->insert("_norm_path", normalize_path_for_metrics(req->path()));
+    req->attributes()->insert(Observability::Trace::kTraceIdAttr, tctx.trace_id);
+    req->attributes()->insert(Observability::Trace::kSpanIdAttr, tctx.parent_id);
+    req->attributes()->insert(Observability::Trace::kTraceFlagsAttr, tctx.flags);
+    return tctx;
+}
+
+}  // namespace detail
+
+/**
+ * @brief Terminate a request that a sync advice is short-circuiting.
+ * @details Drogon's HttpServer::passSyncAdvices() writes the response and
+ *          returns false, so NOTHING else runs for it — no pre-handling
+ *          advice, and no post-handling chain: no X-Request-Id, no
+ *          traceparent, no baseline security headers, no access-log line, no
+ *          metric sample. Every sync advice therefore returns THROUGH this
+ *          helper, which replays what the post-handling chain would have done.
+ *          Defined below (it needs access_log_detail); declared here because
+ *          the advice lambdas above call it.
+ */
+inline drogon::HttpResponsePtr short_circuit(const drogon::HttpRequestPtr& req, const drogon::HttpResponsePtr& resp);
+
+/**
+ * @brief First sync advice in the chain: mint the request/trace ids.
+ * @details Never returns a response — it exists purely so that the advices
+ *          registered after it (content-type, auth, csrf, rate limit,
+ *          idempotency, cors) have ids to stamp on a short-circuited response.
+ */
+inline void register_request_id() {
+    drogon::app().registerSyncAdvice([](const drogon::HttpRequestPtr& req) -> drogon::HttpResponsePtr {
+        detail::ensure_request_ids(req);
+        return {};
+    });
+}
+
 inline void register_auth() {
     if (!Security::Auth::is_initialized())
         return;
@@ -133,7 +229,7 @@ inline void register_auth() {
         auto unauthorized = [&](const std::string& code) {
             auto resp = ErrorResponse::unauthorized(code);
             resp->addHeader("WWW-Authenticate", "Bearer error=\"" + code + "\"");
-            return resp;
+            return short_circuit(req, resp);
         };
 
         if (cfg.mode == Security::Auth::AuthMode::Bearer) {
@@ -211,23 +307,15 @@ inline void register_rate_limit() {
 
         auto resp = ErrorResponse::too_many_requests(d.retry_after_sec);
         resp->addHeader("Retry-After", std::to_string(d.retry_after_sec));
-        resp->addHeader("X-RateLimit-Limit", std::to_string(effective_limit));
-        resp->addHeader("X-RateLimit-Remaining", "0");
-        return resp;
+        // X-RateLimit-* comes from the stashed metadata above via
+        // short_circuit() — the same helper the post-handling advice uses, so
+        // a 429 and an allowed response carry identical budget headers.
+        return short_circuit(req, resp);
     });
 
     drogon::app().registerPostHandlingAdvice(
         [](const drogon::HttpRequestPtr& req, const drogon::HttpResponsePtr& resp) {
-            // Only emit when the limiter actually ran (public paths skip it).
-            // get<int>() returns 0 on a missing key rather than throwing, so
-            // without this find() we'd stamp "X-RateLimit-Limit: 0" on every
-            // public response.
-            if (!req->attributes()->find("_rl_limit"))
-                return;
-            int limit = req->attributes()->get<int>("_rl_limit");
-            int remaining = req->attributes()->get<int>("_rl_remaining");
-            resp->addHeader("X-RateLimit-Limit", std::to_string(limit));
-            resp->addHeader("X-RateLimit-Remaining", std::to_string(remaining));
+            detail::apply_rate_limit_headers(req, resp);
         });
 }
 
@@ -259,7 +347,7 @@ inline void register_csrf() {
             if (Security::Csrf::passes(
                     unsafe, req->getCookie(access_cookie), req->getCookie(cookie_name), req->getHeader(header_name)))
                 return {};
-            return ErrorResponse::forbidden("csrf_failed", "CSRF token missing or invalid");
+            return short_circuit(req, ErrorResponse::forbidden("csrf_failed", "CSRF token missing or invalid"));
         });
 }
 
@@ -268,7 +356,15 @@ inline void register_idempotency() {
         return;
     if (!Security::Idempotency::config().enabled)
         return;
-    drogon::app().registerSyncAdvice(&Security::Idempotency::pre_handle);
+    // Wrapped rather than registered directly: a replay / conflict / in-progress
+    // response short-circuits the chain, so it needs short_circuit() to pick up
+    // its request id, security headers, log line and metric sample.
+    drogon::app().registerSyncAdvice([](const drogon::HttpRequestPtr& req) -> drogon::HttpResponsePtr {
+        auto resp = Security::Idempotency::pre_handle(req);
+        if (!resp)
+            return {};
+        return short_circuit(req, resp);
+    });
     drogon::app().registerPostHandlingAdvice(&Security::Idempotency::post_handle);
 }
 
@@ -302,6 +398,10 @@ inline void register_content_type_check() {
         while (lead < ct.size() && (ct[lead] == ' ' || ct[lead] == '\t'))
             ++lead;
         ct.erase(0, lead);
+        // Media types and subtypes are case-INSENSITIVE (RFC 9110 §8.3.1), so
+        // `Application/JSON` and `Multipart/Form-Data` are legal and must not
+        // 415. Fold to ASCII lowercase before comparing.
+        std::transform(ct.begin(), ct.end(), ct.begin(), [](unsigned char c) { return std::tolower(c); });
 
         // application/json, or any structured-suffix JSON type
         // (e.g. application/merge-patch+json).
@@ -313,8 +413,8 @@ inline void register_content_type_check() {
         const bool is_multipart = ct.starts_with("multipart/form-data");
         if (is_json || is_multipart)
             return {};
-        return ErrorResponse::unsupported_media_type("unsupported_media_type",
-                                                     "Content-Type must be application/json or multipart/form-data");
+        constexpr const char* kMsg = "Content-Type must be application/json or multipart/form-data";
+        return short_circuit(req, ErrorResponse::unsupported_media_type("unsupported_media_type", kMsg));
     });
 }
 
@@ -345,7 +445,7 @@ inline void register_cors() {
         resp->addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
         resp->addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
         resp->addHeader("Access-Control-Max-Age", "600");
-        return resp;
+        return short_circuit(req, resp);
     });
     drogon::app().registerPostHandlingAdvice(
         [cors_origins](const drogon::HttpRequestPtr& req, const drogon::HttpResponsePtr& resp) {
@@ -365,28 +465,19 @@ inline void register_cors() {
  *          is opt-in (security.hsts): it's only honoured over HTTPS, but gating
  *          it keeps it out of plain-http dev. set_if_absent never clobbers a
  *          header a handler deliberately set.
+ *
+ *          The header set itself lives in detail::apply_security_headers so the
+ *          sync-advice short-circuit path (which never reaches a post-handling
+ *          advice) stamps exactly the same headers.
  */
 inline void register_security_headers() {
-    bool hsts = false;
-    int hsts_max_age = 31536000;
     if (Config::is_initialized()) {
-        hsts = Config::get().get<bool>("security.hsts", "SECURITY_HSTS", false);
-        hsts_max_age = Config::get().get<int>("security.hsts_max_age", "SECURITY_HSTS_MAX_AGE", 31536000);
+        detail::hsts_enabled = Config::get().get<bool>("security.hsts", "SECURITY_HSTS", false);
+        detail::hsts_max_age_sec = Config::get().get<int>("security.hsts_max_age", "SECURITY_HSTS_MAX_AGE", 31536000);
     }
-    drogon::app().registerPostHandlingAdvice(
-        [hsts, hsts_max_age](const drogon::HttpRequestPtr&, const drogon::HttpResponsePtr& resp) {
-            auto set_if_absent = [&](const char* key, const std::string& value) {
-                if (resp->getHeader(key).empty())
-                    resp->addHeader(key, value);
-            };
-            set_if_absent("X-Content-Type-Options", "nosniff");
-            set_if_absent("X-Frame-Options", "DENY");
-            set_if_absent("Referrer-Policy", "no-referrer");
-            set_if_absent("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
-            if (hsts)
-                set_if_absent("Strict-Transport-Security",
-                              "max-age=" + std::to_string(hsts_max_age) + "; includeSubDomains");
-        });
+    drogon::app().registerPostHandlingAdvice([](const drogon::HttpRequestPtr&, const drogon::HttpResponsePtr& resp) {
+        detail::apply_security_headers(resp);
+    });
 }
 
 /**
@@ -403,24 +494,20 @@ inline constexpr const char* kOtelTokenAttr = "_otel_ctx_token";
 
 inline void register_tracing_pre() {
     drogon::app().registerPreHandlingAdvice([](const drogon::HttpRequestPtr& req) {
-        req->attributes()->insert("_req_start", std::chrono::steady_clock::now());
         // Defensive: start from a clean ambient traceparent in case a prior
         // request on this IO thread didn't reach finish_span (e.g. post-advice
         // threw). We set the correct value at the end of this advice.
         Observability::Trace::clear_current_traceparent();
 
-        // W3C Trace Context: parse incoming `traceparent` or generate a new
-        // trace ID so downstream advice + logs can reference the same ID.
+        // _req_start, the normalized route and the W3C ids were already minted
+        // by the request-id sync advice (registered FIRST, so it ran for this
+        // request). Reuse them — regenerating here would hand the access log a
+        // different id than the one a short-circuiting advice would have
+        // stamped, and would restart the latency clock.
+        const auto tctx = detail::ensure_request_ids(req);
+        const std::string route = req->attributes()->get<std::string>("_norm_path");
         const auto& incoming_tp = req->getHeader("traceparent");
         const auto parsed = Observability::Trace::parse_traceparent(std::string_view(incoming_tp));
-        const auto tctx = parsed ? *parsed : Observability::Trace::generate_context();
-
-        // Compute the normalized route ONCE and stash it — the access-log
-        // post-advice reuses it instead of running the segment scan a second
-        // time. It also redacts UUIDs and account tokens, so it's what we log
-        // (the raw path would leak password-reset tokens into the log).
-        const std::string route = normalize_path_for_metrics(req->path());
-        req->attributes()->insert("_norm_path", route);
 
         // Defaults from the string context (used when OTel tracing is disabled).
         // When it's on we OVERWRITE these with the REAL server span's ids below,
@@ -497,9 +584,10 @@ struct Timing {
 };
 
 inline Timing measure(const drogon::HttpRequestPtr& req) {
-    // _req_start is only set by the tracing pre-advice; on short-circuit paths
-    // (auth/415/429 reject before it runs) it's absent. get<T>() returns a
-    // default-constructed time_point (epoch) there, NOT a throw — so we'd
+    // _req_start is stamped by detail::ensure_request_ids (the first sync
+    // advice), so it's present on the short-circuit paths too. It can still be
+    // absent for a response produced outside the advice chain; get<T>() returns
+    // a default-constructed time_point (epoch) there, NOT a throw — so we'd
     // report uptime-as-latency. Guard with find().
     if (!req->attributes()->find("_req_start"))
         return {0, 0};
@@ -591,15 +679,52 @@ inline void finish_span(const drogon::HttpRequestPtr& req, int status) {
 
 }  // namespace access_log_detail
 
+// Declared above the advices that call it; see the doc comment there.
+inline drogon::HttpResponsePtr short_circuit(const drogon::HttpRequestPtr& req, const drogon::HttpResponsePtr& resp) {
+    if (!resp)
+        return resp;
+    detail::ensure_request_ids(req);  // no-op when register_request_id() ran
+    const auto timing = access_log_detail::measure(req);
+    const std::string method = std::string(req->getMethodString());
+    std::string norm_path;
+    if (req->attributes()->find("_norm_path"))
+        norm_path = req->attributes()->get<std::string>("_norm_path");
+    else
+        norm_path = normalize_path_for_metrics(req->path());
+    const int status = static_cast<int>(resp->statusCode());
+
+    // Same order the post-handling chain would have applied them in:
+    // trace headers → rate-limit budget → baseline security headers, then
+    // exactly one access-log line and one metric sample.
+    const std::string trace_id = access_log_detail::emit_trace_headers(req, resp);
+    detail::apply_rate_limit_headers(req, resp);
+    detail::apply_security_headers(resp);
+    spdlog::info("{} {} {} {:.3f}ms tid={}", method, norm_path, status, timing.duration_ms, trace_id);
+    // Cardinality guard — the SAME reason record_metrics collapses 404s, and it
+    // applies here even harder. A sync advice runs BEFORE routing, so norm_path
+    // is arbitrary caller input that no route ever matched, and the status is
+    // 401/415/429/204 rather than the 404 record_metrics buckets. Labelling the
+    // sample with it lets an UNAUTHENTICATED loop over /x/<random> (401 from the
+    // auth advice, or 204 from the OPTIONS preflight, neither of which the
+    // limiter sees) mint one {path} series per URL → registry/TSDB OOM. The
+    // access-log line above still carries the real normalized route.
+    access_log_detail::record_metrics(method, access_log_detail::kUnmatchedMetricPath, status, timing.duration_seconds);
+    // No server span exists on this path (the tracing pre-advice never ran);
+    // finish_span still clears the ambient traceparent for this IO thread.
+    access_log_detail::finish_span(req, status);
+    return resp;
+}
+
 inline void register_access_log_post() {
     drogon::app().registerPostHandlingAdvice(
         [](const drogon::HttpRequestPtr& req, const drogon::HttpResponsePtr& resp) {
             const auto timing = access_log_detail::measure(req);
             const std::string method = std::string(req->getMethodString());
-            // Reuse the route the pre-advice computed; fall back to a fresh
-            // compute on the short-circuit paths (auth/415/429) where the
-            // pre-advice never ran. Never log req->path() raw — it carries
-            // account tokens.
+            // Reuse the route the request-id advice computed; fall back to a
+            // fresh compute for a response minted outside the advice chain.
+            // Never log req->path() raw — it carries account tokens.
+            // (Short-circuited responses never reach here at all: they are
+            // logged once by middleware::short_circuit instead.)
             std::string norm_path;
             if (req->attributes()->find("_norm_path"))
                 norm_path = req->attributes()->get<std::string>("_norm_path");

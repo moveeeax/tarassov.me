@@ -18,20 +18,22 @@ import type { DlqListResponse, Job } from '@/lib/api/types';
 const PER_PAGE = 20;
 
 /**
- * Jaeger UI base for the "Open trace" deep link. The SPA image is built once and
- * deployed to every env, so a build-time URL can't be right everywhere. Resolve
- * at RUNTIME from the current origin using the tarassov-me-env umbrella host convention
- * (`app.<env>.<domain>` → `jaeger.<env>.<domain>`); fall back to the docker-compose
- * Jaeger for local dev. A build-time VITE_TRACE_UI_URL still wins for custom infra.
+ * Jaeger UI base for the "Open trace" deep link, or null when this deployment
+ * has no trace UI configured — in which case the button is not rendered at all.
+ *
+ * The URL must be configured explicitly (VITE_TRACE_UI_URL at build time); it
+ * is NOT derived from the current origin. Swapping the first DNS label for
+ * "jaeger" only holds for an `app.<env>.<domain>` deployment: on an apex domain
+ * (`tarassov.me`) it resolves to `jaeger.me` — an unrelated third party — and
+ * on any other shape to a host that does not exist. Local dev still falls back
+ * to the docker-compose Jaeger.
  */
-function resolveTraceUiUrl(): string {
+function resolveTraceUiUrl(): string | null {
   if (import.meta.env.VITE_TRACE_UI_URL) return import.meta.env.VITE_TRACE_UI_URL;
-  if (typeof window === 'undefined') return 'http://localhost:16686';
-  const { hostname, protocol } = window.location;
+  if (typeof window === 'undefined') return null;
+  const { hostname } = window.location;
   if (hostname === 'localhost' || hostname === '127.0.0.1') return 'http://localhost:16686';
-  const labels = hostname.split('.');
-  labels[0] = 'jaeger'; // app.<env>.<domain> -> jaeger.<env>.<domain>
-  return `${protocol}//${labels.join('.')}`;
+  return null;
 }
 
 const TRACE_UI_URL = resolveTraceUiUrl();
@@ -173,7 +175,7 @@ function JobDetailCard({ job, onClose }: { job: Job; onClose: () => void }) {
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="font-mono text-base">{job.id}</CardTitle>
         <div className="flex gap-2">
-          {job.trace_id && (
+          {job.trace_id && TRACE_UI_URL && (
             <Button asChild size="sm" variant="outline">
               <a
                 href={`${TRACE_UI_URL}/trace/${job.trace_id}`}
@@ -183,6 +185,14 @@ function JobDetailCard({ job, onClose }: { job: Job; onClose: () => void }) {
                 Open trace
               </a>
             </Button>
+          )}
+          {job.trace_id && !TRACE_UI_URL && (
+            <span
+              className="self-center select-all font-mono text-xs text-muted-foreground"
+              title="No trace UI configured (set VITE_TRACE_UI_URL at build time)"
+            >
+              {job.trace_id}
+            </span>
           )}
           <Button size="sm" variant="ghost" onClick={onClose}>
             Close

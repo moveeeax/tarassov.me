@@ -6,9 +6,11 @@ metadata:
     {{- include "tarassov-me.labels" . | nindent 4 }}
 data:
   # NOTE: secrets (DB / Redis passwords) are NOT inlined here — a ConfigMap is
-  # world-readable in the cluster. The app expands ${DATABASE_PASSWORD} /
-  # ${REDIS_PASSWORD} at startup from env vars the Deployment injects via
-  # secretKeyRef (see deployment.yaml / templates/secret.yaml).
+  # world-readable in the cluster. The app expands ${REDIS_PASSWORD} /
+  # ${MAIL_SMTP_PASSWORD} / ${S3_SECRET_KEY} at startup from env vars the
+  # Deployment injects via secretKeyRef (see deployment.yaml /
+  # templates/secret.yaml). The database password is not referenced here at
+  # all — see the "database" block below.
   config.json: |
     {
       "app": {
@@ -32,12 +34,15 @@ data:
         "otlp_endpoint": {{ if .Values.tracing.enabled }}{{ .Values.tracing.otlpEndpoint | quote }}{{ else }}""{{ end }}
       },
       "database": {
-        "primary": "postgresql://{{ .Values.externalDatabase.user }}:${DATABASE_PASSWORD}@{{ .Values.externalDatabase.host }}:{{ .Values.externalDatabase.port }}/{{ .Values.externalDatabase.name }}",
-        "replicas": [
-          {{- if .Values.externalDatabase.replicaHost }}
-          "postgresql://{{ .Values.externalDatabase.user }}:${DATABASE_PASSWORD}@{{ .Values.externalDatabase.replicaHost }}:{{ .Values.externalDatabase.port }}/{{ .Values.externalDatabase.name }}"
-          {{- end }}
-        ],
+        {{- /* Neither "primary" nor "replicas" is rendered here. Both DSNs are
+               assembled IN CODE (Utils::Pg::make_conninfo) from the discrete
+               DATABASE_HOST/PORT/USER/NAME env plus DATABASE_PASSWORD, which is
+               what _helpers.tpl and deployment.yaml promise. Interpolating
+               ${DATABASE_PASSWORD} into a postgresql:// URL here took the
+               URL branch of Core::init_database_ instead, skipping quote_value
+               — so a password containing / ? # or % (openssl rand -base64
+               emits /) broke libpq's authority parsing on every pod, and the
+               expanded password landed in a value --dump-config prints. */}}
         "pool_size": {{ .Values.externalDatabase.poolSize }}
       },
       "cache": {
@@ -105,7 +110,11 @@ data:
       "storage": {
         "backend": {{ .Values.storage.backend | quote }},
         "public_base_url": {{ .Values.storage.publicBaseUrl | quote }},
-        "local": { "root": "data/uploads" },
+        {{- /* Absolute, and equal to the uploads volumeMount in deployment.yaml.
+               The code default ("data/uploads") resolves against WORKDIR /app,
+               which readOnlyRootFilesystem makes unwritable — every local-backend
+               upload then fails to store. */}}
+        "local": { "root": "/app/uploads" },
         "s3": {
           "endpoint": {{ .Values.storage.s3.endpoint | quote }},
           "region": {{ .Values.storage.s3.region | quote }},

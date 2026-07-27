@@ -38,6 +38,11 @@ public:
             return;
 
         Validation::Errors errs;
+        // require + a length/format validator per field: string_length() and
+        // email() both reject a non-string with code "not_string", so the
+        // get<std::string>() reads below can't hit nlohmann's type_error.302
+        // (a bare 500 on this public, unauthenticated endpoint). "subject" has
+        // no require() — it is optional — so it is read via opt_string().
         Validation::require(errs, body, "name");
         Validation::require(errs, body, "email");
         Validation::require(errs, body, "message");
@@ -62,7 +67,12 @@ public:
 
         const auto name = body["name"].get<std::string>();
         const auto email = body["email"].get<std::string>();
-        const auto subject = body.value("subject", std::string{"(no subject)"});
+        // opt_string, not body.value(): value() forwards to get<std::string>()
+        // on whatever is stored, so `{"subject": null}` threw type_error.302 —
+        // an unhandled 500 on an unauthenticated endpoint. A wrong-typed
+        // subject is already a 400 above (string_length); absent and null both
+        // legitimately mean "no subject".
+        const auto subject = Validation::opt_string(body, "subject").value_or(std::string{"(no subject)"});
         const auto message = body["message"].get<std::string>();
 
         // The submitter goes into the body AND into Reply-To, so the owner can

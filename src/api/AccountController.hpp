@@ -31,7 +31,9 @@
 #include "database/Database.hpp"
 #include "domain/User.hpp"
 #include "email/AccountEmails.hpp"
+#include "repositories/ApiKeyRepository.hpp"
 #include "repositories/UserRepository.hpp"
+#include "security/Audit.hpp"
 #include "security/Auth.hpp"
 #include "security/Password.hpp"
 #include "security/SessionStore.hpp"
@@ -196,7 +198,12 @@ public:
             // Evict every existing session — a reset must lock out anyone
             // holding an old refresh token (incl. an attacker who triggered
             // the reset path). Best-effort; the new login mints a fresh one.
+            // Refresh sessions are NOT the whole credential surface: an
+            // attacker who held a session could have minted an API key, which
+            // outlives the reset unless it is revoked here too.
             Security::Sessions::revoke_all(Security::Auth::get().config().cookies, vr.sub);
+            revoke_api_keys(vr.sub);
+            Security::Audit::record(vr.sub, "account.password_reset", "user", vr.sub);
             callback(Response::ok({{"message", "Password updated"}}));
         });
     }
@@ -216,7 +223,9 @@ public:
         Validation::Errors errs;
         Validation::require(errs, body, "new_email");
         Validation::email(errs, body, "new_email");
-        Validation::require(errs, body, "password");
+        // require_string: a non-string password reaches get<std::string>()
+        // below and throws type_error.302 → bare 500 instead of a 400.
+        Validation::require_string(errs, body, "password");
         if (errs.any()) {
             callback(Validation::response_400(errs));
             return;
@@ -321,8 +330,10 @@ public:
                                                     "This invitation has already been used or is no longer valid"));
                 return;
             }
-            // Parity with applyReset: drop any sessions for this subject.
+            // Parity with applyReset: drop any sessions — and any API keys —
+            // for this subject.
             Security::Sessions::revoke_all(Security::Auth::get().config().cookies, vr.sub);
+            revoke_api_keys(vr.sub);
             callback(Response::ok({{"message", "Account ready — you can now sign in."}}));
         });
     }
@@ -331,10 +342,10 @@ public:
     // POST /api/account/change-password   (auth required)
     //
     // Body: { old_password, new_password }. Verifies the old password
-    // against the stored hash; updates the hash. Doesn't invalidate
-    // existing sessions — that's a deliberate trade-off matching
-    // flask-base. If you need session-rotation, mint a fresh refresh
-    // pair after the change.
+    // against the stored hash; updates the hash, then revokes every refresh
+    // session AND every API key the user holds, so no credential minted
+    // before the change survives it. The caller re-authenticates on its next
+    // refresh; residual exposure is the ~15 min access-JWT window.
     // ---------------------------------------------------------------------
     void changePassword(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
         API_REQUIRE_PRINCIPAL(req, callback, principal);
@@ -342,7 +353,10 @@ public:
         if (!Validation::parse_body(req, body, callback))
             return;
         Validation::Errors errs;
-        Validation::require(errs, body, "old_password");
+        // require_string on old_password: only new_password has a length
+        // validator to reject a non-string, so an int here used to reach
+        // get<std::string>() and throw type_error.302 → bare 500.
+        Validation::require_string(errs, body, "old_password");
         Validation::require(errs, body, "new_password");
         Validation::string_length(errs, body, "new_password", Validation::kPasswordMinLen, Validation::kPasswordMaxLen);
         if (errs.any()) {
@@ -362,10 +376,14 @@ public:
             }
             const std::string new_hash = Security::Password::hash(body["new_password"].get<std::string>());
             repo.update_password_hash(user->id, new_hash);
-            // Revoke other sessions on password change (the current client
-            // will re-auth on its next refresh). Closes the "changed my
-            // password but the thief stays logged in" gap.
+            // Revoke other sessions AND every API key on password change (the
+            // current client will re-auth on its next refresh). Closes the
+            // "changed my password but the thief stays logged in" gap — which
+            // sessions alone did not, since a key minted from a stolen session
+            // authenticates on its own and can mint replacements.
             Security::Sessions::revoke_all(Security::Auth::get().config().cookies, user->id);
+            revoke_api_keys(user->id);
+            Security::Audit::record(user->id, "account.password_change", "user", user->id);
             callback(Response::ok({{"message", "Password updated"}}));
         } catch (const std::exception& e) {
             spdlog::error("changePassword failed: {}", e.what());
@@ -375,6 +393,26 @@ public:
 
 private:
     static std::string secret() { return Security::Auth::get().config().jwt_secret; }
+
+    /**
+     * @brief Revoke every live API key the user holds, after a credential
+     *        change. Sessions::revoke_all only walks the Redis refresh-JTI set,
+     *        so without this a `cpk_` key minted from a stolen session keeps
+     *        authenticating with the owner's full permission bitmask forever.
+     *        Best-effort and never throws: the password write has already
+     *        committed, so a cleanup failure must not turn a completed reset
+     *        into a 500 that tells the user to try again.
+     */
+    static void revoke_api_keys(const std::string& user_id) {
+        try {
+            Repositories::ApiKeyRepository keys;
+            const long n = keys.revoke_all_for_user(user_id);
+            if (n > 0)
+                spdlog::info("revoked {} API key(s) for user {} after a credential change", n, user_id);
+        } catch (const std::exception& e) {
+            spdlog::error("failed to revoke API keys for user {}: {}", user_id, e.what());
+        }
+    }
 
     /**
      * @brief Atomically consume a one-shot token: returns true the FIRST time

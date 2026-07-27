@@ -21,6 +21,185 @@ TEST(ValidationTest, RequireNullIsMissing) {
     EXPECT_EQ(errs.items()[0].code, "missing");
 }
 
+// ── require_string ──────────────────────────────────────────────────────────
+// require() only proves presence, so a wrong-typed field used to sail through
+// and blow up in the handler's body[f].get<std::string>() as nlohmann's
+// type_error.302 — a bare 500 (on unauthenticated paths too) instead of the
+// 400 envelope. These pin the type check itself.
+
+TEST(ValidationTest, RequireStringAcceptsString) {
+    V::Errors errs;
+    json body = {{"password", "hunter2hunter2"}};
+    EXPECT_TRUE(V::require_string(errs, body, "password"));
+    EXPECT_FALSE(errs.any());
+}
+
+TEST(ValidationTest, RequireStringRejectsNonString) {
+    V::Errors errs;
+    json body = {{"password", 123}};
+    EXPECT_FALSE(V::require_string(errs, body, "password"));
+    ASSERT_EQ(errs.items().size(), 1u);
+    EXPECT_EQ(errs.items()[0].field, "password");
+    EXPECT_EQ(errs.items()[0].code, "not_string");
+}
+
+TEST(ValidationTest, RequireStringRejectsStructuredValues) {
+    // An object or array is the other shape a hostile client sends to reach
+    // get<std::string>() — both must land as not_string, not as a 500.
+    for (const json& value : {json::object(), json::array({1, 2}), json(true)}) {
+        V::Errors errs;
+        json body = {{"email", value}};
+        EXPECT_FALSE(V::require_string(errs, body, "email")) << value.dump();
+        ASSERT_EQ(errs.items().size(), 1u) << value.dump();
+        EXPECT_EQ(errs.items()[0].code, "not_string") << value.dump();
+    }
+}
+
+TEST(ValidationTest, RequireStringReportsMissingOnceNotTwice) {
+    // Absent / null short-circuits on require(): one "missing", never a
+    // "missing" + "not_string" pair for the same field.
+    for (const json& body : {json::object(), json{{"password", nullptr}}}) {
+        V::Errors errs;
+        EXPECT_FALSE(V::require_string(errs, body, "password")) << body.dump();
+        ASSERT_EQ(errs.items().size(), 1u) << body.dump();
+        EXPECT_EQ(errs.items()[0].code, "missing") << body.dump();
+    }
+}
+
+TEST(ValidationTest, RequireStringAcceptsEmptyString) {
+    // Presence and type only — length is a separate validator's job.
+    V::Errors errs;
+    json body = {{"name", ""}};
+    EXPECT_TRUE(V::require_string(errs, body, "name"));
+    EXPECT_FALSE(errs.any());
+}
+
+// ── boolean ─────────────────────────────────────────────────────────────────
+// body.value(f, false) throws type_error.302 on a non-boolean, so every
+// optional flag needs this gate before it is read.
+
+TEST(ValidationTest, BooleanAcceptsBothLiterals) {
+    for (bool v : {true, false}) {
+        V::Errors errs;
+        json body = {{"is_default", v}};
+        V::boolean(errs, body, "is_default");
+        EXPECT_FALSE(errs.any()) << v;
+    }
+}
+
+TEST(ValidationTest, BooleanRejectsNonBoolean) {
+    // The string "true" and the number 1 are the two values clients actually
+    // send instead of a JSON boolean.
+    for (const json& value : {json("true"), json(1), json::array(), json::object()}) {
+        V::Errors errs;
+        json body = {{"is_default", value}};
+        V::boolean(errs, body, "is_default");
+        ASSERT_EQ(errs.items().size(), 1u) << value.dump();
+        EXPECT_EQ(errs.items()[0].field, "is_default") << value.dump();
+        EXPECT_EQ(errs.items()[0].code, "not_boolean") << value.dump();
+    }
+}
+
+TEST(ValidationTest, BooleanIsNoOpForMissingAndNull) {
+    // Absent == explicit null == "leave it at the default" for the callers
+    // (AdminController's is_default), so neither may raise.
+    for (const json& body : {json::object(), json{{"is_default", nullptr}}}) {
+        V::Errors errs;
+        V::boolean(errs, body, "is_default");
+        EXPECT_FALSE(errs.any()) << body.dump();
+    }
+}
+
+// ── person_name ─────────────────────────────────────────────────────────────
+// Composite: length cap (users.first_name / last_name are VARCHAR(64), and an
+// over-long value used to come back as SQLSTATE 22001 → 500), no CRLF (mail
+// header injection) and no HTML-significant characters (the transactional
+// templates render names through inja).
+
+TEST(ValidationTest, PersonNameAcceptsOrdinaryNames) {
+    for (const char* name : {"Alice", "O'Brien", "Anne-Marie", "van der Berg", "Ada Lovelace", "Ångström"}) {
+        V::Errors errs;
+        json body = {{"last_name", name}};
+        V::person_name(errs, body, "last_name");
+        EXPECT_FALSE(errs.any()) << name << " must be a legal name";
+    }
+}
+
+TEST(ValidationTest, PersonNameIsOptional) {
+    for (const json& body : {json::object(), json{{"first_name", nullptr}}}) {
+        V::Errors errs;
+        V::person_name(errs, body, "first_name");
+        EXPECT_FALSE(errs.any()) << body.dump();
+    }
+}
+
+TEST(ValidationTest, PersonNameAcceptsExactlyTheColumnWidth) {
+    V::Errors errs;
+    json body = {{"first_name", std::string(64, 'x')}};  // VARCHAR(64) — the boundary
+    V::person_name(errs, body, "first_name");
+    EXPECT_FALSE(errs.any());
+}
+
+TEST(ValidationTest, PersonNameRejectsOverLength) {
+    V::Errors errs;
+    json body = {{"first_name", std::string(65, 'x')}};
+    V::person_name(errs, body, "first_name");
+    ASSERT_EQ(errs.items().size(), 1u);
+    EXPECT_EQ(errs.items()[0].field, "first_name");
+    EXPECT_EQ(errs.items()[0].code, "too_long");
+}
+
+TEST(ValidationTest, PersonNameHonoursACustomCap) {
+    V::Errors errs;
+    json body = {{"first_name", "abcdefghij"}};
+    V::person_name(errs, body, "first_name", /*max_len=*/5);
+    ASSERT_EQ(errs.items().size(), 1u);
+    EXPECT_EQ(errs.items()[0].code, "too_long");
+}
+
+TEST(ValidationTest, PersonNameRejectsHtmlSignificantCharacters) {
+    for (const char* payload : {"<script>alert(1)</script>", "Tom & Jerry", "a > b"}) {
+        V::Errors errs;
+        json body = {{"last_name", payload}};
+        V::person_name(errs, body, "last_name");
+        ASSERT_EQ(errs.items().size(), 1u) << payload;
+        EXPECT_EQ(errs.items()[0].field, "last_name") << payload;
+        EXPECT_EQ(errs.items()[0].code, "invalid") << payload;
+    }
+}
+
+TEST(ValidationTest, PersonNameRejectsCrlf) {
+    // Header-injection shape: the name lands in a mail To:/Subject: line.
+    for (const char* payload : {"Alice\r\nBcc: evil@example.com", "Alice\nX-Evil: 1", "Alice\rBob"}) {
+        V::Errors errs;
+        json body = {{"first_name", payload}};
+        V::person_name(errs, body, "first_name");
+        ASSERT_EQ(errs.items().size(), 1u) << payload;
+        EXPECT_EQ(errs.items()[0].code, "invalid") << payload;
+    }
+}
+
+TEST(ValidationTest, PersonNameRejectsNonString) {
+    V::Errors errs;
+    json body = {{"first_name", 42}};
+    V::person_name(errs, body, "first_name");
+    // string_length reports the type; no_crlf / no_html are no-ops on a
+    // non-string, so exactly one error — not three.
+    ASSERT_EQ(errs.items().size(), 1u);
+    EXPECT_EQ(errs.items()[0].code, "not_string");
+}
+
+TEST(ValidationTest, PersonNameAccumulatesEveryViolation) {
+    // Long AND markup-bearing: both sub-validators must report, so the client
+    // gets one round-trip instead of a fix-one-find-another loop.
+    V::Errors errs;
+    json body = {{"last_name", std::string(70, 'x') + "<b>"}};
+    V::person_name(errs, body, "last_name");
+    ASSERT_EQ(errs.items().size(), 2u);
+    EXPECT_EQ(errs.items()[0].code, "too_long");
+    EXPECT_EQ(errs.items()[1].code, "invalid");
+}
+
 TEST(ValidationTest, StringLengthInRange) {
     V::Errors errs;
     json body = {{"name", "abc"}};

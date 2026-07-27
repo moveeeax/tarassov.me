@@ -73,6 +73,12 @@ ENV PATH="${VCPKG_ROOT}:${PATH}"
 # jobs — the mounts live in buildkitd state that dies with the pod). Previously
 # the deps were installed inside the build RUN below, after COPY . ., so every
 # commit rebuilt all ~29 packages (~10 min) despite a "warm" layer cache.
+#
+# Corollary: ANY edit to vcpkg.json rebuilds all ~29 packages, including a
+# change to its cosmetic `version` field. Do not bump that field per release —
+# it describes this repo as a vcpkg port and nothing resolves against it, while
+# bumping it costs a full from-source dependency build (which overruns the
+# 25-minute clang-tidy and sanitizers job timeouts). See scripts/check-version-sync.sh.
 WORKDIR /app
 COPY vcpkg.json ./
 
@@ -91,6 +97,12 @@ COPY . .
 # Pass --build-arg ENABLE_WERROR=ON from CI; defaults to OFF for local builds.
 ARG ENABLE_WERROR=OFF
 
+# APP_VERSION stamps the released version into the binary (Core::version(),
+# GET /health, GET /). .github/workflows/release.yml passes the git tag; left
+# empty the CMake -D is empty too and project(VERSION ...) in CMakeLists.txt
+# wins, so local and CI builds are unaffected.
+ARG APP_VERSION
+
 RUN --mount=type=cache,target=/opt/vcpkg/downloads \
     --mount=type=cache,target=/root/.cache/vcpkg \
     mkdir -p build && cd build && \
@@ -98,6 +110,7 @@ RUN --mount=type=cache,target=/opt/vcpkg/downloads \
     -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DENABLE_WERROR=${ENABLE_WERROR} \
+    -DPROJECT_VERSION_OVERRIDE=${APP_VERSION} \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
     -DVCPKG_INSTALLED_DIR=/app/vcpkg_installed \
     -DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake && \

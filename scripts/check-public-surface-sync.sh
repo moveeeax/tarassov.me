@@ -24,10 +24,17 @@ err() {
 # Each nginx config carries TWO policies: the strict admin-SPA one and the
 # public-site one. The public one is the one allowing Google Fonts — and every
 # public copy inside a file must itself be identical (location / vs /blog/).
+#
+# The helm copies additionally splice the configured upload origin into img-src
+# ({{ with .Values.uploads.publicOrigin }}), because post images served from an
+# S3/CDN host are blocked outright by a bare `img-src 'self' data:`. That
+# insertion is the ONE sanctioned difference: it is stripped before comparing,
+# so the three copies must still agree on every other directive.
+UPLOAD_ORIGIN_TPL='\{\{ with \.Values\.uploads\.publicOrigin \}\} \{\{ \. \}\}\{\{ end \}\}'
 extract_nginx_csp() {
     local uniq
     uniq="$(grep -oE 'Content-Security-Policy "[^"]*fonts\.googleapis[^"]*"' "$1" |
-        sed -E 's/^Content-Security-Policy "//; s/"$//' | sort -u)"
+        sed -E "s/^Content-Security-Policy \"//; s/\"$//; s/$UPLOAD_ORIGIN_TPL//g" | sort -u)"
     if [[ "$(printf '%s\n' "$uniq" | grep -c .)" -ne 1 ]]; then
         err "$1: the public-site CSP copies inside the file differ from each other"
     fi
@@ -60,7 +67,22 @@ done
 
 # ── 3. Public-paths allowlist covers the SSR routes EVERYWHERE it's defined ──
 # Sources: code default, both shipped config files, helm chart values.
-for route in "/sitemap.xml" "/blog/\*"; do
+#
+# EVERY route the anonymous public surface needs, not just the two page URLs:
+# the SSR pages fetch /api/v1/public/posts{,/<slug>} and the contact form POSTs
+# /api/v1/public/contact, so a copy that admits the pages but omits their data
+# endpoints 401s the page content. That is exactly how the code default drifted
+# (it listed only the page URLs while all three shipped copies listed all five).
+# Add a route here whenever one is added to Strings.hpp / the configs / values.
+PUBLIC_ROUTES=(
+    "/sitemap.xml"
+    "/blog/\*"
+    "/api/v1/public/posts"
+    "/api/v1/public/posts/\*"
+    "/api/v1/public/contact"
+    "/uploads/\*"
+)
+for route in "${PUBLIC_ROUTES[@]}"; do
     grep -qE "$route" "$STRINGS" || err "src/utils/Strings.hpp kDefaultPublicPathsCsv missing $route"
     for cfgf in "$REPO/config/config.json" "$REPO/config/config.production.json"; do
         grep -qE "\"public_paths\".*$route" "$cfgf" || err "$cfgf public_paths missing $route"
@@ -75,4 +97,5 @@ if [[ "$FAIL" -ne 0 ]]; then
     echo "PublicPagesController, config files, chart values), not just one." >&2
     exit 1
 fi
-echo "✓ public surface in sync: CSP x3 identical, nginx blocks present in both configs, allowlist covers SSR routes x4"
+echo "✓ public surface in sync: CSP x3 identical, nginx blocks present in both configs," \
+    "allowlist covers ${#PUBLIC_ROUTES[@]} public routes x4 sources"

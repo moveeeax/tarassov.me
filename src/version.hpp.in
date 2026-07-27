@@ -3,9 +3,25 @@
  * @brief Single source of the application version.
  *
  * CMake's configure_file() renders this into <build>/generated/version.hpp
- * from project(VERSION ...) in CMakeLists.txt — bump the version THERE and
- * nowhere else. Core::version(), helm appVersion (set by CI from the git
- * tag) and image tags all chain back to that one number.
+ * from project(VERSION ...) in CMakeLists.txt — bump the version THERE. That
+ * baked value is what Core::version(), GET /health and GET / report for every
+ * ordinary build, and scripts/check-version-sync.sh fails CI if it drifts from
+ * the newest CHANGELOG release heading.
+ *
+ * Tagged release builds stamp the tag in instead: .github/workflows/release.yml
+ * passes the tag as the Dockerfile's APP_VERSION build arg, which becomes
+ * -DPROJECT_VERSION_OVERRIDE and replaces PROJECT_VERSION before this file is
+ * configured.
+ *
+ * Nothing propagates from here to Helm: the appVersion in every chart's
+ * Chart.yaml is bumped by hand in the release commit. (Spelled without a glob
+ * on purpose — a slash-star pair inside a block comment trips -Wcomment, and
+ * CI builds with -Werror.)
+ *
+ * vcpkg.json's version field is deliberately NOT kept in step: docker/Dockerfile
+ * copies that manifest alone to key the dependency-install layer, so editing it
+ * rebuilds all ~29 packages from source. It describes this repo as a vcpkg port,
+ * which nothing consumes.
  */
 
 #pragma once

@@ -20,11 +20,13 @@
 
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <fstream>
 #include <future>
 #include <memory>
+#include <string>
 #include <thread>
 
 #include <drogon/HttpClient.h>
@@ -152,9 +154,41 @@ private:
     std::thread server_thread_;
 };
 
-#define REQUIRE_E2E_ENV() \
-    if (!g_env_ok)        \
-    GTEST_SKIP() << "Postgres/Redis sidecars unavailable — e2e server not started"
+/**
+ * @brief Same CI_REQUIRE_INFRA policy as TestHelpers::CoreBackedTest::SetUp
+ *        (tests/test_helpers.hpp) — truthy means "infra MUST be present here".
+ * @details Kept as a local copy rather than shared: this binary skips on a
+ *          different signal (the server never came up, not just an unreachable
+ *          sidecar). What has to match is the truthiness rule, and it does —
+ *          set-but-empty / "0" / "false" all read as off.
+ */
+bool ci_requires_infra() {
+    const char* value = std::getenv("CI_REQUIRE_INFRA");
+    if (value == nullptr)
+        return false;
+    const std::string v(value);
+    return !v.empty() && v != "0" && v != "false";
+}
+
+constexpr const char* kInfraMissing = "Postgres/Redis sidecars unavailable — e2e server not started";
+constexpr const char* kInfraRequired =
+    "CI_REQUIRE_INFRA is set but the e2e server is not running (Postgres/Redis sidecars unreachable, or "
+    "startup failed). This test would have SKIPPED — failing instead so a mis-configured e2e job can't "
+    "report all-green.";
+
+// Skipping when the sidecars are absent is convenient locally and a trap in CI:
+// a mis-wired e2e job (no Postgres/Redis service, or a server that never bound
+// its port) would SKIP every case and report all-green, silently disabling the
+// only suite that drives the middleware chain over real HTTP. CI sets
+// CI_REQUIRE_INFRA=1 so that FAILS loudly instead.
+#define REQUIRE_E2E_ENV()              \
+    do {                               \
+        if (g_env_ok)                  \
+            break;                     \
+        if (ci_requires_infra())       \
+            FAIL() << kInfraRequired;  \
+        GTEST_SKIP() << kInfraMissing; \
+    } while (0)
 
 // ---------------------------------------------------------------------------
 // Small sync-request helpers.
@@ -397,6 +431,18 @@ TEST(HttpE2E, SsrSurfaceIsPublicUnderJwtAuth) {
     const std::string csp = presp->getHeader("content-security-policy");
     EXPECT_NE(csp.find("script-src 'self'"), std::string::npos) << "page CSP: " << csp;
     EXPECT_EQ(csp.find("default-src 'none'"), std::string::npos) << "API CSP leaked onto the SSR page";
+
+    // The page's DATA SOURCE, anonymously: the SSR blog and its client island
+    // both fetch /api/v1/public/posts. An allowlist that admits the page but
+    // 401s the endpoint behind it renders an empty blog — same class of bug,
+    // one route away, and nothing else on the wire covers it.
+    auto api = HttpRequest::newHttpRequest();
+    api->setPath("/api/v1/public/posts");
+    auto aresp = send(api);
+    ASSERT_EQ(aresp->statusCode(), k200OK) << "anonymous /api/v1/public/posts: " << aresp->getBody();
+    const auto listing = body_of(aresp);
+    ASSERT_TRUE(listing["items"].is_array()) << aresp->getBody();
+    EXPECT_GE(listing["total"].get<long>(), 1) << "the post published above is missing from the public listing";
 
     // Sitemap: anonymous 200 XML, cacheable.
     auto sm = HttpRequest::newHttpRequest();

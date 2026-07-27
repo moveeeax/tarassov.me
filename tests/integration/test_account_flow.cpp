@@ -22,8 +22,10 @@
 
 #include "api/AccountController.hpp"
 #include "api/AuthController.hpp"
+#include "repositories/ApiKeyRepository.hpp"
 #include "repositories/RoleRepository.hpp"
 #include "repositories/UserRepository.hpp"
+#include "security/ApiKeys.hpp"
 #include "security/Auth.hpp"
 #include "security/Tokens.hpp"
 #include "test_helpers.hpp"
@@ -306,6 +308,96 @@ TEST_F(AccountFlowTest, changePasswordRequiresOldPassword) {
 
     auto refreshed = repo.find(user->id);
     EXPECT_TRUE(Security::Password::verify("newpassword42", *refreshed->password_hash));
+}
+
+// ── M11: a credential change must revoke API keys, not just sessions ────────
+// Security::Sessions::revoke_all only walks the Redis refresh-JTI set. A `cpk_`
+// key minted from a stolen session authenticates entirely on its own — with the
+// owner's full permission bitmask — and can mint replacements, so a password
+// reset that leaves it alive does not actually evict the attacker.
+
+namespace {
+/// Mint a real API key for @p user_id the same way ApiKeyController does, and
+/// return the plaintext (the only place it ever exists).
+std::string mint_api_key(const std::string& user_id) {
+    auto generated = Security::ApiKeys::generate();
+    Repositories::ApiKeyRepository keys;
+    keys.create(user_id, "ci-token", generated.key_hash, generated.prefix);
+    return generated.plaintext;
+}
+
+HttpRequestPtr with_api_key(const std::string& key) {
+    auto req = HttpRequest::newHttpRequest();
+    req->addHeader("X-API-Key", key);
+    return req;
+}
+}  // namespace
+
+TEST_F(AccountFlowTest, applyResetRevokesExistingApiKeys) {
+    ASSERT_EQ(register_user("keys-reset@example.com", "originalpass")->statusCode(), k201Created);
+    Repositories::UserRepository repo;
+    auto user = repo.find_by_email("keys-reset@example.com");
+    ASSERT_TRUE(user.has_value());
+
+    const std::string key = mint_api_key(user->id);
+    ASSERT_TRUE(Security::ApiKeys::authenticate(with_api_key(key)).has_value()) << "fixture key never authenticated";
+
+    auto token =
+        Security::Tokens::issue(kSecret, user->id, Security::Tokens::Purpose::ResetPassword, std::chrono::hours(1));
+    HttpResponsePtr resp;
+    account.applyReset(
+        post_json({{"new_password", "newpassword42"}}), [&](const HttpResponsePtr& r) { resp = r; }, token);
+    ASSERT_NE(resp, nullptr);
+    ASSERT_EQ(resp->statusCode(), k200OK) << std::string(resp->body());
+
+    EXPECT_FALSE(Security::ApiKeys::authenticate(with_api_key(key)).has_value())
+        << "an API key minted before the password reset still authenticates";
+}
+
+TEST_F(AccountFlowTest, changePasswordRevokesExistingApiKeys) {
+    ASSERT_EQ(register_user("keys-change@example.com", "originalpass")->statusCode(), k201Created);
+    Repositories::UserRepository repo;
+    auto user = repo.find_by_email("keys-change@example.com");
+    ASSERT_TRUE(user.has_value());
+
+    const std::string key = mint_api_key(user->id);
+    ASSERT_TRUE(Security::ApiKeys::authenticate(with_api_key(key)).has_value()) << "fixture key never authenticated";
+
+    Security::Auth::AuthPrincipal p;
+    p.subject = user->id;
+    auto req = post_json({{"old_password", "originalpass"}, {"new_password", "newpassword42"}});
+    req->attributes()->insert(Security::Auth::kPrincipalAttr, p);
+    HttpResponsePtr resp;
+    account.changePassword(req, [&](const HttpResponsePtr& r) { resp = r; });
+    ASSERT_NE(resp, nullptr);
+    ASSERT_EQ(resp->statusCode(), k200OK) << std::string(resp->body());
+
+    EXPECT_FALSE(Security::ApiKeys::authenticate(with_api_key(key)).has_value())
+        << "an API key minted before the password change still authenticates";
+}
+
+TEST_F(AccountFlowTest, failedChangePasswordKeepsApiKeysAlive) {
+    // The revocation hangs off the SUCCESS path only — a wrong old password is
+    // a denial-of-service lever otherwise: anyone holding a stale session could
+    // kill every one of the owner's integrations by guessing wrong.
+    ASSERT_EQ(register_user("keys-intact@example.com", "originalpass")->statusCode(), k201Created);
+    Repositories::UserRepository repo;
+    auto user = repo.find_by_email("keys-intact@example.com");
+    ASSERT_TRUE(user.has_value());
+
+    const std::string key = mint_api_key(user->id);
+
+    Security::Auth::AuthPrincipal p;
+    p.subject = user->id;
+    auto req = post_json({{"old_password", "WRONG"}, {"new_password", "newpassword42"}});
+    req->attributes()->insert(Security::Auth::kPrincipalAttr, p);
+    HttpResponsePtr resp;
+    account.changePassword(req, [&](const HttpResponsePtr& r) { resp = r; });
+    ASSERT_NE(resp, nullptr);
+    ASSERT_EQ(resp->statusCode(), k401Unauthorized);
+
+    EXPECT_TRUE(Security::ApiKeys::authenticate(with_api_key(key)).has_value())
+        << "a rejected password change revoked the user's API keys";
 }
 
 // ── Invite redeem (POST /api/account/join-from-invite/{token}) ──────────────

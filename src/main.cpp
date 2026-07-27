@@ -8,6 +8,7 @@
  */
 
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
@@ -20,6 +21,8 @@
 
 #include <drogon/drogon.h>
 
+#include <nlohmann/json.hpp>
+
 #include "api/Api.hpp"
 #include "core/Core.hpp"
 #include "database/Database.hpp"
@@ -30,6 +33,7 @@
 #include "repositories/UserRepository.hpp"
 #include "security/Password.hpp"
 #include "utils/Config.hpp"
+#include "utils/ErrorResponse.hpp"
 
 namespace {
 
@@ -92,6 +96,7 @@ void print_usage() {
     std::cout << "Usage: tarassov_me [config.json] [ops flag]\n"
               << "  --print-routes              print registered endpoints and exit\n"
               << "  --dump-config               print resolved config as JSON and exit\n"
+              << "                              (secret-looking values are masked as '***set (N chars)')\n"
               << "  --verify-migrations         list pending migrations and exit (1 if any)\n"
               << "  --run-migrations            apply pending migrations and exit\n"
               << "  --setup-dev                 apply migrations + seed roles (no-op if already done)\n"
@@ -116,12 +121,69 @@ int run_migrate_only(const std::string& config_file) {
     return 0;
 }
 
-// Resolve the config (JSON + env overrides) and print it. Keeps
+// True when a config KEY names a credential. Substring match on the
+// lower-cased key — the usual password|secret|token|key convention.
+bool key_is_secret(const std::string& key) {
+    std::string k;
+    k.reserve(key.size());
+    for (char c : key)
+        k += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return k.find("password") != std::string::npos || k.find("secret") != std::string::npos ||
+           k.find("token") != std::string::npos || k.find("key") != std::string::npos;
+}
+
+// scheme://user:pass@host/db → scheme://user:***@host/db. The DB/Redis DSNs
+// carry the password inline under an innocuous key ("primary", "url"), so the
+// key-name rule above never sees them.
+std::string mask_dsn_userinfo(const std::string& value) {
+    const auto scheme = value.find("://");
+    if (scheme == std::string::npos)
+        return value;
+    const auto at = value.find('@', scheme + 3);
+    if (at == std::string::npos)
+        return value;
+    const auto colon = value.find(':', scheme + 3);
+    if (colon == std::string::npos || colon > at)
+        return value;  // userinfo without a password
+    return value.substr(0, colon + 1) + "***" + value.substr(at);
+}
+
+// Redact every credential in a resolved config tree, in place. An EMPTY value
+// stays empty: "is this set?" is the whole point of --dump-config, so the
+// masked form keeps the length instead of hiding the set-vs-unset signal.
+void mask_secrets(nlohmann::json& node) {
+    if (node.is_array()) {
+        for (auto& element : node)
+            mask_secrets(element);
+        return;
+    }
+    if (!node.is_object())
+        return;
+    for (auto it = node.begin(); it != node.end(); ++it) {
+        if (!it->is_string()) {
+            mask_secrets(*it);
+            continue;
+        }
+        const std::string value = it->get<std::string>();
+        if (value.empty())
+            continue;
+        if (key_is_secret(it.key()))
+            *it = "***set (" + std::to_string(value.size()) + " chars)";
+        else
+            *it = mask_dsn_userinfo(value);
+    }
+}
+
+// Resolve the config (JSON + env overrides) and print it, with credentials
+// masked — Config::load_from_file expands ${VAR} placeholders in place, so the
+// raw tree holds the real DB/Redis/SMTP/S3/JWT secrets. Keeps
 // Observability/DB/etc. offline — safe to run against a production config
 // file without side effects.
 int run_dump_config(const std::string& config_file) {
     Config::initialize(config_file);
-    std::cout << Config::get().get_json().dump(2) << std::endl;
+    nlohmann::json redacted = Config::get().get_json();
+    mask_secrets(redacted);
+    std::cout << redacted.dump(2) << std::endl;
     Config::shutdown();
     return 0;
 }
@@ -291,6 +353,22 @@ int run_server(const std::string& config_file) {
             std::cout << "SSL enabled" << std::endl;
         }
     }
+
+    // Last-resort translation of an exception that escaped a handler — a
+    // repository or Storage call made outside Api::with_repo_errors, say a DB
+    // outage past the retry budget or an S3 LIST 403. Without this, Drogon
+    // renders its default text/html 500 page and the client suddenly has a
+    // second error shape to parse; answer in the canonical {error,status}
+    // envelope instead. Handlers still own their own specific error mapping.
+    // The callback parameter is generic: Drogon hands it over by rvalue ref.
+    drogon::app().setExceptionHandler([](const std::exception& e, const drogon::HttpRequestPtr& req, auto&& cb) {
+        // Never log req->path() raw — it carries account tokens.
+        spdlog::error("unhandled exception in {} {}: {}",
+                      req->getMethodString(),
+                      Api::normalize_path_for_metrics(req->path()),
+                      e.what());
+        cb(ErrorResponse::internal_error());
+    });
 
     Api::register_controllers();
 

@@ -73,12 +73,12 @@ conaninfo.txt
 # Always-untracked; never source-of-truth.
 _reference/
 
-# Config (keep samples)
-# Local developer overrides never leave the machine.
+# Config
+# Local developer overrides never leave the machine. The tracked reference
+# config is docs/CONFIG.md — there is no config/config.sample.json to un-ignore.
 config/*.local.json
 config/local/
 .env.local
-!config/config.sample.json
 
 # Dependencies
 third_party/
