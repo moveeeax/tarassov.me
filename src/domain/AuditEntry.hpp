@@ -14,6 +14,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include "utils/Time.hpp"
+
 namespace Domain {
 
 struct AuditEntry {
@@ -23,7 +25,7 @@ struct AuditEntry {
     std::string target_type;              // e.g. "user"
     std::optional<std::string> target_id;
     nlohmann::json details = nlohmann::json::object();
-    std::string created_at;
+    std::string created_at;  // ISO 8601 — normalized in from_row()
 
     template <typename Row>
     static AuditEntry from_row(const Row& row) {
@@ -42,7 +44,9 @@ struct AuditEntry {
                 a.details = nlohmann::json::object();
             }
         }
-        a.created_at = row["created_at"].template as<std::string>();
+        // libpqxx hands back "2026-07-26 05:34:32.876+00"; the OpenAPI schema
+        // for this field is `format: date-time`, which that is not.
+        a.created_at = Utils::Time::pg_to_iso8601(row["created_at"].template as<std::string>());
         return a;
     }
 };

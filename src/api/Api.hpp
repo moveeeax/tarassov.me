@@ -37,16 +37,32 @@ namespace Api {
 /**
  * @brief Register all API middleware (controllers register themselves).
  * @details The middleware order matters — each sync-advice runs in registration
- *          order and may short-circuit the chain. Auth runs first so
- *          unauthenticated requests don't consume rate-limit or idempotency
- *          budget. Tracing is registered last on the pre-path so it fires
- *          only for requests that will actually reach a handler.
+ *          order and the FIRST one to return a response short-circuits the
+ *          whole chain, INCLUDING every pre/post-handling advice (Drogon's
+ *          passSyncAdvices() writes the response and returns false). That is
+ *          why the sync advices are ordered as below and why each of them
+ *          returns through middleware::short_circuit():
+ *
+ *            1. request id    — mints X-Request-Id / traceparent / the access
+ *                               log's route + clock, so a response produced by
+ *                               any advice below still carries them.
+ *            2. content type  — reject a malformed mutation before paying for
+ *                               auth / rate limit / idempotency lookups.
+ *            3. auth          — unauthenticated requests don't consume the
+ *                               rate-limit or idempotency budget.
+ *            4. csrf          — cheap, cookie-only, runs on the authenticated
+ *                               surface.
+ *            5. rate limit
+ *            6. idempotency   — needs the principal that auth stamped.
+ *            7. cors          — answers the OPTIONS preflight.
+ *
+ *          Tracing is registered on the pre-handling path so the server span
+ *          is opened only for requests that will actually reach a handler.
  */
 inline void register_controllers() {
     spdlog::info("Registering API controllers");
     middleware::ensure_http_metric_families();
-    // Content-Type check runs first so a malformed mutation request is
-    // rejected before paying for auth / rate limit / idempotency lookups.
+    middleware::register_request_id();
     middleware::register_content_type_check();
     middleware::register_auth();
     middleware::register_csrf();

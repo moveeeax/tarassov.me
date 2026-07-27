@@ -190,26 +190,33 @@ private:
     std::chrono::milliseconds statement_timeout_;
 
     // Apply session-level guards to a freshly opened connection.
-    // statement_timeout is the only guard we set today, but this is the
-    // hook for adding lock_timeout, idle_in_transaction_session_timeout, etc.
+    // TIME ZONE and statement_timeout are the guards we set today, but this is
+    // the hook for adding lock_timeout, idle_in_transaction_session_timeout, etc.
     void apply_session_guards(pqxx::connection& c) {
-        if (statement_timeout_.count() <= 0)
-            return;
         try {
             pqxx::nontransaction n(c);
-            n.exec("SET statement_timeout = " + std::to_string(statement_timeout_.count()));
+            // Pin the session to UTC. timestamptz is rendered by the server in
+            // the session TimeZone, which otherwise comes from the server GUC /
+            // the container's TZ — so a non-UTC deployment would hand libpqxx
+            // "…+02" and Utils::Time::pg_to_iso8601 would faithfully carry that
+            // offset into every API timestamp. Pinning it here means the
+            // DB→domain boundary only ever sees "+00".
+            n.exec("SET TIME ZONE 'UTC'");
+            if (statement_timeout_.count() > 0)
+                n.exec("SET statement_timeout = " + std::to_string(statement_timeout_.count()));
         } catch (const std::exception& e) {
-            // Non-fatal: a connection without statement_timeout is still
-            // usable; we just lose the per-query DoS guardrail.
-            spdlog::warn("Failed to apply statement_timeout: {}", e.what());
+            // Non-fatal: a connection without these guards is still usable; we
+            // just lose the per-query DoS guardrail / the UTC pinning.
+            spdlog::warn("Failed to apply session guards: {}", e.what());
         }
     }
 
 public:
-    /// Re-apply the per-connection session guards (statement_timeout). Call after
-    /// code that mutated session state — e.g. a no-transaction migration that did
-    /// `SET statement_timeout = 0` — so the next borrower of this pooled
-    /// connection doesn't inherit the cleared timeout.
+    /// Re-apply the per-connection session guards (UTC time zone,
+    /// statement_timeout). Call after code that mutated session state — e.g. a
+    /// no-transaction migration that did `SET statement_timeout = 0` — so the
+    /// next borrower of this pooled connection doesn't inherit the cleared
+    /// timeout.
     void reapply_session_guards(pqxx::connection& c) { apply_session_guards(c); }
 
     /**

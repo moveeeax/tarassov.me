@@ -1985,7 +1985,10 @@ export interface paths {
         };
         options?: never;
         head?: never;
-        /** Update post (admin) */
+        /**
+         * Update post (admin) — partial; omitted fields keep their current value
+         * @description Partial update. Only the fields present in the body are changed; omitted fields (including status) keep their current value, so a title-only PATCH does not unpublish the post or clear published_at. Send status=draft explicitly to unpublish.
+         */
         patch: {
             parameters: {
                 query?: never;
@@ -1998,8 +2001,8 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        slug: string;
-                        title: string;
+                        slug?: string;
+                        title?: string;
                         summary?: string;
                         body?: string;
                         /** @enum {string} */
@@ -2289,6 +2292,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/uploads/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Serve a stored upload (public, no auth, local storage backend only)
+         * @description Same-origin read path for the objects written by POST /api/v1/admin/uploads. With no CDN origin configured Storage::url() returns /uploads/<key>, which is what the editor embeds in post bodies, and it must be same-origin because the public-site CSP is "img-src 'self' data:". The key spans path segments (posts/<hex>.<ext>), so the route is registered by regex. Content type comes from the extension allowlist, never from the request. When storage.public_base_url IS set the URLs are absolute and this route answers 404.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Full storage key, e.g. posts/9f2c0a....png */
+                    key: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The stored object, with Cache-Control: public, max-age=31536000, immutable */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unsafe key, extension outside the raster allowlist, no such object, or a CDN origin is configured */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Storage read failed */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/uploads": {
         parameters: {
             query?: never;
@@ -2357,7 +2414,7 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description Missing/unsupported/oversized file */
+                /** @description no_file | unsupported_type (raster only — SVG is rejected) | bad_size (1 byte – 5 MB) | bad_content (magic bytes do not match the extension) */
                 400: {
                     headers: {
                         [name: string]: unknown;

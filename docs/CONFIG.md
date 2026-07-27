@@ -139,7 +139,8 @@ add others by subclassing `StorageBackend`.
 | Env | JSON key | Type | Default | Notes |
 |---|---|---|---|---|
 | `DATABASE_PRIMARY_URL` | `database.primary` | string | `""` | Full connection string (takes precedence). Empty → a libpq DSN is assembled from the discrete parts below, so the password lives only in `DATABASE_PASSWORD` and never in a URL env var |
-| `DATABASE_REPLICA_URLS` | `database.replicas` | csv | — | Read replicas |
+| `DATABASE_REPLICA_URLS` | `database.replicas` | csv | — | Read replicas as full connection strings. **First tier** of the replica resolution order below |
+| `DATABASE_REPLICA_HOSTS` | `database.replicas` | csv | — | Read replicas as bare **hostnames**; each is assembled into a DSN with the primary's port/user/dbname/password, so the password never lands in a URL env var. What the Helm charts emit (from `externalDatabase.replicaHost`). **Second tier** |
 | `DB_POOL_SIZE` | `database.pool_size` | int | `10` | Per-pool connections (primary + each replica). Keep ≥ `server.threads`: a smaller pool makes IO threads queue on `acquire()`; a much larger pool leaves the extra connections inert (and the `db_pool` saturation gauge under-reports). |
 | `DB_ACQUIRE_TIMEOUT_MS` | `database.acquire_timeout_ms` | int | `5000` | |
 | `DB_STATEMENT_TIMEOUT_MS` | `database.statement_timeout_ms` | int | `30000` | Per-connection PostgreSQL `statement_timeout`. `0` disables. |
@@ -153,6 +154,24 @@ add others by subclassing `StorageBackend`.
 Individual Postgres components (used when `DATABASE_PRIMARY_URL` is empty):
 `DATABASE_HOST` (default `localhost`), `DATABASE_PORT` (`5432`),
 `DATABASE_USER` (`app`), `DATABASE_NAME` (`app`), `DATABASE_PASSWORD` (empty).
+
+### How the replica list is resolved
+
+`Core::read_replicas_` tries three sources **in order and stops at the first
+non-empty one** — it does not merge them, and an empty value is *skipped*
+rather than treated as "no replicas":
+
+1. `DATABASE_REPLICA_URLS` (env, CSV of full connection strings)
+2. `DATABASE_REPLICA_HOSTS` (env, CSV of hostnames → DSNs via `Pg::make_conninfo`)
+3. `database.replicas` (a JSON array in the config file)
+
+Operational consequence: `DATABASE_REPLICA_URLS=""` does **not** disable
+replicas. In Kubernetes the charts never emit tier 1 — they emit tier 2 only
+(`DATABASE_REPLICA_HOSTS`, rendered from `externalDatabase.replicaHost`; the
+ConfigMap carries no `database.replicas` key), so an empty tier-1 value just
+falls through and stale reads continue. To actually go primary-only, clear
+`externalDatabase.replicaHost` and roll the pods — see
+[RUNBOOK.md § RepLag](RUNBOOK.md#replag).
 
 ### Read replicas and `DB_POOL_SIZE`
 
@@ -194,17 +213,43 @@ For URL components: `REDIS_HOST`, `REDIS_PORT`.
 
 ## Jobs
 
-| Env | JSON key | Type | Default |
-|---|---|---|---|
-| `JOBS_ENABLED` | `jobs.enabled` | bool | `false` |
-| `JOBS_RESULT_TTL` | `jobs.result_ttl` | int | `86400` |
-| `JOBS_MAX_RETRIES` | `jobs.max_retries` | int | `3` |
+| Env | JSON key | Type | Default | Notes |
+|---|---|---|---|---|
+| `JOBS_ENABLED` | `jobs.enabled` | bool | `false` | |
+| `JOBS_RESULT_TTL` | `jobs.result_ttl` | int | `86400` | |
+| `JOBS_MAX_RETRIES` | `jobs.max_retries` | int | `3` | |
 | `JOBS_RETRY_BACKOFF_BASE_MS` | `jobs.retry_backoff_base_ms` | int | `0` | Exponential retry backoff base. `0` keeps the legacy immediate-requeue behaviour |
 | `JOBS_RETRY_BACKOFF_MAX_MS` | `jobs.retry_backoff_max_ms` | int | `60000` | Backoff cap |
 | `JOBS_VISIBILITY_TIMEOUT_SEC` | `jobs.visibility_timeout_sec` | int | `0` | Lease for in-flight jobs; expired leases are reaped by the worker loop. `0` = no lease |
 | `JOBS_DLQ_METRIC_REFRESH_SEC` | `jobs.dlq_metric_refresh_sec` | int | `10` | Exports `jobs_dlq_depth{type="..."}` plus an aggregate `type="_total"` |
 | `JOBS_QUEUE_METRIC_REFRESH_SEC` | `jobs.queue_metric_refresh_sec` | int | `10` | Refresh interval for `jobs_queue_depth{type="..."}` |
 | `DB_REPLICA_LAG_METRIC_REFRESH_SEC` | `database.replica_lag_metric_refresh_sec` | int | `15` | Refresh interval for the `db_replica_lag_seconds` gauge. Only registered when read replicas are configured (primary has no replay timestamp). |
+
+### Retry backoff and the visibility lease in Kubernetes
+
+The two knobs that make retries survivable both default to `0`, which is a
+**no-op, not a safe default**:
+
+- `jobs.retry_backoff_base_ms = 0` → `fail()` re-queues immediately, so three
+  attempts finish in single-digit milliseconds and a 3-second SMTP blip
+  permanently dead-letters a signup email.
+- `jobs.visibility_timeout_sec = 0` → no lease is taken, so
+  `reap_expired_leases()` never reclaims anything and a worker pod that dies
+  mid-job leaves that job stranded.
+
+`config/config.production.json` sets them (`1000` / `60000` / `300`), but that
+file is not mounted in Kubernetes — the Helm ConfigMap is. The worker chart
+therefore carries its own values, defaulting to the production-profile numbers:
+
+| Helm value (`helm/tarassov-me-worker`) | Renders to | Default |
+|---|---|---|
+| `jobs.retryBackoffBaseMs` | `jobs.retry_backoff_base_ms` + `JOBS_RETRY_BACKOFF_BASE_MS` | `1000` |
+| `jobs.retryBackoffMaxMs` | `jobs.retry_backoff_max_ms` + `JOBS_RETRY_BACKOFF_MAX_MS` | `60000` |
+| `jobs.visibilityTimeoutSec` | `jobs.visibility_timeout_sec` + `JOBS_VISIBILITY_TIMEOUT_SEC` | `300` |
+
+Set `visibilityTimeoutSec` comfortably above the slowest handler's wall time
+(SMTP delivery dominates) — a lease that expires while the job is still running
+lets a sibling worker pick it up a second time.
 
 ## Mail (SMTP)
 
@@ -226,14 +271,14 @@ For URL components: `REDIS_HOST`, `REDIS_PORT`.
 
 ## Worker (second binary, `tarassov_me_worker`)
 
-| Env | JSON key | Type | Default |
-|---|---|---|---|
-| `WORKER_ID` | `worker.id` | string | `worker-1` |
+| Env | JSON key | Type | Default | Notes |
+|---|---|---|---|---|
+| `WORKER_ID` | `worker.id` | string | `worker-1` | Must be **unique per process**: it keys the `jobs:processing:<id>-<n>` recovery lists that `recover_processing()` sweeps and deletes at startup. In Kubernetes derive it from `metadata.name` — a static value shared by two replicas makes a starting pod re-queue whatever its sibling is executing |
 | `WORKER_TYPES` | `worker.types` | csv | `default` | Queues the worker pulls from. MUST include `account_email`, `email.send`, and `webhook.deliver` or those jobs pile up undrained. |
 | `WORKER_STRICT_TYPES` | `worker.strict_types` | bool | `false` | A `WORKER_TYPES` entry with no registered handler is normally just a boot warning; `true` upgrades it to a hard refusal to start |
-| `WORKER_CONCURRENCY` | `worker.concurrency` | int | `2` |
-| `WORKER_HEALTH_PORT` | `worker.health_port` | int | `9091` |
-| `WORKER_BRPOP_TIMEOUT` | `worker.brpop_timeout` | int | `5` |
+| `WORKER_CONCURRENCY` | `worker.concurrency` | int | `2` | BRPOP threads per process; each takes its own `jobs:processing:<id>-<n>` list |
+| `WORKER_HEALTH_PORT` | `worker.health_port` | int | `9091` | |
+| `WORKER_BRPOP_TIMEOUT` | `worker.brpop_timeout` | int | `5` | |
 
 ## Conventions
 

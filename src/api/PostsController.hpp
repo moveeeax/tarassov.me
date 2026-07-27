@@ -108,11 +108,22 @@ public:
         json body;
         if (!Validation::parse_body(req, body, callback))
             return;
+        Repositories::PostRepository repo;
+        // Read the merge base from the PRIMARY: this is a read-modify-write, so
+        // a lagging replica would make a partial PATCH silently revert whatever
+        // the omitted fields were last set to. Same reason as
+        // AdminController::updateUser's post-write re-read.
+        auto existing = repo.find(id, /*from_primary=*/true);
+        if (!existing) {
+            callback(ErrorResponse::not_found("post"));
+            return;
+        }
+        // PATCH is a partial update: merge the body over the existing post so
+        // omitted fields (incl. status → published_at) are preserved, not wiped.
         Repositories::PostInput in;
-        if (!read_input(body, in, callback))
+        if (!merge_input(body, *existing, in, callback))
             return;
         with_repo_errors(callback, "updatePost", [&] {
-            Repositories::PostRepository repo;
             auto updated = repo.update(id, in);
             callback(Response::ok({{"data", json(updated)}}));
         });
@@ -229,57 +240,58 @@ public:
     }
 
 private:
-    // Parse + validate a create/update body into PostInput. On failure it
-    // sends a 400 via @p callback and returns false (caller must stop).
-    static bool read_input(const json& body,
-                           Repositories::PostInput& in,
-                           const std::function<void(const HttpResponsePtr&)>& callback) {
-        Validation::Errors errs;
-        Validation::require(errs, body, "slug");
-        Validation::require(errs, body, "title");
-        Validation::string_length(errs, body, "slug", 1, 160);
-        Validation::string_length(errs, body, "title", 1, 255);
-        Validation::string_length(errs, body, "topic", 0, 80);
-        Validation::one_of(errs, body, "status", {"draft", "published"});
-        // tags: optional array of non-empty keyword strings. Stored comma-joined,
-        // so a comma inside a tag would corrupt the round-trip — reject it.
+    // Validate the "tags" field (optional array of non-empty keyword strings,
+    // stored comma-joined so commas/line-breaks are rejected). Only call when
+    // the body carries "tags"; adds to @p errs on any problem.
+    static std::vector<std::string> validate_tags(const json& body, Validation::Errors& errs) {
         std::vector<std::string> tags;
-        if (body.contains("tags") && !body["tags"].is_null()) {
-            if (!body["tags"].is_array()) {
-                errs.add("tags", "not_array", "must be an array of strings");
-            } else {
-                for (const auto& t : body["tags"]) {
-                    if (!t.is_string()) {
-                        errs.add("tags", "not_string", "each tag must be a string");
-                        break;
-                    }
-                    std::string s = t.get<std::string>();
-                    std::size_t b = s.find_first_not_of(" \t");
-                    std::size_t e = s.find_last_not_of(" \t");
-                    if (b == std::string::npos)
-                        continue;  // blank tag → skip silently
-                    s = s.substr(b, e - b + 1);
-                    if (s.size() > 40) {
-                        errs.add("tags", "too_long", "each tag max length 40");
-                        break;
-                    }
-                    if (s.find(',') != std::string::npos || s.find('\n') != std::string::npos ||
-                        s.find('\r') != std::string::npos) {
-                        errs.add("tags", "invalid", "a tag must not contain commas or line breaks");
-                        break;
-                    }
-                    tags.push_back(std::move(s));
-                }
-            }
+        if (!body["tags"].is_array()) {
+            errs.add("tags", "not_array", "must be an array of strings");
+            return tags;
         }
-        // Optional fields must be strings when present — `body.value(k, "")`
-        // throws type_error.306 on a non-string (number/bool), which would
-        // otherwise escape the handler as a bare 500 instead of a 400.
-        for (const char* k : {"summary", "body", "status", "topic"})
+        for (const auto& t : body["tags"]) {
+            if (!t.is_string()) {
+                errs.add("tags", "not_string", "each tag must be a string");
+                break;
+            }
+            std::string s = t.get<std::string>();
+            std::size_t b = s.find_first_not_of(" \t");
+            std::size_t e = s.find_last_not_of(" \t");
+            if (b == std::string::npos)
+                continue;  // blank tag → skip silently
+            s = s.substr(b, e - b + 1);
+            if (s.size() > 40) {
+                errs.add("tags", "too_long", "each tag max length 40");
+                break;
+            }
+            if (s.find(',') != std::string::npos || s.find('\n') != std::string::npos ||
+                s.find('\r') != std::string::npos) {
+                errs.add("tags", "invalid", "a tag must not contain commas or line breaks");
+                break;
+            }
+            tags.push_back(std::move(s));
+        }
+        return tags;
+    }
+
+    // Validate every field PRESENT in the body (type, length, enum, slug
+    // format). Shared by create (POST) and the partial update (PATCH); neither
+    // requires a field here — presence is the caller's concern.
+    static void validate_present_fields(const json& body, Validation::Errors& errs) {
+        if (body.contains("slug"))
+            Validation::string_length(errs, body, "slug", 1, 160);
+        if (body.contains("title"))
+            Validation::string_length(errs, body, "title", 1, 255);
+        if (body.contains("topic"))
+            Validation::string_length(errs, body, "topic", 0, 80);
+        if (body.contains("status"))
+            Validation::one_of(errs, body, "status", {"draft", "published"});
+        // Optional string fields must be strings when present — body.value(k,"")
+        // throws type_error.306 on a non-string, escaping the handler as a 500.
+        for (const char* k : {"summary", "body", "status", "topic", "title"})
             if (body.contains(k) && !body[k].is_null() && !body[k].is_string())
                 errs.add(k, "not_string", std::string(k) + " must be a string");
-        // Slug is the public URL key: constrain it to a clean path segment so a
-        // slug with '/', spaces, '#', '?' can't create an unreachable post.
+        // Slug is the public URL key: a clean path segment only.
         if (body.contains("slug") && body["slug"].is_string()) {
             const std::string s = body["slug"].get<std::string>();
             bool ok = !s.empty();
@@ -291,17 +303,66 @@ private:
                          "invalid",
                          "slug must be lowercase letters, digits and hyphens (no leading/trailing hyphen)");
         }
+    }
+
+    // POST create: slug + title required, omitted optionals take defaults.
+    static bool read_input(const json& body,
+                           Repositories::PostInput& in,
+                           const std::function<void(const HttpResponsePtr&)>& callback) {
+        Validation::Errors errs;
+        Validation::require(errs, body, "slug");
+        Validation::require(errs, body, "title");
+        validate_present_fields(body, errs);
+        std::vector<std::string> tags;
+        if (body.contains("tags") && !body["tags"].is_null())
+            tags = validate_tags(body, errs);
         if (errs.any()) {
             callback(Validation::response_400(errs));
             return false;
         }
+        // Null-safe reads: validate_present_fields lets an explicit null through
+        // (absent and null both mean "take the default"), but body.value(k, d)
+        // throws type_error.302 on a null — a 500 for a client that serializes
+        // empty optionals as null. Same pattern merge_input uses.
         in.slug = body["slug"].get<std::string>();
         in.title = body["title"].get<std::string>();
-        in.summary = body.value("summary", std::string{});
-        in.body = body.value("body", std::string{});
-        in.status = body.value("status", std::string{"draft"});
-        in.topic = body.value("topic", std::string{});
+        in.summary = Validation::opt_string(body, "summary").value_or(std::string{});
+        in.body = Validation::opt_string(body, "body").value_or(std::string{});
+        in.status = Validation::opt_string(body, "status").value_or(std::string{"draft"});
+        in.topic = Validation::opt_string(body, "topic").value_or(std::string{});
         in.tags = std::move(tags);
+        return true;
+    }
+
+    // PATCH update: seed @p in from the EXISTING post, then overlay ONLY the
+    // fields present in the body. An omitted field keeps its current value —
+    // crucially, omitting "status" no longer unpublishes the post and drops
+    // its published_at (PostRepository::update derives published_at from the
+    // status it's handed). Absent-key vs explicit-null are both "keep".
+    static bool merge_input(const json& body,
+                            const Domain::Post& existing,
+                            Repositories::PostInput& in,
+                            const std::function<void(const HttpResponsePtr&)>& callback) {
+        Validation::Errors errs;
+        validate_present_fields(body, errs);
+        const bool has_tags = body.contains("tags") && !body["tags"].is_null();
+        std::vector<std::string> tags;
+        if (has_tags)
+            tags = validate_tags(body, errs);
+        if (errs.any()) {
+            callback(Validation::response_400(errs));
+            return false;
+        }
+        auto keep_str = [&](const char* k, const std::string& cur) {
+            return (body.contains(k) && body[k].is_string()) ? body[k].get<std::string>() : cur;
+        };
+        in.slug = keep_str("slug", existing.slug);
+        in.title = keep_str("title", existing.title);
+        in.summary = keep_str("summary", existing.summary);
+        in.body = keep_str("body", existing.body);
+        in.status = keep_str("status", existing.status);
+        in.topic = keep_str("topic", existing.topic);
+        in.tags = has_tags ? std::move(tags) : existing.tags;
         return true;
     }
 };

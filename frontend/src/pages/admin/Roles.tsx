@@ -61,9 +61,11 @@ export function AdminRolesPage() {
     {
       header: 'Permissions',
       className: 'font-mono',
+      // The sentinel is a bit, not a whole mask: 0x40000001 is just as much an
+      // admin as 0x40000000, so test it bitwise (mirrors userCan()).
       cell: (r) =>
-        r.permissions === ADMIN_ALL_BITS
-          ? `0x${ADMIN_ALL_BITS.toString(16)} (all)`
+        (r.permissions & ADMIN_ALL_BITS) !== 0
+          ? `0x${r.permissions.toString(16)} (all)`
           : `0x${r.permissions.toString(16)}`,
     },
     {
@@ -183,18 +185,22 @@ function RoleFormCard({ title, initial, submitting, onSubmit, onCancel }: RoleFo
   const [name, setName] = useState(initial.name);
   const [perms, setPerms] = useState(initial.permissions);
   const [isDefault, setIsDefault] = useState(initial.is_default);
-  const [adminAll, setAdminAll] = useState(initial.permissions === ADMIN_ALL_BITS);
 
-  const togglePerm = (bit: number) => {
-    setPerms((p) => p ^ bit);
-    setAdminAll(false);
-  };
+  // `perms` is the single source of truth for the whole mask, sentinel bit
+  // included — the Administrator checkbox is a derived view of that bit, not
+  // separate state. Anything else lets the two disagree, and the sentinel then
+  // survives an unchecked box (it can never be revoked from this form).
+  const adminAll = (perms & ADMIN_ALL_BITS) !== 0;
+  const setAdminAll = (on: boolean) =>
+    setPerms((p) => (on ? p | ADMIN_ALL_BITS : p & ~ADMIN_ALL_BITS));
+
+  const togglePerm = (bit: number) => setPerms((p) => p ^ bit);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     onSubmit({
       name: name.trim(),
-      permissions: adminAll ? ADMIN_ALL_BITS : perms,
+      permissions: perms,
       is_default: isDefault,
     });
   };
@@ -257,8 +263,7 @@ function RoleFormCard({ title, initial, submitting, onSubmit, onCancel }: RoleFo
               ))}
             </div>
             <p className="text-xs text-muted-foreground font-mono">
-              Bitmask: 0x{(adminAll ? ADMIN_ALL_BITS : perms).toString(16).padStart(2, '0')} (
-              {adminAll ? ADMIN_ALL_BITS : perms})
+              Bitmask: 0x{perms.toString(16).padStart(2, '0')} ({perms})
             </p>
           </div>
 

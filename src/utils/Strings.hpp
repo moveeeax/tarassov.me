@@ -26,6 +26,15 @@ namespace Utils::Strings {
  * link isn't logged in), so they ship public by default. Note the static
  * `*-request` / `confirm-resend` routes are deliberately NOT here:
  * change-email-request and confirm-resend require an authenticated principal.
+ *
+ * The three `/api/v1/public` read + contact endpoints belong here too: the SSR
+ * blog pages call exactly those, so a default that admits the pages but 401s
+ * their data source is internally inconsistent — every shipped config and
+ * chart value lists all of them, and so must this. `/uploads` is here for the
+ * same reason: with the local storage backend, post bodies embed same-origin
+ * image URLs that anonymous readers have to be able to fetch.
+ * (Route globs are spelled without the star in this comment on purpose: a
+ * slash-star pair inside a block comment trips -Wcomment, and CI is -Werror.)
  */
 inline constexpr const char* kDefaultPublicPathsCsv =
     "/,/healthz,/ready,/health,/metrics,"
@@ -34,14 +43,16 @@ inline constexpr const char* kDefaultPublicPathsCsv =
     "/api/v1/account/confirm/*,/api/v1/account/reset-password-request,"
     "/api/v1/account/reset-password/*,/api/v1/account/change-email/*,"
     "/api/v1/account/join-from-invite/*,"
-    "/sitemap.xml,/blog/*";
+    "/api/v1/public/posts,/api/v1/public/posts/*,/api/v1/public/contact,"
+    "/uploads/*,/sitemap.xml,/blog/*";
 
 /**
  * @brief Public endpoints that must STILL be rate-limited despite being
  *        auth-public. These are the brute-force / mail-bombing surfaces:
  *        login & register (credential stuffing), refresh (token churn),
  *        reset-password-request (mail bomb), and the token-bearing links
- *        (reset / confirm / change-email / invite — guessable-token attempts).
+ *        (reset / confirm / change-email / invite — guessable-token attempts),
+ *        plus the public contact form (mail bomb — it sends mail unauthenticated).
  *
  * This is the auth/account subset of kDefaultPublicPathsCsv minus the infra
  * and static surface (`/`, `/healthz`, `/ready`, `/health`, `/metrics`,
@@ -54,7 +65,7 @@ inline constexpr const char* kDefaultProtectedPathsCsv =
     "/api/v1/auth/login,/api/v1/auth/register,/api/v1/auth/refresh,"
     "/api/v1/account/confirm/*,/api/v1/account/reset-password-request,"
     "/api/v1/account/reset-password/*,/api/v1/account/change-email/*,"
-    "/api/v1/account/join-from-invite/*";
+    "/api/v1/account/join-from-invite/*,/api/v1/public/contact";
 
 /**
  * @brief True if @p path is covered by @p public_paths — exact match, or a

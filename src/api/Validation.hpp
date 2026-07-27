@@ -93,6 +93,25 @@ inline bool require(Errors& errs, const json& body, const std::string& field) {
 }
 
 /**
+ * @brief Require a field to be present, non-null AND a JSON string.
+ * @details `require()` alone only proves presence, so a wrong-typed field
+ *          (`{"password": 123}`) sails through and the handler's bare
+ *          `body[f].get<std::string>()` throws nlohmann's type_error.302 —
+ *          which escapes as a bare 500 instead of the 400 envelope, on
+ *          unauthenticated paths included. Use this wherever the value is
+ *          read as a string without a length/format validator downstream.
+ */
+inline bool require_string(Errors& errs, const json& body, const std::string& field) {
+    if (!require(errs, body, field))
+        return false;
+    if (!body[field].is_string()) {
+        errs.add(field, "not_string", "must be a string");
+        return false;
+    }
+    return true;
+}
+
+/**
  * @brief Require a string field within [min, max] length. Non-strings fail
  *        with code "not_string". Missing fields are no-op (pair with require).
  */
@@ -144,6 +163,18 @@ inline void int_range(Errors& errs, const json& body, const std::string& field, 
     } else if (v > max_val) {
         errs.add(field, "above_max", "max " + std::to_string(max_val));
     }
+}
+
+/**
+ * @brief Require a boolean field when present. Missing/null is a no-op.
+ *        Pair with a `contains() && is_boolean()` read — `body.value(f, false)`
+ *        throws type_error.302 on a non-boolean (and on an explicit null).
+ */
+inline void boolean(Errors& errs, const json& body, const std::string& field) {
+    if (!body.contains(field) || body[field].is_null())
+        return;
+    if (!body[field].is_boolean())
+        errs.add(field, "not_boolean", "must be a boolean");
 }
 
 /**
@@ -199,6 +230,34 @@ inline void no_crlf(Errors& errs, const json& body, const std::string& field) {
     const std::string& s = body[field].get_ref<const std::string&>();
     if (s.find('\r') != std::string::npos || s.find('\n') != std::string::npos)
         errs.add(field, "invalid", "must not contain line breaks");
+}
+
+// Reject the HTML-significant characters. Defense-in-depth for values that are
+// later interpolated into an HTML document (the transactional email templates
+// render user names through inja, which has no autoescaping). No-op if the
+// field is absent or not a string.
+inline void no_html(Errors& errs, const json& body, const std::string& field) {
+    if (!body.contains(field) || !body[field].is_string())
+        return;
+    const std::string& s = body[field].get_ref<const std::string&>();
+    if (s.find_first_of("<>&") != std::string::npos)
+        errs.add(field, "invalid", "must not contain '<', '>' or '&'");
+}
+
+/**
+ * @brief Validate a person-name field (first_name / last_name).
+ * @details Optional — absent/null is fine — but when present it must be a
+ *          string of at most @p max_len characters and free of CR/LF and the
+ *          HTML-significant characters. The default cap matches
+ *          users.first_name / users.last_name VARCHAR(64) (migration 001); a
+ *          longer value used to reach the INSERT and come back as SQLSTATE
+ *          22001, which the repositories' translate_sql doesn't map, i.e. a
+ *          500 instead of a 400. Call at every write site that stores a name.
+ */
+inline void person_name(Errors& errs, const json& body, const std::string& field, std::size_t max_len = 64) {
+    string_length(errs, body, field, 0, max_len);
+    no_crlf(errs, body, field);
+    no_html(errs, body, field);
 }
 
 // ---------------------------------------------------------------------------

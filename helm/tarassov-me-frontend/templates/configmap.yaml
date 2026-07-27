@@ -45,6 +45,18 @@ data:
         # CSP: the Vite bundle has no inline JS, so script-src stays 'self'.
         # Matched ahead of `location /` (regex beats prefix), so the admin
         # never inherits the relaxed public-site policy.
+        #
+        # `uploads.publicOrigin` is appended to img-src in ALL THREE policies
+        # here (this admin one and the two public-site ones below): with
+        # storage.backend=s3 the post images live on that host, and a bare
+        # `img-src 'self' data:` blocks every one of them — in the editor AND
+        # on the public blog. Apart from that one splice the public-site copies
+        # must stay identical to frontend/nginx.conf and
+        # PublicPagesController::kPublicSiteCsp;
+        # scripts/check-public-surface-sync.sh strips exactly this Helm action
+        # and then compares the three copies as raw text, so any OTHER drift
+        # still fails CI. Keep the action's spelling byte-for-byte in sync with
+        # the UPLOAD_ORIGIN_TPL pattern in that script.
         location ~ ^/(admin|login|register|account|unconfirmed|about)(/|$) {
             try_files $uri /app.html;
             add_header Cache-Control "no-cache" always;
@@ -52,7 +64,7 @@ data:
             add_header X-Frame-Options "DENY" always;
             add_header Referrer-Policy "no-referrer" always;
             add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:{{ with .Values.uploads.publicOrigin }} {{ . }}{{ end }}; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
         }
 
         # Everything else: serve a real file if present — the BookCard vCard
@@ -66,7 +78,7 @@ data:
             add_header X-Frame-Options "DENY" always;
             add_header Referrer-Policy "no-referrer" always;
             add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:{{ with .Values.uploads.publicOrigin }} {{ . }}{{ end }}; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
         }
 
         # Server-rendered SEO pages (dynamic, from the DB): the sitemap and clean
@@ -106,7 +118,27 @@ data:
             add_header X-Frame-Options "DENY" always;
             add_header Referrer-Policy "no-referrer" always;
             add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-            add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:{{ with .Values.uploads.publicOrigin }} {{ . }}{{ end }}; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
+        }
+
+        # Uploaded post images in local/backend storage mode: the API serves
+        # GET /uploads/<key> read-only (public, path-traversal guarded), and
+        # Storage::url() returns that absolute same-origin path — so `img-src
+        # 'self'` covers it with no CSP change. In S3 mode the API rewrites
+        # media URLs to storage.publicBaseUrl and nothing links here (the route
+        # 404s); allow that origin via .Values.uploads.publicOrigin instead.
+        # KEEP IN SYNC with frontend/nginx.conf.
+        location ^~ /uploads/ {
+            proxy_pass http://{{ .Values.backend.service }}:{{ .Values.backend.port }};
+            proxy_set_header Host              $host;
+            # Same client-IP convention as /api/ below: pass through the
+            # X-Real-IP the ingress set, not $remote_addr (this hop's peer).
+            proxy_set_header X-Real-IP         $http_x_real_ip;
+            proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_http_version 1.1;
+            proxy_read_timeout 30s;
+            proxy_connect_timeout 5s;
         }
 
         location /api/ {

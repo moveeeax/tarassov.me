@@ -161,6 +161,17 @@ auth:
     samesite: Lax
 
 # ---------------------------------------------------------------
+# Public URL/name baked into transactional email links. The chart default is
+# https://app.example.com — a non-resolving IANA-reserved domain — and the API
+# still renders links itself whenever AccountEmails::dispatch() falls back to
+# in-process delivery (e.g. Jobs::submit throws), so leaving this unset ships
+# dead password-reset links. MUST match the tarassov-me-worker overlay.
+# ---------------------------------------------------------------
+app:
+  baseUrl: "https://app.example.com"   # TODO: your real public SPA origin
+  name: App                            # TODO: product name shown in emails
+
+# ---------------------------------------------------------------
 # Storage — post images. Use S3/MinIO in prod (local disk is per-pod and
 # ephemeral). publicBaseUrl must be the browser-reachable object URL prefix.
 # ---------------------------------------------------------------

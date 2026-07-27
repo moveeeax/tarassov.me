@@ -3,21 +3,42 @@
 # resources. Its only job is to make `helm template` deterministic so the
 # rendered output can be asserted on (port consistency, required env, host
 # expansion). The real per-env values live in --set flags at deploy time.
+#
+# The `ci-*` strings below are RENDER FIXTURES, not secrets: they are what makes
+# the Secret / secretKeyRef path render at all, so CI can assert on it (an
+# empty-secret render silently drops every secret env var). Nothing is ever
+# deployed with this file — every real env, including stage, gets its
+# credentials via --set. Never copy these values into a deployable overlay.
 env: ci
 baseDomain: ci.example.test
 credentials:
   dbPassword: "ci-db-pass"
   redisPassword: "ci-redis-pass"
   jwtSecret: "ci-jwt-secret-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+#
+# The subchart password fields are mirrored here EXPLICITLY (they used to be
+# inherited from the umbrella's chart defaults, which are now empty): without
+# them the CI render drops DATABASE_PASSWORD / REDIS_PASSWORD entirely and the
+# secretKeyRef path this file exists to exercise is only half covered — while
+# the umbrella's pg-app / redis-auth Secrets still carry a password, i.e. the
+# rendered env is internally inconsistent. Keep in sync with `credentials:`.
 tarassov-me:
   mail:
     enabled: true # force the {{- if .Values.mail.enabled }} branch so MAIL_VIA_JOBS renders
     viaJobs: true
+  externalDatabase:
+    password: "ci-db-pass"        # == credentials.dbPassword
+  externalRedis:
+    password: "ci-redis-pass"     # == credentials.redisPassword
   auth:
     mode: jwt
     jwtSecret: "ci-jwt-secret-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 tarassov-me-worker:
   app:
     baseUrl: "https://app.ci.ci.example.test"
+  externalDatabase:
+    password: "ci-db-pass"        # == credentials.dbPassword
+  externalRedis:
+    password: "ci-redis-pass"     # == credentials.redisPassword
   auth:
     jwtSecret: "ci-jwt-secret-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"

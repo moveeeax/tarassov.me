@@ -18,6 +18,7 @@
 #include "api/Validation.hpp"
 #include "repositories/ApiKeyRepository.hpp"
 #include "security/ApiKeys.hpp"
+#include "security/Audit.hpp"
 #include "utils/ErrorResponse.hpp"
 
 namespace Api {
@@ -49,7 +50,9 @@ public:
         if (!Validation::parse_body(req, body, callback))
             return;
         Validation::Errors errs;
-        Validation::require(errs, body, "name");
+        // require_string: a non-string "name" would reach get<std::string>()
+        // below and throw type_error.302 → bare 500 instead of a 400.
+        Validation::require_string(errs, body, "name");
         if (errs.any()) {
             callback(Validation::response_400(errs));
             return;
@@ -58,6 +61,11 @@ public:
         const auto gen = Security::ApiKeys::generate();
         Repositories::ApiKeyRepository repo;
         auto key = repo.create(owner, body["name"].get<std::string>(), gen.key_hash, gen.prefix);
+
+        // A minted key is a long-lived credential — it belongs in the trail so
+        // an incident responder can see what an attacker provisioned. Never
+        // record the plaintext or the hash, only the metadata.
+        Security::Audit::record(owner, "api_key.create", "api_key", key.id, {{"name", key.name}});
 
         // The plaintext key is surfaced ONCE here; it is never stored (only its
         // hash) and can never be shown again. The client must save it now.
@@ -77,6 +85,7 @@ public:
             callback(ErrorResponse::not_found("api_key"));
             return;
         }
+        Security::Audit::record(owner, "api_key.revoke", "api_key", id);
         callback(Response::ok({{"message", "API key revoked"}}));
     }
 };

@@ -22,6 +22,26 @@ backend:
   port: 8080
 
 # ---------------------------------------------------------------
+# Uploaded post images — the origin the CSP must allow.
+#
+# In S3/CDN storage mode the API rewrites media URLs to the bucket's public
+# origin (the tarassov-me chart's `storage.publicBaseUrl`, e.g.
+# https://s3.example.com/bucket). Every CSP in the ConfigMap ships
+# `img-src 'self' data:`, which blocks that origin outright. Set this to that
+# origin (scheme + host, NO path) to allow it; keep it EMPTY for local/backend
+# storage, which is served same-origin via the /uploads/ proxy in the ConfigMap.
+#
+# PARTIAL: this currently reaches only the admin/SPA CSP. The two public-site
+# CSPs (location / and /blog/) are compared byte-for-byte against
+# frontend/nginx.conf and PublicPagesController::kPublicSiteCsp by
+# scripts/check-public-surface-sync.sh, which fails on any Helm action inside
+# them — so post images on the PUBLIC blog stay blocked in s3 mode until that
+# script strips `{{ … }}` before comparing. See the note in the ConfigMap.
+# ---------------------------------------------------------------
+uploads:
+  publicOrigin: ""   # e.g. https://s3.example.com
+
+# ---------------------------------------------------------------
 # Networking — Service + Ingress (the frontend is the single entry point;
 # it serves the SPA and proxies /api itself, so the ingress only routes "/").
 # ---------------------------------------------------------------

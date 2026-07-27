@@ -16,6 +16,7 @@
 #include <nlohmann/json.hpp>
 
 #include "domain/Role.hpp"
+#include "utils/Time.hpp"
 
 namespace Domain {
 
@@ -30,8 +31,8 @@ struct User {
     std::optional<std::string> last_name;
     bool confirmed{false};
     int role_id{0};
-    std::string created_at;
-    std::string updated_at;
+    std::string created_at;  // ISO 8601 — normalized in from_row()
+    std::string updated_at;  // ISO 8601 — normalized in from_row()
 
     // The owning Role row, when joined. Empty optional means "not loaded
     // in this query"; not the same as "no role" (every user has one).
@@ -50,8 +51,12 @@ struct User {
             u.last_name = row["last_name"].template as<std::string>();
         u.confirmed = row["confirmed"].template as<bool>();
         u.role_id = row["role_id"].template as<int>();
-        u.created_at = row["created_at"].template as<std::string>();
-        u.updated_at = row["updated_at"].template as<std::string>();
+        // API-facing timestamps are ISO 8601 UTC; libpqxx hands us Postgres
+        // text form ("2026-07-26 05:34:32.876+00"). Convert at this single
+        // DB→domain boundary, exactly as Post and AuditEntry do, so /users and
+        // /account don't emit a different timestamp dialect than /posts.
+        u.created_at = Utils::Time::pg_to_iso8601(row["created_at"].template as<std::string>());
+        u.updated_at = Utils::Time::pg_to_iso8601(row["updated_at"].template as<std::string>());
         return u;
     }
 

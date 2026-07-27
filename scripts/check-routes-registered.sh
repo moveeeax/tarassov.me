@@ -42,7 +42,15 @@ while IFS= read -r line; do
         echo "MISSING from Api::get_endpoints() (Endpoints.hpp): $tuple" >&2
         missing=1
     fi
-done < <(grep -rhoE 'ADD_METHOD_TO\([^;]*\)' "$API_DIR"/*.hpp)
+done < <(grep -rhoE 'ADD_METHOD_TO\([^;]*\)' "$API_DIR"/*.hpp
+    # ADD_METHOD_VIA_REGEX registers routes too, and they were invisible here:
+    # a regex route (e.g. the /uploads/(.*) read path, whose key spans segments
+    # and so cannot use a {1} placeholder) could drift out of the registry
+    # exactly like a hand-written ADD_METHOD_TO. Same tuple shape, so it goes
+    # through the same loop — norm_path collapses both "(.*)" and "{key}" to
+    # "{}", which is what makes the two spellings comparable.
+    grep -rhoE 'ADD_METHOD_VIA_REGEX\([^;]*\)' "$API_DIR"/*.hpp |
+        sed -E 's/\(\[\^\/\]\*\)|\(\[\^\/\]\+\)|\(\.\*\)|\(\.\+\)/{}/g')
 
 if [[ "$missing" -ne 0 ]]; then
     echo "" >&2

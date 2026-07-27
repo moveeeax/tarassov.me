@@ -25,11 +25,13 @@ ingress:
   externalDnsTarget: "YOUR_INGRESS_IP"
 
 # Secrets are injected at deploy time by scripts/deploy-demo.sh (--set), never
-# committed. These placeholders are intentionally invalid-looking.
+# committed. Empty (not a placeholder string): a placeholder is a WORKING
+# credential for anyone who deploys this file without the script, and the demo
+# is internet-facing.
 credentials:
-  dbPassword: "SET-AT-DEPLOY"
-  redisPassword: "SET-AT-DEPLOY"
-  jwtSecret: "SET-AT-DEPLOY"
+  dbPassword: ""
+  redisPassword: ""
+  jwtSecret: ""
 
 # Lean the env: a public demo doesn't need Kafka (optional event publishing).
 kafka:
@@ -57,12 +59,12 @@ tarassov-me:
   externalKafka:
     enabled: false
   externalDatabase:
-    password: "SET-AT-DEPLOY"
+    password: ""
   externalRedis:
-    password: "SET-AT-DEPLOY"
+    password: ""
   auth:
     mode: jwt
-    jwtSecret: "SET-AT-DEPLOY"
+    jwtSecret: ""
     cookies:
       enabled: true
       secure: true
@@ -72,11 +74,11 @@ tarassov-me-worker:
   image:
     tag: "v1.4.0"
   externalDatabase:
-    password: "SET-AT-DEPLOY"
+    password: ""
   externalRedis:
-    password: "SET-AT-DEPLOY"
+    password: ""
   auth:
-    jwtSecret: "SET-AT-DEPLOY"
+    jwtSecret: ""
   app:
     baseUrl: "https://app.demo.tarassov.me"
     name: "C++ REST Template — Demo"

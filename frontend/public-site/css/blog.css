@@ -12,6 +12,13 @@
  */
 
 /* ── Reset / global chrome ──────────────────────────────────────────────── */
+/* [hidden] must always win: rules below set display:flex/grid/block on classes
+   carried by elements that ship with the `hidden` attribute (the prev/next
+   pager sides, the post topic/dek/tags, the keyword row), and those beat
+   normalize's [hidden]{display:none} on source order or specificity — so the
+   newest post, the oldest post and every untagged post would render empty
+   furniture. Mirrors the same fix in main.css (`.post-1a [hidden]`). */
+[hidden] { display: none !important; }
 * { box-sizing: border-box; }
 html { height: auto; }
 html, body { margin: 0; padding: 0; }

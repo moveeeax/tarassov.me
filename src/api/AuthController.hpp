@@ -75,6 +75,11 @@ public:
         Validation::require(errs, body, "password");
         Validation::email(errs, body, "email");
         Validation::string_length(errs, body, "password", Validation::kPasswordMinLen, Validation::kPasswordMaxLen);
+        // first/last name are VARCHAR(64) and land in the HTML confirmation
+        // email — cap the length (SQLSTATE 22001 → 500 otherwise) and reject
+        // markup/CRLF here rather than at the template.
+        Validation::person_name(errs, body, "first_name");
+        Validation::person_name(errs, body, "last_name");
         if (errs.any()) {
             callback(Validation::response_400(errs));
             return;
@@ -126,8 +131,11 @@ public:
         if (!Validation::parse_body(req, body, callback))
             return;
         Validation::Errors errs;
-        Validation::require(errs, body, "email");
-        Validation::require(errs, body, "password");
+        // require_string, not require: a wrong-typed field ({"password": 123})
+        // would otherwise reach get<std::string>() and throw type_error.302 —
+        // a bare 500 on an unauthenticated endpoint instead of a 400.
+        Validation::require_string(errs, body, "email");
+        Validation::require_string(errs, body, "password");
         if (errs.any()) {
             callback(Validation::response_400(errs));
             return;
@@ -169,6 +177,13 @@ public:
             callback(ErrorResponse::service_unavailable("session_unavailable", "Could not mint session"));
             return;
         }
+
+        // Audit the SUCCESSFUL login too — with only auth.login_failed recorded,
+        // an incident responder saw the brute-force burst and then silence, and
+        // could not tell whether it ever landed. Same shape/IP resolver as the
+        // failure record above.
+        const std::string ip = Security::RateLimit::client_ip(req);
+        Security::Audit::record(user->id, "auth.login", "user", user->id, {{"email", user->email}, {"ip", ip}});
 
         auto http = Response::ok({{"user", json(*user)}});
         Security::Auth::set_session_cookies(

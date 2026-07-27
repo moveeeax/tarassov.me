@@ -28,7 +28,7 @@ class JobsIntegrationTest : public TestHelpers::CoreBackedTest {
 protected:
     // Queue names used by the tests below; TearDown drains exactly these.
     static constexpr const char* kQueues[] = {
-        "default", "retryq", "cancelq", "pagedq", "healq", "depthq", "backoffq", "leaseq"};
+        "default", "retryq", "cancelq", "pagedq", "healq", "depthq", "backoffq", "cancelbackoffq", "leaseq"};
 
     std::vector<std::string> job_ids_to_cleanup;
 
@@ -329,6 +329,69 @@ TEST_F(JobsIntegrationTest, BackoffDelaysRequeueUntilDue) {
     auto p2 = Jobs::get().pick({"backoffq"}, 2, "w1");
     ASSERT_TRUE(p2);
     EXPECT_EQ(p2->id, job.id);
+}
+
+// ── M2: cancelling a job parked in backoff must be final ────────────────────
+// A job between retries lives in the delayed ZSET and still reads as "pending",
+// so it is cancellable — but cancel() only ever LREM'd the live queue, and
+// promote_due_jobs() re-queued purely on score. The cancelled job came back and
+// ran. Two independent guards now stop that; this pins both.
+
+TEST_F(JobsIntegrationTest, CancelDropsJobFromTheDelayedSet) {
+    Jobs::get().set_retry_backoff(/*base_ms=*/200, /*max_ms=*/1000);
+
+    auto job = Jobs::get().submit("cancelbackoffq", {});
+    track(job.id);
+
+    auto p1 = Jobs::get().pick({"cancelbackoffq"}, 2, "w1");
+    ASSERT_TRUE(p1);
+    Jobs::get().fail(job.id, "boom");  // parks it in the delayed set
+
+    auto& redis = Cache::get().get_client();
+    // Precondition: it really is parked in backoff, not on the live queue.
+    // (redis-plus-plus Optional has operator bool, not std::optional's
+    // has_value().)
+    ASSERT_TRUE(static_cast<bool>(redis.zscore(Jobs::delayed_key(), job.id)));
+
+    ASSERT_TRUE(Jobs::get().cancel(job.id));
+    EXPECT_FALSE(static_cast<bool>(redis.zscore(Jobs::delayed_key(), job.id)))
+        << "cancel() left the job in the backoff set";
+
+    // Once the window elapses the sweep must find nothing to promote.
+    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    EXPECT_EQ(Jobs::get().promote_due_jobs(), 0);
+
+    std::vector<std::string> queue_contents;
+    redis.lrange(Jobs::queue_key("cancelbackoffq"), 0, -1, std::back_inserter(queue_contents));
+    EXPECT_TRUE(queue_contents.empty()) << "a cancelled job was re-queued by promotion";
+
+    auto status = Jobs::get().get_status(job.id);
+    ASSERT_TRUE(status);
+    EXPECT_EQ(status->status, "failed");
+    EXPECT_EQ(status->error, "cancelled");
+}
+
+TEST_F(JobsIntegrationTest, PromoteDueJobsRefusesToResurrectATerminalJob) {
+    // Second guard, exercised on its own: even if an id survives in the delayed
+    // set — a cancel racing the sweep, or a rollback re-adding it — promotion
+    // must consult the blob's status and drop it, not push it onto a queue.
+    Jobs::get().set_retry_backoff(/*base_ms=*/200, /*max_ms=*/1000);
+
+    auto job = Jobs::get().submit("cancelbackoffq", {});
+    track(job.id);
+    ASSERT_TRUE(Jobs::get().cancel(job.id));
+
+    auto& redis = Cache::get().get_client();
+    // Re-park it, due immediately — the state cancel() is racing against.
+    redis.zadd(Jobs::delayed_key(), job.id, 1.0);
+
+    EXPECT_EQ(Jobs::get().promote_due_jobs(), 0);
+    EXPECT_FALSE(static_cast<bool>(redis.zscore(Jobs::delayed_key(), job.id)))
+        << "the stale delayed entry must be dropped, not left to retry every sweep";
+
+    std::vector<std::string> queue_contents;
+    redis.lrange(Jobs::queue_key("cancelbackoffq"), 0, -1, std::back_inserter(queue_contents));
+    EXPECT_TRUE(queue_contents.empty());
 }
 
 TEST_F(JobsIntegrationTest, VisibilityTimeoutReapsExpiredLease) {

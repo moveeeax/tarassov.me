@@ -280,23 +280,34 @@ int main(int argc, char* argv[]) {
         // thread can pick + dispatch.
         Jobs::register_builtin_handlers();
 
+        // Read worker configuration from env vars (override config.json).
+        // Hoisted above startup recovery so the ids swept there are derived from
+        // exactly the same values as the spawn loop below — two independent
+        // reads could (and did) drift apart.
+        auto& config = Config::get();
+
+        // WORKER_ID identifies this PROCESS, not the deployment: it namespaces
+        // the per-thread jobs:processing:* lists, so two pods sharing a value
+        // share those lists. The chart sets it from metadata.name; keep it
+        // unique per pod. Jobs stranded by a pod whose name is gone forever are
+        // reclaimed by the visibility-timeout reaper, not by this sweep.
+        std::string worker_id = config.get<std::string>("worker.id", "WORKER_ID", "worker-1");
+        int concurrency = config.get<int>("worker.concurrency", "WORKER_CONCURRENCY", 2);
+
         // Rescue any jobs that the previous instance with this WORKER_ID
         // left in the processing list before crashing. Must run BEFORE
         // workers start picking, otherwise a thread could double-process
         // a job that's about to be put back on the live queue.
-        {
-            const std::string base_id = Config::get().get<std::string>("worker.id", "WORKER_ID", "worker-1");
-            // Worker threads pick under "<base>-<n>" (see the spawn loop below),
-            // so recovery must sweep each per-thread processing list. Recovering
-            // only the bare base id (the old behaviour) matched nothing and
-            // silently stranded in-flight jobs on crash. Same config keys/
-            // defaults as the spawn loop so the ids line up. Also sweep the bare
-            // id for back-compat with jobs left by an older single-id scheme.
-            const int recover_concurrency = Config::get().get<int>("worker.concurrency", "WORKER_CONCURRENCY", 2);
-            Jobs::get().recover_processing(base_id);
-            for (int i = 0; i < recover_concurrency; ++i)
-                Jobs::get().recover_processing(base_id + "-" + std::to_string(i));
-        }
+        // Worker threads pick under "<base>-<n>" (see the spawn loop below), so
+        // recovery must sweep each per-thread processing list — recovering only
+        // the bare base id (the old behaviour) matched nothing and silently
+        // stranded in-flight jobs on crash. The bare id is swept too, for
+        // back-compat with jobs left by an older single-id scheme.
+        // recover_processing() is ownership-checked, so a list that a live
+        // sibling is still writing to is left alone.
+        Jobs::get().recover_processing(worker_id);
+        for (int i = 0; i < concurrency; ++i)
+            Jobs::get().recover_processing(worker_id + "-" + std::to_string(i));
 
         // Register worker-specific Prometheus families. Labeled by job type
         // and (for processed_total) outcome.
@@ -309,12 +320,6 @@ int main(int argc, char* argv[]) {
             worker_metrics::active_jobs = &metrics.create_gauge(
                 "worker_active_jobs", "Jobs currently being processed by this worker, labeled by type");
         }
-
-        // Read worker configuration from env vars (override config.json)
-        auto& config = Config::get();
-
-        std::string worker_id = config.get<std::string>("worker.id", "WORKER_ID", "worker-1");
-        int concurrency = config.get<int>("worker.concurrency", "WORKER_CONCURRENCY", 2);
 
         // Parse worker queue types (comma-separated env var or JSON array)
         std::vector<std::string> worker_types =

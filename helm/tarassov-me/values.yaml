@@ -150,12 +150,23 @@ monitoring:
     replicaLagSec: 10               # read-replica lag (s) above this warns
     dlqPerTypeDepth: 5              # single-type DLQ depth that pages
     retriesExhaustedPerSec: 0.5     # sustained "gave up" retries per second
+    # Age (s) of the newest successful pg_dump above which CppApiBackupTooOld
+    # fires. 93600 = 26h — one daily run plus a 2h grace. Raise it in step with
+    # backup.schedule; a value below the schedule interval alerts every night.
+    # Only rendered when backup.enabled=true.
+    backupMaxAgeSeconds: 93600
 
 # ---------------------------------------------------------------
 # External Secrets Operator — pull secrets from Vault / AWS SSM / GCP SM
 # instead of inlining them in values. When enabled, the static Secret
 # rendered by templates/secret.yaml is suppressed and the Deployment
 # consumes the ExternalSecret-materialized Secret instead.
+#
+# `data` below is the SOURCE OF TRUTH for which secret env vars the Deployment
+# renders in this mode (see the hasSecret helper): the ExternalSecret
+# materializes exactly these keys, so a key you omit here produces no env var —
+# list every one the app needs. Recognised keys: database-password,
+# redis-password, jwt-secret, mail-smtp-password, s3-secret-key.
 # ---------------------------------------------------------------
 externalSecrets:
   enabled: false
@@ -257,14 +268,23 @@ rateLimit:
   failOpen: true           # Redis down → allow (don't blackhole) requests
   whitelist: ""            # comma-separated IPs/subjects exempt from limiting
   # Stricter (protected) tier for the auth surface + the public contact form.
-  protectedPaths: "/api/v1/auth/login,/api/v1/auth/register,/api/v1/auth/refresh,/api/v1/account/confirm/*,/api/v1/account/reset-password-request,/api/v1/account/reset-password/*,/api/v1/account/change-email/*,/api/v1/account/join-from-invite/*,/api/v1/public/contact"
+  # NOTE: `/api/v1/account/change-email/*` does NOT prefix-match
+  # `/api/v1/account/change-email-request` — that endpoint sends attacker-
+  # addressable mail from our domain, so it is listed separately.
+  protectedPaths: "/api/v1/auth/login,/api/v1/auth/register,/api/v1/auth/refresh,/api/v1/account/confirm/*,/api/v1/account/reset-password-request,/api/v1/account/reset-password/*,/api/v1/account/change-email-request,/api/v1/account/change-email/*,/api/v1/account/join-from-invite/*,/api/v1/public/contact"
 
 # ---------------------------------------------------------------
 # API — paths reachable WITHOUT auth (the gate 401s everything else when
 # AUTH_MODE=jwt). Includes the public blog + contact endpoints.
+#
+# `/uploads/*` is the read-only image route the API serves in local-storage mode
+# (the chart default), which the frontend ConfigMap proxies same-origin. The
+# auth advice runs on EVERY path, not just /api/*, so without this entry every
+# post image on the public blog 401s for anonymous readers. The route itself is
+# traversal-guarded and 404s outright in s3/CDN mode.
 # ---------------------------------------------------------------
 api:
-  publicPaths: "/healthz,/ready,/health,/api/v1/auth/login,/api/v1/auth/register,/api/v1/auth/refresh,/api/v1/account/confirm/*,/api/v1/account/reset-password-request,/api/v1/account/reset-password/*,/api/v1/account/change-email/*,/api/v1/account/join-from-invite/*,/api/v1/public/posts,/api/v1/public/posts/*,/api/v1/public/contact,/sitemap.xml,/blog/*"
+  publicPaths: "/healthz,/ready,/health,/api/v1/auth/login,/api/v1/auth/register,/api/v1/auth/refresh,/api/v1/account/confirm/*,/api/v1/account/reset-password-request,/api/v1/account/reset-password/*,/api/v1/account/change-email/*,/api/v1/account/join-from-invite/*,/api/v1/public/posts,/api/v1/public/posts/*,/api/v1/public/contact,/sitemap.xml,/blog/*,/uploads/*"
 
 # ---------------------------------------------------------------
 # Site — canonical public origin. Every absolute URL the backend generates
@@ -373,6 +393,11 @@ mail:
 # Storage — uploaded images (post media). backend: local | s3.
 # For k8s use s3 (MinIO/R2/S3): local-disk is ephemeral per-pod and not shared
 # across replicas. publicBaseUrl must be the browser-reachable URL prefix.
+# When you set publicBaseUrl, ALSO set its origin as
+# `uploads.publicOrigin` in the tarassov-me-frontend chart — the SPA's CSP ships
+# `img-src 'self' data:` and otherwise blocks every image served from it.
+# Empty publicBaseUrl → the API serves the images itself at /uploads/<key>,
+# same-origin, which the frontend proxies (no CSP change needed).
 # Env: STORAGE_BACKEND, STORAGE_PUBLIC_BASE_URL, S3_ENDPOINT/REGION/BUCKET/
 #      ACCESS_KEY; S3_SECRET_KEY is injected from the Secret.
 # ---------------------------------------------------------------
@@ -461,7 +486,10 @@ backup:
     region: ""
     endpoint: ""               # set for MinIO / non-AWS S3
     credentialsSecret:
-      name: ""                 # secret holding access-key-id / secret-access-key
+      # Secret holding access-key-id / secret-access-key. Empty → the CronJob
+      # renders no AWS_* env at all and the aws CLI falls back to whatever the
+      # node/IRSA provides (the two key names below are then unused).
+      name: ""
       accessKeyIdKey: access-key-id
       secretAccessKeyKey: secret-access-key
   resources:

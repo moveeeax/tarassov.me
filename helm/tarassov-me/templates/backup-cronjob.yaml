@@ -74,11 +74,19 @@ spec:
                     secretKeyRef:
                       name: {{ .Values.backup.dbPasswordSecret.name | default (include "tarassov-me.fullname" .) }}
                       key: {{ .Values.backup.dbPasswordSecret.key | default "database-password" }}
-                {{- with .Values.backup.s3.credentialsSecret }}
+                {{- /* Guard on the NAME, not the map: credentialsSecret always
+                       exists (it carries two key fields), so `with` on the map
+                       was always true and rendered `secretKeyRef: {name: , …}`
+                       whenever the secret wasn't set — which the API server
+                       rejects with "Required value", failing the whole
+                       `helm upgrade`, not just this CronJob. Omit the vars
+                       instead and let the aws CLI use the node/IRSA
+                       credentials. */}}
+                {{- with .Values.backup.s3.credentialsSecret.name }}
                 - name: AWS_ACCESS_KEY_ID
-                  valueFrom: { secretKeyRef: { name: {{ .name }}, key: {{ .accessKeyIdKey | default "access-key-id" }} } }
+                  valueFrom: { secretKeyRef: { name: {{ . | quote }}, key: {{ $.Values.backup.s3.credentialsSecret.accessKeyIdKey | default "access-key-id" }} } }
                 - name: AWS_SECRET_ACCESS_KEY
-                  valueFrom: { secretKeyRef: { name: {{ .name }}, key: {{ .secretAccessKeyKey | default "secret-access-key" }} } }
+                  valueFrom: { secretKeyRef: { name: {{ . | quote }}, key: {{ $.Values.backup.s3.credentialsSecret.secretAccessKeyKey | default "secret-access-key" }} } }
                 {{- end }}
                 {{- with .Values.backup.s3.region }}
                 - name: AWS_DEFAULT_REGION

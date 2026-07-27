@@ -108,4 +108,60 @@ for s in DATABASE_PASSWORD JWT_SECRET; do
     [ -z "$(penv "$s")" ] || fail "prod overlay: $s carries a plaintext value — pass it via --set / external-secrets, never a tracked overlay"
 done
 
+# 8. …but that env check can only ever see the plain `.value` path, and every
+#    credential in these charts reaches the container via secretKeyRef — the
+#    plaintext lands in the rendered Secret's data/stringData, where nothing was
+#    looking. That blind spot, plus the fact that this script only ever rendered
+#    the LEAF charts, is how a working JWT signing key sat committed in the
+#    umbrella's values with CI green. Assert on the Secret payload instead, and
+#    run it over the umbrella's deployable overlays so a credential re-entering
+#    values-stage.yaml / values-demo.yaml fails here.
+#
+#    values-ci.yaml is deliberately absent from the list: its `ci-*` strings are
+#    render fixtures whose whole job is to make the secretKeyRef path render at
+#    all, and nothing is ever deployed from that file.
+CRED_KEYS='^(password|database-password|redis-password|jwt-secret|mail-smtp-password|s3-secret-key)$'
+
+assert_no_secret_credentials() {
+    local label="$1" manifests="$2" leaked
+    # Both shapes: leaf charts b64 into .data, the umbrella writes .stringData.
+    leaked="$(printf '%s' "$manifests" |
+        yq 'select(.kind=="Secret") | (.data // {}, .stringData // {}) | to_entries | .[] | select(.value != null and .value != "") | .key' |
+        grep -E "$CRED_KEYS" | sort -u | paste -sd' ' - || true)"
+    [ -z "$leaked" ] ||
+        fail "$label: rendered Secret carries a committed credential (${leaked}) — tracked overlays must leave these empty and take them via --set / external-secrets"
+}
+
+assert_no_secret_credentials "tarassov-me values-prod.example.yaml" "$PROD_RENDERED"
+
+for overlay in values-stage.yaml values-demo.yaml; do
+    [ -f "$CHART/$overlay" ] || fail "env overlay $overlay is gone — update the list in this script"
+    echo "==> helm template (umbrella, $overlay) + committed-credential assertion"
+    OVERLAY_RENDERED="$(helm template env-smoke "$CHART" -f "$CHART/$overlay")"
+    assert_no_secret_credentials "umbrella + $overlay" "$OVERLAY_RENDERED"
+done
+
+# 9. Every alert must carry a runbook_url annotation. It is the one field of a
+#    rule that nothing else validates, and an alert that pages at 03:00 with no
+#    link to a runbook is a pager without a plan. The alert count is asserted
+#    first so the check cannot pass vacuously if monitoring.alertsEnabled is ever
+#    turned off in the prod overlay.
+echo "==> PrometheusRule runbook coverage (prod example)"
+prule() {
+    printf '%s' "$PROD_RENDERED" |
+        yq "select(.kind==\"PrometheusRule\") | .spec.groups[].rules[] | select(has(\"alert\")) | $1"
+}
+
+# yq streams blank lines / document separators through a multi-doc select; keep
+# only the real alert names so an empty result stays empty.
+names() { grep -v -e '^$' -e '^---$' || true; }
+
+alert_count="$(prule '.alert' | names | grep -c . || true)"
+[ "$alert_count" -gt 0 ] ||
+    fail "prod overlay: no PrometheusRule alerts rendered — monitoring.alertsEnabled must stay true, otherwise the runbook check below asserts nothing"
+
+no_runbook="$(prule 'select((.annotations.runbook_url // "") == "") | .alert' | names | paste -sd' ' -)"
+[ -z "$no_runbook" ] ||
+    fail "prod overlay: alert(s) with no runbook_url annotation (${no_runbook}) — every alert needs annotations.runbook_url pointing at a docs/RUNBOOK.md anchor"
+
 echo "==> helm-render: all assertions passed"

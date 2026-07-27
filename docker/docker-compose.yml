@@ -130,6 +130,13 @@ services:
     environment:
       - TEST_PG_HOST=test-postgres
       - TEST_REDIS_HOST=test-redis
+      # Anti-silent-skip guard (tests/test_helpers.hpp): test-postgres and
+      # test-redis are declared healthy dependencies below, so "infra not
+      # available" here always means broken wiring — FAIL loudly instead of
+      # SKIPping every integration/api suite and reporting all-green with zero
+      # coverage. Export CI_REQUIRE_INFRA=0 to opt out on a machine where the
+      # sidecars genuinely can't run.
+      - CI_REQUIRE_INFRA=${CI_REQUIRE_INFRA:-1}
       # No DB_MIGRATIONS_ENABLED=false here: env overrides JSON config, and
       # the fresh test-postgres relies on suites running MigrationRunner to
       # provision the schema (the shared dev postgres used to get it from an

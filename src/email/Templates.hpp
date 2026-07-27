@@ -13,6 +13,11 @@
  * Templates are not cached — files are small and Mailer::send is the
  * dominant cost (network roundtrip). When this becomes a hotspot,
  * cache by mtime in inja::Environment.
+ *
+ * inja has NO autoescaping. Context values are user-controlled (display
+ * names, email addresses), so render() HTML-escapes every string leaf of
+ * the context on the .html path — see escape_html_values(). The .txt path
+ * stays verbatim: escaping there would show "&amp;" to the reader.
  */
 
 #pragma once
@@ -61,7 +66,60 @@ inline std::string read_file(const std::string& path) {
 }
 
 /**
+ * @brief Escape the five markup-significant characters.
+ * @details Covers text nodes and both quoting styles, so one pass is safe
+ *          for `<p>{{ x }}</p>` and `href="{{ x }}"` alike.
+ */
+inline std::string escape_html(const std::string& s) {
+    std::string out;
+    out.reserve(s.size());
+    for (char c : s) {
+        switch (c) {
+            case '&':
+                out += "&amp;";
+                break;
+            case '<':
+                out += "&lt;";
+                break;
+            case '>':
+                out += "&gt;";
+                break;
+            case '"':
+                out += "&quot;";
+                break;
+            case '\'':
+                out += "&#39;";
+                break;
+            default:
+                out += c;
+                break;
+        }
+    }
+    return out;
+}
+
+/**
+ * @brief Recursively HTML-escape every string leaf of a render context.
+ * @details Whole-context rather than per-key so a new template variable is
+ *          safe by default — the failure mode of an opt-in list is a silent
+ *          injection hole. Mirrors Config::substitute_env_placeholders.
+ */
+inline void escape_html_values(json& node) {
+    if (node.is_string()) {
+        node = escape_html(node.get_ref<const std::string&>());
+    } else if (node.is_object()) {
+        for (auto it = node.begin(); it != node.end(); ++it)
+            escape_html_values(it.value());
+    } else if (node.is_array()) {
+        for (auto& v : node)
+            escape_html_values(v);
+    }
+}
+
+/**
  * @brief Render one variant (txt or html) of @p name with @p ctx.
+ * @details On the html variant every string in @p ctx is HTML-escaped first
+ *          (inja does not autoescape); txt renders the context verbatim.
  * @throws std::runtime_error if the file is missing — caller decides
  *         whether that's fatal.
  */
@@ -69,6 +127,11 @@ inline std::string render(const std::string& name, const std::string& ext, const
     const auto path = std::filesystem::path(templates_dir()) / (name + "." + ext);
     const std::string tpl = read_file(path.string());
     inja::Environment env;
+    if (ext == "html") {
+        json safe = ctx;
+        escape_html_values(safe);
+        return env.render(tpl, safe);
+    }
     return env.render(tpl, ctx);
 }
 
@@ -78,8 +141,9 @@ struct Pair {
 };
 
 /**
- * @brief Render both .txt and .html variants in one go. The two share
- *        the same context — same variables resolve identically.
+ * @brief Render both .txt and .html variants in one go. The two share the
+ *        same context — same variables, same values, except that the html
+ *        variant sees them HTML-escaped (see render()).
  */
 inline Pair render_pair(const std::string& name, const json& ctx) {
     Pair p;

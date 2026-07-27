@@ -1,5 +1,16 @@
 cmake_minimum_required(VERSION 3.21)
-project(tarassov_me VERSION 1.5.0 LANGUAGES CXX)
+project(tarassov_me VERSION 2.0.2 LANGUAGES CXX)
+
+# Release builds stamp the git tag in instead of the baked value above:
+# docker/Dockerfile declares ARG APP_VERSION and forwards it as
+# -DPROJECT_VERSION_OVERRIDE, and .github/workflows/release.yml passes the tag.
+# The baked value is the fallback for every non-tag build, so it must equal the
+# newest CHANGELOG release heading — scripts/check-version-sync.sh gates that
+# in CI (it went three releases stale at 1.5.0 with nothing checking).
+if(PROJECT_VERSION_OVERRIDE)
+    set(PROJECT_VERSION "${PROJECT_VERSION_OVERRIDE}")
+    message(STATUS "Application version overridden by build arg: ${PROJECT_VERSION}")
+endif()
 
 # Set C++20 standard
 set(CMAKE_CXX_STANDARD 20)
@@ -110,9 +121,9 @@ target_include_directories(pantor_inja INTERFACE ${INJA_INCLUDE_DIR})
 # explicit nlohmann_json link in COMMON_LIBS would be enough either.
 target_link_libraries(pantor_inja INTERFACE nlohmann_json::nlohmann_json)
 
-# Single source of the version: project(VERSION ...) above renders into
-# generated/version.hpp; Core::version() includes it. Bump the version in
-# project() only.
+# Single source of the version: project(VERSION ...) above (or the release
+# build's -DPROJECT_VERSION_OVERRIDE) renders into generated/version.hpp;
+# Core::version() includes it. Bump the version in project() only.
 configure_file(src/version.hpp.in ${CMAKE_BINARY_DIR}/generated/version.hpp @ONLY)
 
 # Include directories

@@ -57,6 +57,58 @@ TEST_F(TemplatesTest, renderPairReturnsBothVariants) {
     EXPECT_EQ(pair.html, "<b>x</b>");
 }
 
+// ── H2: the .html path escapes context values, the .txt path does not ───────
+// inja has NO autoescaping and the context carries user-controlled values
+// (display names, email addresses), so an unescaped name lands as live markup
+// in every recipient's mail client.
+
+TEST_F(TemplatesTest, htmlVariantEscapesContextValues) {
+    write("xss.html", "<p>Hello {{ user.name }}</p>");
+    const std::string payload = "<img src=x onerror=alert(1)>";
+    auto out = Email::Templates::render("xss", "html", {{"user", {{"name", payload}}}});
+    EXPECT_EQ(out, "<p>Hello &lt;img src=x onerror=alert(1)&gt;</p>");
+    // The template's OWN markup must survive — only the interpolated value is
+    // escaped, so the mail still renders as HTML.
+    EXPECT_NE(out.find("<p>"), std::string::npos) << out;
+    EXPECT_EQ(out.find("<img"), std::string::npos) << "injected tag reached the output: " << out;
+}
+
+TEST_F(TemplatesTest, textVariantEmitsTheRawValue) {
+    write("xss.txt", "Hello {{ user.name }}");
+    // Escaping here would show a reader literal "&lt;" in a plain-text mail.
+    const std::string payload = R"(<img src=x onerror=alert(1)> & "quoted" 'single')";
+    auto out = Email::Templates::render("xss", "txt", {{"user", {{"name", payload}}}});
+    EXPECT_EQ(out, "Hello " + payload);
+}
+
+TEST_F(TemplatesTest, htmlEscapingCoversQuotesAndAmpersand) {
+    // One pass has to be safe for a text node AND for both quoting styles,
+    // since the templates interpolate into href="{{ ... }}" too.
+    json ctx = {{"link", R"(http://x/?a=1&b=2")"}, {"label", R"(Tom & Jerry's)"}};
+    write("attr.html", R"(<a href="{{ link }}">{{ label }}</a>)");
+    auto out = Email::Templates::render("attr", "html", ctx);
+    EXPECT_EQ(out, R"(<a href="http://x/?a=1&amp;b=2&quot;">Tom &amp; Jerry&#39;s</a>)");
+}
+
+TEST_F(TemplatesTest, htmlEscapingReachesNestedAndArrayValues) {
+    // Whole-context recursion, not an opt-in key list: a new template variable
+    // must be safe by default, however deep it sits.
+    json ctx;
+    ctx["a"]["b"]["c"] = "<i>";
+    ctx["items"] = json::array({"<u>", "plain"});
+    write("deep.html", "{{ a.b.c }}|{% for it in items %}{{ it }},{% endfor %}");
+    auto out = Email::Templates::render("deep", "html", ctx);
+    EXPECT_EQ(out, "&lt;i&gt;|&lt;u&gt;,plain,");
+}
+
+TEST_F(TemplatesTest, renderPairEscapesOnlyTheHtmlSide) {
+    write("pairxss.txt", "text: {{ v }}");
+    write("pairxss.html", "<b>{{ v }}</b>");
+    auto pair = Email::Templates::render_pair("pairxss", {{"v", "<img src=x onerror=alert(1)>"}});
+    EXPECT_EQ(pair.text, "text: <img src=x onerror=alert(1)>");
+    EXPECT_EQ(pair.html, "<b>&lt;img src=x onerror=alert(1)&gt;</b>");
+}
+
 TEST_F(TemplatesTest, missingTemplateThrows) {
     EXPECT_THROW(Email::Templates::render("nope", "txt", json::object()), std::runtime_error);
 }

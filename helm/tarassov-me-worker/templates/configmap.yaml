@@ -6,9 +6,10 @@ metadata:
     {{- include "tarassov-me-worker.labels" . | nindent 4 }}
 data:
   # NOTE: secrets (DB / Redis passwords) are NOT inlined here — a ConfigMap is
-  # world-readable in the cluster. The worker expands ${DATABASE_PASSWORD} /
-  # ${REDIS_PASSWORD} at startup from env vars the Deployment injects via
-  # secretKeyRef (see deployment.yaml / templates/secret.yaml).
+  # world-readable in the cluster. The worker expands ${REDIS_PASSWORD} /
+  # ${MAIL_SMTP_PASSWORD} at startup from env vars the Deployment injects via
+  # secretKeyRef (see deployment.yaml / templates/secret.yaml). The database
+  # password is not referenced here at all — see the "database" block below.
   config.json: |
     {
       "logging": {
@@ -23,12 +24,14 @@ data:
         "otlp_endpoint": {{ if .Values.tracing.enabled }}{{ .Values.tracing.otlpEndpoint | quote }}{{ else }}""{{ end }}
       },
       "database": {
-        "primary": "postgresql://{{ .Values.externalDatabase.user }}:${DATABASE_PASSWORD}@{{ .Values.externalDatabase.host }}:{{ .Values.externalDatabase.port }}/{{ .Values.externalDatabase.name }}",
-        "replicas": [
-          {{- if .Values.externalDatabase.replicaHost }}
-          "postgresql://{{ .Values.externalDatabase.user }}:${DATABASE_PASSWORD}@{{ .Values.externalDatabase.replicaHost }}:{{ .Values.externalDatabase.port }}/{{ .Values.externalDatabase.name }}"
-          {{- end }}
-        ],
+        {{- /* Neither "primary" nor "replicas" is rendered here. Both DSNs are
+               assembled IN CODE (Utils::Pg::make_conninfo) from the discrete
+               DATABASE_HOST/PORT/USER/NAME env plus DATABASE_PASSWORD, which is
+               what _helpers.tpl and deployment.yaml promise. Interpolating
+               ${DATABASE_PASSWORD} into a postgresql:// URL here took the
+               URL branch of Core::init_database_ instead, skipping quote_value
+               — so a password containing / ? # or % (openssl rand -base64
+               emits /) broke libpq's authority parsing on every pod. */}}
         "pool_size": {{ .Values.externalDatabase.poolSize }},
         "migrations_enabled": {{ .Values.externalDatabase.migrationsEnabled | default false }}
       },
@@ -54,10 +57,16 @@ data:
       "jobs": {
         "enabled": {{ .Values.jobs.enabled }},
         "result_ttl": {{ .Values.jobs.resultTtl }},
-        "max_retries": {{ .Values.jobs.maxRetries }}
+        "max_retries": {{ .Values.jobs.maxRetries }},
+        "retry_backoff_base_ms": {{ .Values.jobs.retryBackoffBaseMs }},
+        "retry_backoff_max_ms": {{ .Values.jobs.retryBackoffMaxMs }},
+        "visibility_timeout_sec": {{ .Values.jobs.visibilityTimeoutSec }}
       },
       "worker": {
-        "id": {{ .Values.worker.id | quote }},
+        {{- /* "id" is deliberately absent: the Deployment always sets WORKER_ID
+               (the pod name unless worker.id is overridden) and env wins over
+               this file, so a literal here could only ever be a misleading
+               dead value. */}}
         "types": [{{- range $i, $t := splitList "," .Values.worker.types }}{{- if gt $i 0 }}, {{ end }}{{ $t | quote }}{{- end }}],
         "concurrency": {{ .Values.worker.concurrency }},
         "health_port": {{ .Values.worker.healthPort }},

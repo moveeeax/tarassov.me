@@ -68,6 +68,12 @@ jobs:
         # Run-only targets — compose reuses the tarassov-me:test-latest image
         # loaded above and never rebuilds. test-quick covers unit+integration,
         # test-e2e the HTTP end-to-end binary (mirrors `make test` coverage).
+        env:
+          # Interpolated into the compose test-runner environment block. Without
+          # it every DB/cache-backed suite SKIPs when the sidecars are mis-wired
+          # and the job still exits 0 — green with zero integration coverage.
+          # See the guard in tests/test_helpers.hpp.
+          CI_REQUIRE_INFRA: '1'
         run: |
           make test-quick COMPOSE_BIN="docker compose"
           make test-e2e COMPOSE_BIN="docker compose"
@@ -77,6 +83,102 @@ jobs:
         run: |
           docker compose -f docker/docker-compose.yml --env-file docker/.env \
             --profile test logs test-runner || true
+
+  runtime-images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read  # pull ghcr builder:cache
+    # The images we actually ship. Everything else in CI builds `builder` or
+    # `test-runner`, and both the gtest and e2e suites run INSIDE the builder
+    # with the full toolchain — so runtime-base's thin ~8-package layer is
+    # never exercised until the cluster pulls it. Adding a link-time dependency
+    # without mirroring it into runtime-base ships green and CrashLoopBackOffs
+    # in prod (that is the recorded ca-certificates/STARTTLS incident). Until
+    # this job existed the release workflow's Trivy CVE scan was the only thing
+    # that ever looked at these two stages.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
+
+      - name: Log in to GHCR (pull builder cache)
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build API runtime image
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: runtime
+          push: false
+          load: true
+          tags: tarassov-me:runtime-ci
+          build-args: ENABLE_WERROR=ON
+          cache-from: |
+            type=gha
+            type=registry,ref=ghcr.io/${{ github.repository }}/builder:cache
+          cache-to: type=gha,mode=max
+
+      - name: Build worker runtime image
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: worker-runtime
+          push: false
+          load: true
+          tags: tarassov-me-worker:runtime-ci
+          build-args: ENABLE_WERROR=ON
+          cache-from: |
+            type=gha
+            type=registry,ref=ghcr.io/${{ github.repository }}/builder:cache
+          cache-to: type=gha,mode=max
+
+      - name: Runtime images resolve every shared library
+        # ldd exits 0 even when a DT_NEEDED entry is missing, so grep the
+        # output. Also assert the CA bundle is present: without it every
+        # outbound TLS (SMTP STARTTLS, S3) fails at runtime only.
+        run: |
+          check_image() {
+            image="$1"; binary="$2"
+            echo "── $image (/app/$binary)"
+            docker run --rm --entrypoint /bin/sh "$image" -c "ldd /app/$binary" | tee ldd.txt
+            if grep -q 'not found' ldd.txt; then
+              echo "::error::$image: unresolved shared library — runtime-base is missing a package"
+              exit 1
+            fi
+            docker run --rm --entrypoint /bin/sh "$image" -c \
+              'test -s /etc/ssl/certs/ca-certificates.crt' || {
+              echo "::error::$image: no CA bundle — outbound TLS (SMTP/S3) would fail"
+              exit 1
+            }
+          }
+          check_image tarassov-me:runtime-ci tarassov_me
+          check_image tarassov-me-worker:runtime-ci tarassov_me_worker
+
+      - name: API runtime binary starts
+        # --print-routes returns before any Core init, so no Postgres/Redis is
+        # needed and the check still proves the shipped binary loads and runs.
+        run: |
+          docker run --rm tarassov-me:runtime-ci --print-routes | tee routes.txt
+          grep -q '/healthz' routes.txt
+
+      - name: Worker runtime binary starts
+        # The worker takes no no-op flag: point it at a config that isn't there
+        # so it exits non-zero AFTER the startup banner. The banner is what we
+        # assert on — reaching it means the dynamic loader and the static
+        # initialisers ran inside the runtime image.
+        run: |
+          out="$(timeout 120 docker run --rm tarassov-me-worker:runtime-ci config/no-such-config.json 2>&1 || true)"
+          printf '%s\n' "$out"
+          printf '%s\n' "$out" | grep -q 'C++ API Worker Starting'
 
   lint-format:
     runs-on: ubuntu-latest
@@ -140,6 +242,11 @@ jobs:
         run: ./scripts/check-test-buckets.sh
       - name: Check public-surface sync (CSP x3, nginx blocks, allowlist x4)
         run: ./scripts/check-public-surface-sync.sh
+      - name: Check version sync (CMakeLists.txt <-> CHANGELOG)
+        # The baked project(VERSION ...) is what /health and / report on every
+        # non-tag build; it went three releases stale because nothing compared
+        # it to the changelog. Cut a release => bump both in the same commit.
+        run: ./scripts/check-version-sync.sh
 
   helm-charts:
     runs-on: ubuntu-latest

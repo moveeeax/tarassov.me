@@ -245,6 +245,16 @@ public:
         }
 
         auto job = Job::from_json(json::parse(*data));
+        // Cancelled (or otherwise terminal) between the LPUSH and this pop —
+        // cancel() LREMs the live queue, but a concurrent BRPOPLPUSH can win
+        // that race. Drop the id instead of executing a cancelled job.
+        if (is_terminal_status_(job.status)) {
+            try {
+                redis.lrem(proc_list, 0, job_id);
+            } catch (...) {}
+            spdlog::debug("Job {} popped but already {} — not executed", job_id, job.status);
+            return std::nullopt;
+        }
         job.status = "processing";
         job.worker_id = worker_id;
         job.updated_at = now_epoch();
@@ -298,7 +308,11 @@ public:
     }
 
     /**
-     * @brief Mark a job as failed; requeue if retries remain
+     * @brief Mark a job as failed; requeue if retries remain.
+     * @details No-op (beyond dropping stale tracking) when the re-read blob is
+     *          already terminal — a handler that throws AFTER the job was
+     *          cancelled must not resurrect it, nor overwrite the TTL'd blob
+     *          cancel() wrote.
      */
     void fail(const std::string& id, const std::string& error) {
         check_initialized();
@@ -310,6 +324,19 @@ public:
         }
 
         auto job = Job::from_json(json::parse(*data));
+        if (is_terminal_status_(job.status)) {
+            // Cancelled / completed / DLQ'd underneath us. Leave the blob alone
+            // (rewriting it with a plain SET would also strip the result TTL)
+            // and just clear any tracking this worker still holds.
+            if (!job.worker_id.empty()) {
+                try {
+                    redis.lrem(processing_key(job.worker_id), 0, id);
+                } catch (...) {}
+            }
+            clear_lease_(redis, id);
+            spdlog::info("Job {} failure ignored — already {}: {}", id, job.status, error);
+            return;
+        }
         job.retry_count++;
         job.updated_at = now_epoch();
 
@@ -517,11 +544,18 @@ public:
     }
 
     /**
-     * @brief Return any jobs left in this worker's processing list to the
+     * @brief Return any jobs THIS worker left in its processing list to the
      *        live queue. Call once at worker startup: if the previous
      *        instance with the same WORKER_ID crashed between BRPOPLPUSH
      *        and complete()/fail(), the id stranded in jobs:processing:*
      *        gets rescued and re-executed.
+     * @details Ownership-checked and non-destructive: a blob naming a different
+     *          worker is left alone (its owner may be alive and running it —
+     *          re-queueing it would duplicate a non-idempotent handler), and
+     *          only the ids actually handled are LREM'd. The old version
+     *          re-queued every entry and then DEL'd the whole list, which with a
+     *          WORKER_ID shared across pods destroyed a live sibling's
+     *          crash-recovery tracking on every rollout.
      * @return number of jobs rescued.
      */
     long recover_processing(const std::string& worker_id) {
@@ -531,10 +565,10 @@ public:
         auto& redis = Cache::get().get_client();
         const std::string proc = processing_key(worker_id);
         long recovered = 0;
-        // Snapshot the list, push each id back onto its type queue, then drop
-        // the processing list. Not atomic across commands, but run during
-        // startup only — the worker hasn't picked anything yet, so nothing
-        // else writes here.
+        // Snapshot the list and handle each id individually, LREM'ing only what
+        // we actually dealt with. Not atomic across commands, but this worker
+        // hasn't picked anything yet, so the only other writer would be a
+        // foreign worker sharing the id — which the ownership gate below skips.
         std::vector<std::string> ids;
         try {
             redis.lrange(proc, 0, -1, std::back_inserter(ids));
@@ -544,12 +578,41 @@ public:
         for (const auto& id : ids) {
             try {
                 auto data = redis.get(job_key(id));
-                if (!data)
+                if (!data) {
+                    // Blob gone (TTL'd or never written) — nothing to rescue,
+                    // just drop the dangling tracking entry.
+                    try {
+                        redis.lrem(proc, 0, id);
+                    } catch (...) {}
                     continue;
+                }
                 Job job;
                 try {
                     job = Job::from_json(json::parse(*data));
                 } catch (...) {
+                    // Unusable blob — nothing to rescue. The blanket DEL this
+                    // function used to end with cleared such entries; without an
+                    // explicit LREM they would now sit in the list forever.
+                    try {
+                        redis.lrem(proc, 0, id);
+                    } catch (...) {}
+                    continue;
+                }
+                // Ownership gate. pick() stamps the claiming worker id on the
+                // blob, so an entry naming a DIFFERENT worker belongs to a
+                // sibling (possibly still executing it): leave it, and leave its
+                // tracking intact — the lease reaper reclaims it if that worker
+                // really is dead. An empty worker_id is the narrow
+                // crash-between-BRPOP-and-status-write window; the id can only
+                // be in THIS list because this worker put it there, so it's ours.
+                if (!job.worker_id.empty() && job.worker_id != worker_id)
+                    continue;
+                // Already completed/cancelled/DLQ'd — drop the stale entry
+                // rather than re-running it.
+                if (is_terminal_status_(job.status)) {
+                    try {
+                        redis.lrem(proc, 0, id);
+                    } catch (...) {}
                     continue;
                 }
                 // Put it back on the live queue so another worker (or this one
@@ -560,12 +623,10 @@ public:
                 job.updated_at = now_epoch();
                 redis.set(job_key(id), job.to_json().dump());
                 redis.lpush(queue_key(job.type), id);
+                redis.lrem(proc, 0, id);
                 ++recovered;
             } catch (...) {}
         }
-        try {
-            redis.del(proc);
-        } catch (...) {}
         if (recovered > 0) {
             spdlog::warn("Jobs: recovered {} orphaned jobs from {}", recovered, proc);
         }
@@ -602,10 +663,35 @@ public:
                 auto data = redis.get(job_key(id));
                 if (!data)
                     continue;  // blob expired — drop the orphaned delayed entry
-                auto job = Job::from_json(json::parse(*data));
+                Job job;
+                try {
+                    job = Job::from_json(json::parse(*data));
+                } catch (const std::exception& e) {
+                    // Unusable blob (schema drift across a deploy). Handled HERE
+                    // rather than by the compensating catch below: re-parking it
+                    // would fail identically on the next sweep, and on every
+                    // sweep after that, forever. The ZREM already dropped it.
+                    spdlog::warn("Jobs: delayed job {} has an unusable blob ({}) — dropped", id, e.what());
+                    continue;
+                }
+                // Cancelled while parked in backoff — the ZREM above is exactly
+                // the cleanup it needs; re-queueing would resurrect it.
+                if (is_terminal_status_(job.status)) {
+                    spdlog::debug("Job {} dropped from the delayed set — already {}", id, job.status);
+                    continue;
+                }
                 redis.lpush(queue_key(job.type), id);
                 ++moved;
-            } catch (...) {}
+            } catch (const std::exception& e) {
+                // The ZREM is the concurrency gate, so a fault after it (and
+                // before the LPUSH landed) would leave the job referenced by no
+                // queue and no delayed set — orphaned forever, since the blob
+                // has no TTL. Put it back, due immediately, and say so.
+                try {
+                    redis.zadd(delayed_key(), id, static_cast<double>(now_ms));
+                } catch (...) {}
+                spdlog::warn("Jobs: promoting delayed job {} failed ({}) — returned to the delayed set", id, e.what());
+            }
         }
         return moved;
     }
@@ -641,7 +727,27 @@ public:
                     continue;
                 fail(id, "visibility timeout exceeded");
                 ++reaped;
-            } catch (...) {}
+            } catch (const std::exception& e) {
+                // Same rollback discipline as promote_due_jobs(): the ZREM is
+                // the gate, so a fault before fail() finished would strand the
+                // job with no lease, no queue entry and no log. Restore the
+                // lease unless the blob is gone — nothing to reclaim then, and a
+                // permanent restore would spin every sweep. Restore it for one
+                // more visibility window rather than due-immediately: if the
+                // failure is deterministic (an unusable blob makes fail() throw
+                // every time) a due-now lease re-fires on every single sweep.
+                bool restored = false;
+                try {
+                    if (redis.exists(job_key(id)) > 0) {
+                        redis.zadd(leases_key(), id, static_cast<double>(now_ms + visibility_timeout_ms_));
+                        restored = true;
+                    }
+                } catch (...) {}
+                spdlog::warn("Jobs: reclaiming expired lease for {} failed ({}) — lease {}",
+                             id,
+                             e.what(),
+                             restored ? "restored for a later sweep" : "dropped (job blob gone)");
+            }
         }
         return reaped;
     }
@@ -673,12 +779,11 @@ public:
         }
 
         auto job = Job::from_json(json::parse(*data));
-        // Terminal states can't be cancelled. The real vocabulary is
-        // pending/processing/completed/dead (+ "failed", which only cancel()
-        // itself sets). The old guard checked "failed" but not "dead", so a DLQ
-        // ("dead") job could be cancelled — that TTL-expired its blob while the
-        // id stayed indexed in the DLQ set, leaving a dangling entry.
-        if (job.status == "completed" || job.status == "dead" || job.status == "failed") {
+        // Terminal states can't be cancelled (see is_terminal_status_). The old
+        // guard checked "failed" but not "dead", so a DLQ ("dead") job could be
+        // cancelled — that TTL-expired its blob while the id stayed indexed in
+        // the DLQ set, leaving a dangling entry.
+        if (is_terminal_status_(job.status)) {
             return false;
         }
 
@@ -689,10 +794,13 @@ public:
 
         redis.setex(job_key(id), result_ttl_, job.to_json().dump());
 
-        // Drop it from wherever it currently lives: the pending queue, or — if a
-        // worker already claimed it — that worker's processing list, so crash
-        // recovery won't resurrect a cancelled job.
+        // Drop it from wherever it currently lives: the pending queue, the
+        // backoff set (a job parked between retries reads as "pending", so it is
+        // cancellable — without this ZREM promote_due_jobs() re-queued it purely
+        // on score), or — if a worker already claimed it — that worker's
+        // processing list, so crash recovery won't resurrect a cancelled job.
         redis.lrem(queue_key(job.type), 0, id);
+        redis.zrem(delayed_key(), id);
         if (was_processing && !job.worker_id.empty())
             redis.lrem(processing_key(job.worker_id), 0, id);
         clear_lease_(redis, id);
@@ -822,6 +930,15 @@ private:
         if (!initialized_) {
             throw std::runtime_error("JobQueue not initialized");
         }
+    }
+
+    // Terminal states: the job is done with and must never be re-queued,
+    // promoted, re-picked or re-failed. The vocabulary is
+    // pending/processing/completed/dead (+ "failed", which only cancel() sets).
+    // Every transition re-reads the blob and consults this before acting, so a
+    // cancel that lands mid-flight is durable.
+    static bool is_terminal_status_(const std::string& status) {
+        return status == "completed" || status == "dead" || status == "failed";
     }
 
     // Drop a job's visibility lease (no-op when the feature is off or the lease

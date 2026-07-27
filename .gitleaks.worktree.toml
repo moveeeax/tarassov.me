@@ -1,0 +1,19 @@
+# Work-tree-only gitleaks config — NOT used by CI or by the pre-commit hook.
+#
+# Use it when scanning the checkout itself rather than git content:
+#
+#   gitleaks detect --no-git --config .gitleaks.worktree.toml
+#
+# It inherits every rule and allowlist entry from .gitleaks.toml and adds the
+# gitignored per-environment Helm overlays, which legitimately hold real
+# db/redis/jwt secrets on a developer machine. That exclusion must never move
+# into .gitleaks.toml: the staged-diff and full-history scans are precisely
+# where those paths appearing is a real incident.
+[extend]
+path = ".gitleaks.toml"
+
+[allowlist]
+description = "Local-only environment overlays (gitignored, never committed)"
+paths = [
+  '''helm/.*/values-prod\.yaml''',
+]

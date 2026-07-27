@@ -12,16 +12,27 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Extract suite names (TEST_F and TEST) per bucket directory
-suites_from_dir() {
-    local dir="$1"
-    grep -rhoE 'TEST(_F)?\([A-Za-z0-9_]+,' "$dir" 2>/dev/null \
+# Extract suite names (TEST_F and TEST) from one or more bucket directories.
+# Greps "$@", not just "$1": the integration bucket spans tests/integration AND
+# tests/api (CMake globs both into a single labeled binary). Reading only the
+# first argument silently dropped every tests/api suite from the collision
+# check below — i.e. the guard didn't run for a quarter of the bucket.
+suites_from_dirs() {
+    grep -rhoE 'TEST(_F)?\([A-Za-z0-9_]+,' "$@" 2>/dev/null \
         | sed 's/TEST_F(//; s/TEST(//; s/,//' \
         | sort -u
 }
 
-unit_suites="$(suites_from_dir "$REPO/tests/unit")"
-integration_suites="$(suites_from_dir "$REPO/tests/integration" "$REPO/tests/api")"
+# Count non-empty lines of a suite list ("" -> 0).
+count_suites() {
+    printf '%s\n' "$1" | grep -c . || true
+}
+
+unit_suites="$(suites_from_dirs "$REPO/tests/unit")"
+integration_dir_suites="$(suites_from_dirs "$REPO/tests/integration")"
+api_dir_suites="$(suites_from_dirs "$REPO/tests/api")"
+integration_suites="$(printf '%s\n%s\n' "$integration_dir_suites" "$api_dir_suites" |
+    sort -u | grep -v '^$' || true)"
 
 fail=0
 
@@ -38,15 +49,20 @@ if [ -n "$unit_suites" ] && [ -n "$integration_suites" ]; then
     fi
 fi
 
-# Sanity: ensure both buckets are non-empty (catches an accidentally empty dir)
-unit_count="$(printf '%s\n' "$unit_suites" | grep -c . || true)"
-integration_count="$(printf '%s\n' "$integration_suites" | grep -c . || true)"
+# Sanity: ensure every bucket DIRECTORY is non-empty (catches an accidentally
+# empty dir). Checked per directory, not on the merged integration list: a
+# populated tests/integration would otherwise hide an empty tests/api.
+unit_count="$(count_suites "$unit_suites")"
+integration_count="$(count_suites "$integration_suites")"
 
 if [ "$unit_count" -eq 0 ]; then
     echo "WARNING: no TEST/TEST_F suites found in tests/unit/ — is the directory empty?" >&2
 fi
-if [ "$integration_count" -eq 0 ]; then
-    echo "WARNING: no TEST/TEST_F suites found in tests/integration/ or tests/api/ — is the directory empty?" >&2
+if [ "$(count_suites "$integration_dir_suites")" -eq 0 ]; then
+    echo "WARNING: no TEST/TEST_F suites found in tests/integration/ — is the directory empty?" >&2
+fi
+if [ "$(count_suites "$api_dir_suites")" -eq 0 ]; then
+    echo "WARNING: no TEST/TEST_F suites found in tests/api/ — is the directory empty?" >&2
 fi
 
 if [ "$fail" -ne 0 ]; then

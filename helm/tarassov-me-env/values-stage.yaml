@@ -2,14 +2,26 @@
 # STAGE preset for the tarassov-me-env umbrella → *.stage.tarassov.me
 #
 # Snapshot of the live `stage` release (ns env-stage) taken with
-# `helm get values stage -n env-stage`. The umbrella keeps the chart-default
-# (test) credentials in-namespace, so there are NO real secrets here and this
-# file is safe to commit (unlike the gitignored helm/**/values-prod.yaml).
+# `helm get values stage -n env-stage`. NO credentials live here (this file is
+# committed to a PUBLIC repo): the umbrella's `credentials:` defaults are empty
+# and stage is a real internet-facing host, so the secrets MUST come in via
+# --set at deploy time. An empty jwtSecret fail-closes the API at boot, which is
+# the intended signal that the --set flags are missing.
 #
-# Deploy:
+# Deploy (generate the secrets once, keep them out of git — e.g. in a local
+# env file or your secret store — and pass them every upgrade):
 #   helm dependency build ./helm/tarassov-me-env
 #   helm upgrade --install stage ./helm/tarassov-me-env -n env-stage --create-namespace \
-#     -f helm/tarassov-me-env/values-stage.yaml
+#     -f helm/tarassov-me-env/values-stage.yaml \
+#     --set credentials.dbPassword="$DB_PASS" \
+#     --set credentials.redisPassword="$REDIS_PASS" \
+#     --set credentials.jwtSecret="$JWT_SECRET" \
+#     --set tarassov-me.externalDatabase.password="$DB_PASS" \
+#     --set tarassov-me.externalRedis.password="$REDIS_PASS" \
+#     --set tarassov-me.auth.jwtSecret="$JWT_SECRET" \
+#     --set tarassov-me-worker.externalDatabase.password="$DB_PASS" \
+#     --set tarassov-me-worker.externalRedis.password="$REDIS_PASS" \
+#     --set tarassov-me-worker.auth.jwtSecret="$JWT_SECRET"
 #
 # NOTE: image tags below are pinned to the v1.3.3 release. Bump the three
 # `image.tag` values to roll a newer one.

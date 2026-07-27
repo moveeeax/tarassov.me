@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <optional>
 #include <string>
 
@@ -43,19 +44,38 @@ inline GeneratedKey generate() {
     return g;
 }
 
+/// Number of hex chars after the prefix — generate() uses random_hex(32).
+inline constexpr std::size_t kSecretHexLen = 64;
+
+/// Cheap shape check: exactly `cpk_` + 64 lowercase hex chars, as minted by
+/// generate(). Applied to BOTH credential sources so a junk header costs a
+/// string compare instead of an indexed lookup on the primary DB — auth runs
+/// ahead of the rate limiter, so anything reaching the query is unthrottled.
+inline bool looks_like_key(const std::string& tok) {
+    const std::size_t plen = std::char_traits<char>::length(kPrefix);
+    if (tok.size() != plen + kSecretHexLen)
+        return false;
+    if (tok.compare(0, plen, kPrefix) != 0)
+        return false;
+    return std::all_of(tok.begin() + static_cast<std::string::difference_type>(plen), tok.end(), [](unsigned char c) {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+    });
+}
+
 /// Pull a `cpk_`-prefixed credential from the request: the X-API-Key header, or
 /// an `Authorization: Bearer <key>` / `ApiKey <key>` whose token has the prefix.
-/// Returns "" when none is present (so the caller falls through to JWT/cookie).
+/// Returns "" when none is present OR the presented value isn't key-shaped (so
+/// the caller falls through to JWT/cookie, which 401s on garbage anyway).
 inline std::string extract_key(const drogon::HttpRequestPtr& req) {
     const std::string& x = req->getHeader("X-API-Key");
-    if (!x.empty())
+    if (looks_like_key(x))
         return x;
     const std::string& authz = req->getHeader("Authorization");
     for (const char* scheme : {"Bearer ", "ApiKey "}) {
-        const std::size_t n = std::string(scheme).size();
+        const std::size_t n = std::char_traits<char>::length(scheme);
         if (authz.size() > n && authz.compare(0, n, scheme) == 0) {
             std::string tok = authz.substr(n);
-            if (tok.compare(0, std::string(kPrefix).size(), kPrefix) == 0)
+            if (looks_like_key(tok))
                 return tok;
         }
     }
