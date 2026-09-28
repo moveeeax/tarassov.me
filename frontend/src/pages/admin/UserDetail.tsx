@@ -6,9 +6,11 @@ import { useState } from 'react';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FormField } from '@/components/FormField';
 import { RoleSelect } from '@/components/RoleSelect';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/tabler/Button';
+import { Card, CardBody, CardHeader, CardTitle } from '@/components/tabler/Card';
+import { Label } from '@/components/tabler/Input';
+import { PageHeader } from '@/components/tabler/PageHeader';
+import { Placeholder } from '@/components/tabler/Placeholder';
 import { useToast } from '@/components/tabler/Toaster';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { useErrorToast } from '@/hooks/useErrorToast';
@@ -48,94 +50,108 @@ export function AdminUserDetailPage() {
 
   useErrorToast(update.error ?? remove.error);
 
-  if (userQ.isLoading) return <p className="container py-8">Loading…</p>;
+  if (userQ.isLoading)
+    return (
+      <div className="container-xl">
+        <Placeholder />
+      </div>
+    );
   if (userQ.error || !userQ.data)
-    return <p className="container py-8 text-destructive">User not found.</p>;
+    return <p className="container-xl text-danger">User not found.</p>;
 
   const user = userQ.data.data;
   const isSelf = me?.id === user.id;
 
   return (
-    <div className="container mx-auto max-w-2xl py-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{user.email}</h1>
-        <Button variant="ghost" asChild>
-          <Link to="/admin/users">← Back</Link>
-        </Button>
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const fd = new FormData(e.currentTarget);
-              const patch: Record<string, unknown> = {};
-              const newEmail = String(fd.get('email') || '');
-              const newRoleId = Number(fd.get('role_id'));
-              const newFirst = String(fd.get('first_name') || '');
-              const newLast = String(fd.get('last_name') || '');
-              if (newEmail && newEmail !== user.email) patch.email = newEmail;
-              if (newRoleId && newRoleId !== user.role_id) patch.role_id = newRoleId;
-              if (newFirst !== (user.first_name ?? '')) patch.first_name = newFirst;
-              if (newLast !== (user.last_name ?? '')) patch.last_name = newLast;
-              if (Object.keys(patch).length === 0) return;
-              update.mutate(patch);
-            }}
-            className="space-y-3"
-          >
-            <FormField id="email" name="email" label="Email" defaultValue={user.email} />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <FormField
-                id="first_name"
-                name="first_name"
-                label="First name"
-                defaultValue={user.first_name ?? ''}
-              />
-              <FormField
-                id="last_name"
-                name="last_name"
-                label="Last name"
-                defaultValue={user.last_name ?? ''}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="role_id">Role</Label>
-              <RoleSelect
-                id="role_id"
-                name="role_id"
-                defaultValue={user.role_id}
-                disabled={isSelf}
-              />
-              {isSelf && (
-                <p className="text-xs text-muted-foreground">
-                  You cannot change the role of your own account.
-                </p>
-              )}
-            </div>
-            <Button type="submit" disabled={update.isPending}>
-              {update.isPending ? 'Saving…' : 'Save changes'}
+    <>
+      <PageHeader
+        title={user.email}
+        pretitle="User"
+        actions={
+          <Link to="/admin/users" className="btn btn-ghost-secondary">
+            ← Back
+          </Link>
+        }
+      />
+      <div className="container-xl vstack gap-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>Details</CardTitle>
+          </CardHeader>
+          <CardBody>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const patch: Record<string, unknown> = {};
+                const newEmail = String(fd.get('email') || '');
+                const newRoleId = Number(fd.get('role_id'));
+                const newFirst = String(fd.get('first_name') || '');
+                const newLast = String(fd.get('last_name') || '');
+                if (newEmail && newEmail !== user.email) patch.email = newEmail;
+                if (newRoleId && newRoleId !== user.role_id) patch.role_id = newRoleId;
+                if (newFirst !== (user.first_name ?? '')) patch.first_name = newFirst;
+                if (newLast !== (user.last_name ?? '')) patch.last_name = newLast;
+                if (Object.keys(patch).length === 0) return;
+                update.mutate(patch);
+              }}
+              className="vstack gap-3"
+            >
+              <FormField id="email" name="email" label="Email" defaultValue={user.email} />
+              <div className="row">
+                <div className="col-sm-6">
+                  <FormField
+                    id="first_name"
+                    name="first_name"
+                    label="First name"
+                    defaultValue={user.first_name ?? ''}
+                  />
+                </div>
+                <div className="col-sm-6">
+                  <FormField
+                    id="last_name"
+                    name="last_name"
+                    label="Last name"
+                    defaultValue={user.last_name ?? ''}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="role_id">Role</Label>
+                <RoleSelect
+                  id="role_id"
+                  name="role_id"
+                  defaultValue={user.role_id}
+                  disabled={isSelf}
+                />
+                {isSelf && (
+                  <div className="form-hint">You cannot change the role of your own account.</div>
+                )}
+              </div>
+              <div>
+                <Button type="submit" disabled={update.isPending}>
+                  {update.isPending ? 'Saving…' : 'Save changes'}
+                </Button>
+              </div>
+            </form>
+          </CardBody>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-danger">Danger zone</CardTitle>
+          </CardHeader>
+          <CardBody>
+            <Button variant="danger" disabled={isSelf} onClick={() => setConfirmDelete(true)}>
+              Delete user
             </Button>
-          </form>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-destructive">Danger zone</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Button variant="destructive" disabled={isSelf} onClick={() => setConfirmDelete(true)}>
-            Delete user
-          </Button>
-          {isSelf && (
-            <p className="text-xs text-muted-foreground mt-2">
-              You cannot delete your own account; ask another admin.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+            {isSelf && (
+              <div className="form-hint mt-2">
+                You cannot delete your own account; ask another admin.
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      </div>
       {confirmDelete && (
         <ConfirmDialog
           title="Delete user"
@@ -147,6 +163,6 @@ export function AdminUserDetailPage() {
           onClose={() => setConfirmDelete(false)}
         />
       )}
-    </div>
+    </>
   );
 }

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2 } from 'lucide-react';
+import { IconTrash } from '@tabler/icons-react';
 
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DataTable, type Column } from '@/components/DataTable';
 import { PaginationFooter } from '@/components/PaginationFooter';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/tabler/Button';
+import { Card, CardFooter } from '@/components/tabler/Card';
+import { PageHeader } from '@/components/tabler/PageHeader';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { useErrorToast } from '@/hooks/useErrorToast';
 import { usePagedQuery } from '@/hooks/usePagedQuery';
@@ -58,67 +59,80 @@ export function AdminMediaPage() {
   const columns: Column<UploadItem>[] = [
     {
       header: '',
-      className: 'w-16',
+      className: 'w-1',
       cell: (u) => (
         <a href={u.url} target="_blank" rel="noopener">
-          <img src={u.url} alt={u.name} className="h-10 w-10 rounded object-cover" loading="lazy" />
+          <img
+            src={u.url}
+            alt={u.name}
+            width={40}
+            height={40}
+            className="rounded object-cover"
+            loading="lazy"
+          />
         </a>
       ),
     },
-    { header: 'Name', className: 'font-mono text-xs', cell: (u) => u.name },
-    { header: 'Size', className: 'text-xs', cell: (u) => fmtSize(u.size_bytes) },
-    { header: 'Type', className: 'text-xs', cell: (u) => u.content_type },
-    { header: 'Uploaded', className: 'text-xs', cell: (u) => u.created_at.slice(0, 10) },
+    { header: 'Name', className: 'font-monospace small', cell: (u) => u.name },
+    { header: 'Size', className: 'small', cell: (u) => fmtSize(u.size_bytes) },
+    { header: 'Type', className: 'small', cell: (u) => u.content_type },
+    { header: 'Uploaded', className: 'small', cell: (u) => u.created_at.slice(0, 10) },
     {
       header: '',
-      className: 'text-right',
+      className: 'text-end',
       cell: (u) => (
-        <Button size="sm" variant="ghost" onClick={() => setDeleting(u)}>
-          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label={`Delete ${u.name}`}
+          onClick={() => setDeleting(u)}
+        >
+          <IconTrash size={16} className="text-danger" />
         </Button>
       ),
     },
   ];
 
   return (
-    <div className="container mx-auto max-w-4xl py-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Media</h1>
-          <p className="text-sm text-muted-foreground">
+    <>
+      <PageHeader
+        title="Media"
+        pretitle={data ? `${data.total} file(s)` : 'Admin'}
+        actions={
+          <Link to="/admin" className="btn btn-ghost-secondary">
+            ← Admin
+          </Link>
+        }
+      />
+      <div className="container-xl">
+        <Card>
+          <div className="card-body py-2 small text-secondary">
             Images uploaded from the post editor. Deleting a file a post still embeds leaves a
             broken image.
-          </p>
-        </div>
-        <Button asChild variant="ghost">
-          <Link to="/admin">← Admin</Link>
-        </Button>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{data ? `${data.total} file(s)` : 'Loading…'}</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <DataTable
-            columns={columns}
-            rows={data?.data}
-            rowKey={(u) => u.key}
-            isLoading={isLoading}
-            error={error}
-            emptyText="No uploads yet."
-            isPlaceholder={isPlaceholderData}
-          />
-          {data && (
-            <PaginationFooter
-              page={page}
-              totalPages={totalPages}
-              isPlaceholderData={isPlaceholderData}
-              onPageChange={setPage}
+          </div>
+          <div className="table-responsive">
+            <DataTable
+              columns={columns}
+              rows={data?.data}
+              rowKey={(u) => u.key}
+              isLoading={isLoading}
+              error={error}
+              emptyText="No uploads yet."
+              isPlaceholder={isPlaceholderData}
             />
+          </div>
+          {data && totalPages > 1 && (
+            <CardFooter>
+              <PaginationFooter
+                page={page}
+                totalPages={totalPages}
+                isPlaceholderData={isPlaceholderData}
+                onPageChange={setPage}
+              />
+            </CardFooter>
           )}
-        </CardContent>
-      </Card>
+        </Card>
+      </div>
 
       {deleting && (
         <ConfirmDialog
@@ -131,6 +145,6 @@ export function AdminMediaPage() {
           onClose={() => setDeleting(null)}
         />
       )}
-    </div>
+    </>
   );
 }
