@@ -1,6 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { globSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
@@ -22,6 +22,21 @@ import { describe, expect, it } from 'vitest';
  */
 
 const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
+
+/**
+ * Every .tsx under a directory. A hand-rolled walk rather than fs.globSync:
+ * that landed in Node 22 and CI's frontend job runs Node 20
+ * (.github/workflows/ci.yml), so globSync passes locally and throws there.
+ */
+function tsxFilesUnder(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...tsxFilesUnder(path));
+    else if (entry.name.endsWith('.tsx')) out.push(path);
+  }
+  return out;
+}
 
 /** Class tokens defined by the stylesheets the app loads. */
 function knownClasses(): Set<string> {
@@ -87,7 +102,7 @@ describe('every class in the tree is defined by a stylesheet we load', () => {
   });
 
   it('has no unknown class tokens', () => {
-    const files = globSync(here('../**/*.tsx'));
+    const files = tsxFilesUnder(here('..'));
     expect(files.length).toBeGreaterThan(20);
     const unknown: Record<string, string[]> = {};
     for (const file of files) {
