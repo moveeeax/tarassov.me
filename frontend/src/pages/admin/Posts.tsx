@@ -166,7 +166,7 @@ export function AdminPostsPage() {
     {
       header: 'Status',
       cell: (p) => (
-        <span className={p.status === 'published' ? 'text-green-600' : 'text-secondary'}>
+        <span className={p.status === 'published' ? 'text-green' : 'text-secondary'}>
           {p.status}
         </span>
       ),
@@ -174,9 +174,9 @@ export function AdminPostsPage() {
     { header: 'Published', className: 'small', cell: (p) => fmtDate(p.published_at) },
     {
       header: '',
-      className: 'text-end hstack gap-1',
+      className: 'text-end',
       cell: (p) => (
-        <>
+        <div className="btn-list justify-content-end flex-nowrap">
           {p.status === 'published' ? (
             <a
               href={`/blog/${encodeURIComponent(p.slug)}`}
@@ -207,7 +207,7 @@ export function AdminPostsPage() {
           <Button size="sm" variant="ghost" onClick={() => setDeleting(p)}>
             <IconTrash size={16} className="text-danger" />
           </Button>
-        </>
+        </div>
       ),
     },
   ];
@@ -496,7 +496,7 @@ function PostFormCard({
                 placeholder="Section label, e.g. Kubernetes"
               />
             </div>
-            <div className="vstack gap-1">
+            <div className="col-sm-6">
               <Label htmlFor="post-tags">Tags</Label>
               <Input
                 id="post-tags"

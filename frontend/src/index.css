@@ -1,15 +1,11 @@
 /* App-level additions on top of @tabler/core, which main.tsx imports AFTER this
-   file. Anything here that must win needs a selector, not just source order. */
-
-.page-body {
-  /* Tabler's own top margin assumes every page opens with a page-header; some
-     of ours start straight with content. */
-  margin-top: 1rem;
-}
+   file. Anything here that must win needs a selector, not just source order —
+   a bare `.page-body { margin-top: … }` here loses to Tabler's own rule. */
 
 /* react-grid-layout ships the drag/resize mechanics but styles its drop
    placeholder as a bare block. Give it the card radius and the theme's accent so
-   a dragged widget lands on something that looks like the grid it belongs to. */
+   a dragged widget lands on something that looks like the grid it belongs to.
+   Two class names, so this one does out-specify Tabler. */
 .react-grid-item.react-grid-placeholder {
   background: var(--tblr-primary);
   border-radius: var(--tblr-border-radius);

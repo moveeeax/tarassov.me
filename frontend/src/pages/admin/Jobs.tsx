@@ -67,6 +67,11 @@ function formatEpoch(sec: number | undefined): string {
   return sec ? new Date(sec * 1000).toLocaleString() : '—';
 }
 
+const TABS = [
+  { id: 'jobs', label: 'All jobs' },
+  { id: 'dlq', label: 'Dead letter queue' },
+] as const;
+
 export function AdminJobsPage() {
   const [tab, setTab] = useState<'jobs' | 'dlq'>('jobs');
 
@@ -82,23 +87,39 @@ export function AdminJobsPage() {
         }
       />
       <div className="container-xl vstack gap-3">
-        <ul className="nav nav-tabs" role="tablist">
-          {(['jobs', 'dlq'] as const).map((t) => (
-            <li key={t} className="nav-item" role="presentation">
+        <ul
+          className="nav nav-tabs"
+          role="tablist"
+          onKeyDown={(e) => {
+            // Arrow keys move between tabs, which is the half of the pattern the
+            // roles promise and Bootstrap's JS would normally supply.
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            e.preventDefault();
+            setTab(tab === 'jobs' ? 'dlq' : 'jobs');
+          }}
+        >
+          {TABS.map((t) => (
+            <li key={t.id} className="nav-item" role="presentation">
               <button
                 type="button"
                 role="tab"
-                aria-selected={tab === t}
-                className={tab === t ? 'nav-link active' : 'nav-link'}
-                onClick={() => setTab(t)}
+                id={`jobs-tab-${t.id}`}
+                aria-controls={`jobs-panel-${t.id}`}
+                aria-selected={tab === t.id}
+                // Only the selected tab is in the tab order; arrows move within.
+                tabIndex={tab === t.id ? 0 : -1}
+                className={tab === t.id ? 'nav-link active' : 'nav-link'}
+                onClick={() => setTab(t.id)}
               >
-                {t === 'jobs' ? 'All jobs' : 'Dead letter queue'}
+                {t.label}
               </button>
             </li>
           ))}
         </ul>
 
-        {tab === 'jobs' ? <JobsTab /> : <DlqTab />}
+        <div role="tabpanel" id={`jobs-panel-${tab}`} aria-labelledby={`jobs-tab-${tab}`}>
+          {tab === 'jobs' ? <JobsTab /> : <DlqTab />}
+        </div>
       </div>
     </>
   );

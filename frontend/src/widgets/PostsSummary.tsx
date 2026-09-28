@@ -12,8 +12,11 @@ interface PostRow {
   status: string;
 }
 
+/** `options` arrives with every catalog default already filled in
+ * (see withOptionDefaults in pages/admin/dashboardLayout.ts), so there is no
+ * local fallback to drift from the advertised value. */
 export function PostsSummary({ options }: { options: Record<string, number> }) {
-  const limit = options.limit ?? 5;
+  const limit = options.limit;
   const query = useQuery({
     queryKey: qk.admin.posts(`widget:${limit}`),
     queryFn: () =>

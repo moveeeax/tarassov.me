@@ -5,8 +5,11 @@ import { api } from '@/lib/api/client';
 import { qk } from '@/lib/api/queryKeys';
 import type { AuditEntry } from '@/lib/api/types';
 
+/** `options` arrives with every catalog default already filled in
+ * (see withOptionDefaults in pages/admin/dashboardLayout.ts), so there is no
+ * local fallback to drift from the advertised value. */
 export function AuditRecent({ options }: { options: Record<string, number> }) {
-  const limit = options.limit ?? 10;
+  const limit = options.limit;
   const query = useQuery({
     queryKey: qk.admin.audit({ widget: String(limit) }),
     queryFn: () => api.getJson('/api/v1/admin/audit', { query: { limit, offset: 0 } }),

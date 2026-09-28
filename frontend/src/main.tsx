@@ -7,8 +7,8 @@ import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './components/tabler/Toaster';
 import './index.css';
-// Tabler last: its reboot must win over Tailwind's preflight while both are in
-// the bundle (Tailwind leaves in task 13).
+// Tabler after index.css: the app sheet only adds rules, so Tabler's own reboot
+// and component styles must be the ones that land last.
 import '@tabler/core/dist/css/tabler.min.css';
 import '@fontsource-variable/inter';
 

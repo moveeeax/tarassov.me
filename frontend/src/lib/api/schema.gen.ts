@@ -145,14 +145,66 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["HealthResponse"];
+                    };
                 };
                 /** @description One or more components unhealthy */
                 503: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["HealthResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Detailed component health, reachable through the /api proxy
+         * @description Same handler as /health. The SPA can only reach the backend through nginx's `location /api/`, so the dashboard's service widget reads this path; /health alone is answered by the SPA fallback.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description All components healthy */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HealthResponse"];
+                    };
+                };
+                /** @description One or more components unhealthy */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HealthResponse"];
+                    };
                 };
             };
         };
@@ -1070,7 +1122,9 @@ export interface paths {
                             widget_type: string;
                             grid_x: number;
                             grid_y: number;
+                            /** @description Must be at least the type's min_w from /api/v1/dashboard/catalog, not merely 2. */
                             grid_w: number;
+                            /** @description Must be at least the type's min_h from the catalog. */
                             grid_h: number;
                             options?: {
                                 [key: string]: number;
@@ -1105,7 +1159,7 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description A widget in the layout needs a permission you lack */
+                /** @description A widget in the layout needs a permission you lack. This wins over a 400: the first forbidden entry ends the request, so field errors collected from earlier entries are not reported. */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -2787,6 +2841,20 @@ export interface components {
         RoleDetailResponse: {
             data: components["schemas"]["Role"];
         };
+        HealthResponse: {
+            /** @description ok | degraded | unhealthy */
+            status: string;
+            version: string;
+            /**
+             * Format: int64
+             * @description Epoch seconds
+             */
+            timestamp: number;
+            /** @description One entry per component registered via Core::register_health_check */
+            components: {
+                [key: string]: unknown;
+            };
+        };
         DashboardWidget: {
             /** Format: uuid */
             id: string;
@@ -2794,7 +2862,9 @@ export interface components {
             widget_type: string;
             grid_x: number;
             grid_y: number;
+            /** @description At least the widget type's own min_w from /api/v1/dashboard/catalog (2 to 4 depending on the type), which the server enforces; 2 is the lowest value any type allows. */
             grid_w: number;
+            /** @description At least the type's min_h from the catalog (2 or 3). */
             grid_h: number;
             options: {
                 [key: string]: number;
@@ -2818,10 +2888,10 @@ export interface components {
             options: {
                 [key: string]: {
                     /** @enum {string} */
-                    type?: "int";
-                    min?: number;
-                    max?: number;
-                    default?: number;
+                    type: "int";
+                    min: number;
+                    max: number;
+                    default: number;
                 };
             };
         };

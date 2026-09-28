@@ -2,19 +2,16 @@ import { useQuery } from '@tanstack/react-query';
 
 import { Placeholder } from '@/components/tabler/Placeholder';
 import { api } from '@/lib/api/client';
-
-interface HealthResponse {
-  status: string;
-  version: string;
-  components: Record<string, unknown>;
-}
+import { qk } from '@/lib/api/queryKeys';
 
 export function ServiceHealth() {
   const query = useQuery({
-    queryKey: ['health'],
-    // /health is the detailed probe and answers 503 when a critical component
-    // is down, so a rejected request is itself the answer we render.
-    queryFn: () => api.getJson<HealthResponse>('/health'),
+    queryKey: qk.serviceHealth(),
+    // /api/v1/health, not /health: nginx proxies only `location /api/`, so the
+    // bare path is answered by the SPA fallback with index.html and every fetch
+    // fails. The probe answers 503 when a critical component is down, so a
+    // rejected request is itself an answer we render.
+    queryFn: () => api.getJson('/api/v1/health'),
     retry: false,
   });
 

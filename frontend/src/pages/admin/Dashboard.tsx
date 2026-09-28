@@ -1,7 +1,6 @@
 import { useMemo, useState, type Ref } from 'react';
 import GridLayout, { useContainerWidth, type Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
 
 import { Alert } from '@/components/tabler/Alert';
 import { Button } from '@/components/tabler/Button';
@@ -9,17 +8,25 @@ import { Card, CardBody, CardHeader, CardTitle } from '@/components/tabler/Card'
 import { PageHeader } from '@/components/tabler/PageHeader';
 import { Placeholder } from '@/components/tabler/Placeholder';
 import { useDashboardLayout } from '@/hooks/useDashboardLayout';
-import type { CatalogEntry, DashboardWidget, WidgetPlacement } from '@/lib/api/dashboard';
+import type { CatalogEntry, DashboardWidget } from '@/lib/api/dashboard';
 import { WIDGET_COMPONENTS } from '@/widgets/registry';
 
-import { toGridItems, toPlacements } from './dashboardLayout';
+import {
+  appendWidget,
+  applyGridItems,
+  toGridItems,
+  toPlacements,
+  withOptionDefaults,
+  withoutWidget,
+} from './dashboardLayout';
 import { WidgetPicker } from './WidgetPicker';
 
 const GRID_COLUMNS = 12;
 const ROW_HEIGHT = 72;
 
 export function AdminDashboardPage() {
-  const { layout, catalog, isLoading, error, save, saveError } = useDashboardLayout();
+  const { layout, catalog, isLoading, error, save, applyOptimistic, saveError } =
+    useDashboardLayout();
   // Edit mode is explicit: with dragging always live, reading the dashboard on a
   // touchpad quietly rewrites it.
   const [editing, setEditing] = useState(false);
@@ -29,40 +36,30 @@ export function AdminDashboardPage() {
   // RefObject includes null, and this project is on React 18.
   const { width, containerRef, mounted } = useContainerWidth();
 
-  // `layout ?? []` would be a fresh array on every render and invalidate both
+  // `layout ?? []` would be a fresh array on every render and invalidate the
   // memos below, so the fallback is memoised too.
   const widgets = useMemo(() => layout ?? [], [layout]);
-  const byId = useMemo(() => new Map(widgets.map((w) => [w.id, w])), [widgets]);
-  const items = useMemo(() => toGridItems(widgets), [widgets]);
+  const items = useMemo(() => toGridItems(widgets, catalog ?? []), [widgets, catalog]);
+
+  /**
+   * Every edit goes through here: the new arrangement is shown immediately and
+   * queued for one debounced PUT. Showing it first is what makes two edits inside
+   * the debounce window compose — the second reads this arrangement rather than
+   * the server's older one and no longer discards the first.
+   */
+  const applyLayout = (next: DashboardWidget[]) => {
+    applyOptimistic(next);
+    save(toPlacements(next));
+  };
 
   const onLayoutChange = (next: Layout) => {
     if (!editing) return;
-    save(toPlacements(next, byId));
+    applyLayout(applyGridItems(widgets, next));
   };
 
-  const addWidget = (entry: CatalogEntry) => {
-    const placements: WidgetPlacement[] = [
-      ...toPlacements(items, byId),
-      {
-        widget_type: entry.type,
-        grid_x: 0,
-        // Drop it below everything that is already placed.
-        grid_y: widgets.reduce((max, w) => Math.max(max, w.grid_y + w.grid_h), 0),
-        grid_w: entry.default_w,
-        grid_h: entry.default_h,
-      },
-    ];
-    save(placements);
-  };
+  const addWidget = (entry: CatalogEntry) => applyLayout(appendWidget(widgets, entry));
 
-  const removeWidget = (id: string) => {
-    save(
-      toPlacements(
-        items.filter((i) => i.i !== id),
-        byId,
-      ),
-    );
-  };
+  const removeWidget = (id: string) => applyLayout(withoutWidget(widgets, id));
 
   const titleOf = (type: string) => catalog?.find((c) => c.type === type)?.title ?? type;
 
@@ -101,7 +98,6 @@ export function AdminDashboardPage() {
           <div ref={containerRef as Ref<HTMLDivElement>}>
             {mounted && (
               <GridLayout
-                className="layout"
                 layout={items}
                 width={width}
                 // v2 groups the old flat props into config objects: cols and
@@ -132,7 +128,7 @@ export function AdminDashboardPage() {
                         </CardHeader>
                         <CardBody className="overflow-auto">
                           {Component ? (
-                            <Component options={widget.options} />
+                            <Component options={withOptionDefaults(widget, catalog ?? [])} />
                           ) : (
                             <p className="text-secondary mb-0">
                               Unknown widget: {widget.widget_type}

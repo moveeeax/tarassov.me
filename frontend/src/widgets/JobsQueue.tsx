@@ -16,8 +16,11 @@ const COLORS = ['#f59f00', '#4299e1', '#2fb344', '#d63939', '#66758c'];
  *  counted client-side over one page — 200 is the endpoint's documented maximum. */
 const PAGE = 200;
 
+/** `options` arrives with every catalog default already filled in
+ * (see withOptionDefaults in pages/admin/dashboardLayout.ts), so there is no
+ * local fallback to drift from the advertised value. */
 export function JobsQueue({ options }: { options: Record<string, number> }) {
-  const windowDays = options.window_days ?? 7;
+  const windowDays = options.window_days;
 
   const jobs = useQuery({
     queryKey: qk.admin.jobs(`widget:${windowDays}`),

@@ -6,8 +6,11 @@ import { api } from '@/lib/api/client';
 import { qk } from '@/lib/api/queryKeys';
 import type { User } from '@/lib/api/types';
 
+/** `options` arrives with every catalog default already filled in
+ * (see withOptionDefaults in pages/admin/dashboardLayout.ts), so there is no
+ * local fallback to drift from the advertised value. */
 export function UsersRecent({ options }: { options: Record<string, number> }) {
-  const limit = options.limit ?? 5;
+  const limit = options.limit;
   const query = useQuery({
     queryKey: [...qk.admin.users(), 'widget', limit],
     queryFn: () => api.getJson('/api/v1/admin/users', { query: { limit, offset: 0 } }),

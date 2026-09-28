@@ -79,9 +79,9 @@ export function AdminRolesPage() {
     },
     {
       header: '',
-      className: 'text-end hstack gap-1',
+      className: 'text-end',
       cell: (r) => (
-        <>
+        <div className="btn-list justify-content-end flex-nowrap">
           <Button size="sm" variant="ghost" onClick={() => setEditing(r)}>
             <IconPencil size={16} />
           </Button>
@@ -94,7 +94,7 @@ export function AdminRolesPage() {
           >
             <IconTrash size={16} className="text-danger" />
           </Button>
-        </>
+        </div>
       ),
     },
   ];
