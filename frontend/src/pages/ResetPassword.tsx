@@ -3,9 +3,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useParams } from 'react-router-dom';
 import type { z } from 'zod';
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/tabler/Button';
 import { FormField } from '@/components/FormField';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardBody, CardHeader, CardTitle } from '@/components/tabler/Card';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { useErrorToast } from '@/hooks/useErrorToast';
 import { api } from '@/lib/api/client';
@@ -31,23 +31,21 @@ export function ResetPasswordPage() {
   const onSubmit = handleSubmit((values) => reset.mutate(values));
 
   return (
-    <div className="container mx-auto max-w-md py-8">
+    <div className="container-tight py-4">
       <Card>
         <CardHeader>
           <CardTitle>Set a new password</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardBody>
           {reset.isSuccess ? (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Password updated. You can log in now.
-              </p>
-              <Button asChild className="w-full">
-                <Link to="/login">Continue to log in</Link>
-              </Button>
+            <div className="vstack gap-4">
+              <p className="small text-secondary">Password updated. You can log in now.</p>
+              <Link to="/login" className="btn btn-primary w-100">
+                Continue to log in
+              </Link>
             </div>
           ) : (
-            <form className="space-y-4" onSubmit={onSubmit}>
+            <form className="vstack gap-4" onSubmit={onSubmit}>
               <FormField
                 id="new_password"
                 type="password"
@@ -62,12 +60,12 @@ export function ResetPasswordPage() {
                 error={errors.new_password_confirm?.message}
                 {...register('new_password_confirm')}
               />
-              <Button type="submit" className="w-full" disabled={isSubmitting || reset.isPending}>
+              <Button type="submit" className="w-100" disabled={isSubmitting || reset.isPending}>
                 Update password
               </Button>
             </form>
           )}
-        </CardContent>
+        </CardBody>
       </Card>
     </div>
   );

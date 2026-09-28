@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 
-import { Card, CardBody, CardHeader, CardTitle } from '@/components/tabler/Card';
+import { Card, CardBody, CardSubtitle, CardHeader, CardTitle } from '@/components/tabler/Card';
 import { useMe } from '@/hooks/useMe';
 
 export function HomePage() {
@@ -13,9 +13,9 @@ export function HomePage() {
             <CardTitle>
               {user ? `Welcome back, ${user.full_name || user.email}` : 'Welcome'}
             </CardTitle>
-            <div className="text-secondary">
+            <CardSubtitle>
               {user ? 'You are logged in.' : 'Log in or register to access the rest of the app.'}
-            </div>
+            </CardSubtitle>
           </div>
         </CardHeader>
         <CardBody className="btn-list">

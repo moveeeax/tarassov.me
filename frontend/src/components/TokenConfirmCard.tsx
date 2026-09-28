@@ -2,7 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 
 import { Alert } from '@/components/tabler/Alert';
 import { Button } from '@/components/tabler/Button';
-import { Card, CardBody, CardHeader, CardTitle } from '@/components/tabler/Card';
+import { Card, CardBody, CardSubtitle, CardHeader, CardTitle } from '@/components/tabler/Card';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { qk } from '@/lib/api/queryKeys';
 
@@ -38,7 +38,7 @@ export function TokenConfirmCard({
         <CardHeader>
           <div>
             <CardTitle>{title}</CardTitle>
-            <div className="text-secondary">{description}</div>
+            <CardSubtitle>{description}</CardSubtitle>
           </div>
         </CardHeader>
         <CardBody className="vstack gap-3">

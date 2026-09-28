@@ -1,4 +1,4 @@
-import { Card, CardBody, CardHeader, CardTitle } from '@/components/tabler/Card';
+import { Card, CardBody, CardSubtitle, CardHeader, CardTitle } from '@/components/tabler/Card';
 
 export function AboutPage() {
   return (
@@ -7,9 +7,9 @@ export function AboutPage() {
         <CardHeader>
           <div>
             <CardTitle>About</CardTitle>
-            <div className="text-secondary">
+            <CardSubtitle>
               React admin SPA on a C++ REST backend — full account and admin flows.
-            </div>
+            </CardSubtitle>
           </div>
         </CardHeader>
         <CardBody className="vstack gap-2 small text-secondary">

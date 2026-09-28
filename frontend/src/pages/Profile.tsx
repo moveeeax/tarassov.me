@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 
-import { Card, CardBody, CardHeader, CardTitle } from '@/components/tabler/Card';
+import { Card, CardBody, CardSubtitle, CardHeader, CardTitle } from '@/components/tabler/Card';
 import { useMe } from '@/hooks/useMe';
 
 export function ProfilePage() {
@@ -12,7 +12,7 @@ export function ProfilePage() {
         <CardHeader>
           <div>
             <CardTitle>Your account</CardTitle>
-            <div className="text-secondary">{user.email}</div>
+            <CardSubtitle>{user.email}</CardSubtitle>
           </div>
         </CardHeader>
         <CardBody className="vstack gap-1 small">

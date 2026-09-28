@@ -14,9 +14,7 @@ export function ConfirmChangeEmailPage() {
       successMessage="Your email address has been updated. Log in with the new address from now on."
       errorFallback="This link is invalid or has expired."
       buttonLabel="Confirm new email"
-      mutate={(token) =>
-        api.postJson('/api/v1/account/change-email/' + encodeURIComponent(token))
-      }
+      mutate={(token) => api.postJson('/api/v1/account/change-email/' + encodeURIComponent(token))}
     />
   );
 }

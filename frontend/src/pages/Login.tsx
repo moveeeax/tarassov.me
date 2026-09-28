@@ -3,9 +3,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { z } from 'zod';
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/tabler/Button';
 import { FormField } from '@/components/FormField';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardBody, CardSubtitle, CardHeader, CardTitle } from '@/components/tabler/Card';
 import { useToast } from '@/components/tabler/Toaster';
 import { useLogin } from '@/hooks/useAuthMutations';
 import { apiErrorMessage } from '@/lib/api/client';
@@ -36,14 +36,16 @@ export function LoginPage() {
   });
 
   return (
-    <div className="container mx-auto max-w-md py-8">
+    <div className="container-tight py-4">
       <Card>
         <CardHeader>
-          <CardTitle>Log in</CardTitle>
-          <CardDescription>Use your email and password.</CardDescription>
+          <div>
+            <CardTitle>Log in</CardTitle>
+            <CardSubtitle>Use your email and password.</CardSubtitle>
+          </div>
         </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit}>
+        <CardBody>
+          <form className="vstack gap-4" onSubmit={onSubmit}>
             <FormField
               id="email"
               type="email"
@@ -60,19 +62,15 @@ export function LoginPage() {
               error={errors.password?.message}
               {...register('password')}
             />
-            <Button type="submit" className="w-full" disabled={isSubmitting || login.isPending}>
+            <Button type="submit" className="w-100" disabled={isSubmitting || login.isPending}>
               {login.isPending ? 'Signing in…' : 'Log in'}
             </Button>
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <Link to="/account/reset-password" className="hover:underline">
-                Forgot password?
-              </Link>
-              <Link to="/register" className="hover:underline">
-                Create account
-              </Link>
+            <div className="d-flex justify-content-between small text-secondary">
+              <Link to="/account/reset-password">Forgot password?</Link>
+              <Link to="/register">Create account</Link>
             </div>
           </form>
-        </CardContent>
+        </CardBody>
       </Card>
     </div>
   );

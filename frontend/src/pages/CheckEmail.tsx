@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 
 import { Alert } from '@/components/tabler/Alert';
-import { Card, CardBody, CardHeader, CardTitle } from '@/components/tabler/Card';
+import { Card, CardBody, CardSubtitle, CardHeader, CardTitle } from '@/components/tabler/Card';
 
 /**
  * Static page shown right after Register. The backend has fired the
@@ -16,9 +16,9 @@ export function CheckEmailPage() {
         <CardHeader>
           <div>
             <CardTitle>Check your email</CardTitle>
-            <div className="text-secondary">
+            <CardSubtitle>
               {email ? `We sent a confirmation link to ${email}.` : 'We sent a confirmation link.'}
-            </div>
+            </CardSubtitle>
           </div>
         </CardHeader>
         <CardBody>

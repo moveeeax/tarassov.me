@@ -3,10 +3,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'react-router-dom';
 import type { z } from 'zod';
 
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+import { Alert } from '@/components/tabler/Alert';
+import { Button } from '@/components/tabler/Button';
 import { FormField } from '@/components/FormField';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardBody, CardSubtitle, CardHeader, CardTitle } from '@/components/tabler/Card';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { api } from '@/lib/api/client';
 import { requestResetSchema } from '@/lib/schemas/auth';
@@ -31,21 +31,19 @@ export function RequestResetPage() {
   const onSubmit = handleSubmit((values) => request.mutate(values));
 
   return (
-    <div className="container mx-auto max-w-md py-8">
+    <div className="container-tight py-4">
       <Card>
         <CardHeader>
-          <CardTitle>Reset your password</CardTitle>
-          <CardDescription>We'll email a reset link if the address is registered.</CardDescription>
+          <div>
+            <CardTitle>Reset your password</CardTitle>
+            <CardSubtitle>We'll email a reset link if the address is registered.</CardSubtitle>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardBody>
           {sent ? (
-            <Alert>
-              <AlertDescription>
-                If that email is registered, a reset link is on its way.
-              </AlertDescription>
-            </Alert>
+            <Alert variant="info">If that email is registered, a reset link is on its way.</Alert>
           ) : (
-            <form className="space-y-4" onSubmit={onSubmit}>
+            <form className="vstack gap-4" onSubmit={onSubmit}>
               <FormField
                 id="email"
                 type="email"
@@ -53,17 +51,15 @@ export function RequestResetPage() {
                 error={errors.email?.message}
                 {...register('email')}
               />
-              <Button type="submit" className="w-full" disabled={isSubmitting || request.isPending}>
+              <Button type="submit" className="w-100" disabled={isSubmitting || request.isPending}>
                 Send reset link
               </Button>
-              <div className="text-sm text-muted-foreground text-center">
-                <Link to="/login" className="hover:underline">
-                  Back to log in
-                </Link>
+              <div className="small text-secondary text-center">
+                <Link to="/login">Back to log in</Link>
               </div>
             </form>
           )}
-        </CardContent>
+        </CardBody>
       </Card>
     </div>
   );
