@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { RotateCcw } from 'lucide-react';
+import { IconRotateClockwise } from '@tabler/icons-react';
 
 import { DataTable, type Column } from '@/components/DataTable';
 import { PaginationFooter } from '@/components/PaginationFooter';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Button } from '@/components/tabler/Button';
+import { PageHeader } from '@/components/tabler/PageHeader';
+import { Card, CardBody, CardHeader, CardTitle } from '@/components/tabler/Card';
+import { Input } from '@/components/tabler/Input';
 import { usePagedQuery } from '@/hooks/usePagedQuery';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { useErrorToast } from '@/hooks/useErrorToast';
@@ -55,7 +56,7 @@ const STATUS_STYLES: Record<Job['status'], string> = {
 function StatusBadge({ status }: { status: Job['status'] }) {
   return (
     <span
-      className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[status] ?? ''}`}
+      className={`d-inline-flex align-items-center rounded border px-2 py-1 small fw-medium ${STATUS_STYLES[status] ?? ''}`}
     >
       {status}
     </span>
@@ -70,32 +71,36 @@ export function AdminJobsPage() {
   const [tab, setTab] = useState<'jobs' | 'dlq'>('jobs');
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Jobs</h1>
-        <Button asChild variant="ghost">
-          <Link to="/admin">← Admin</Link>
-        </Button>
-      </div>
+    <>
+      <PageHeader
+        title="Jobs"
+        pretitle="Admin"
+        actions={
+          <Link to="/admin" className="btn btn-ghost-secondary">
+            ← Admin
+          </Link>
+        }
+      />
+      <div className="container-xl vstack gap-3">
+        <ul className="nav nav-tabs" role="tablist">
+          {(['jobs', 'dlq'] as const).map((t) => (
+            <li key={t} className="nav-item" role="presentation">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === t}
+                className={tab === t ? 'nav-link active' : 'nav-link'}
+                onClick={() => setTab(t)}
+              >
+                {t === 'jobs' ? 'All jobs' : 'Dead letter queue'}
+              </button>
+            </li>
+          ))}
+        </ul>
 
-      <div className="flex gap-2 border-b">
-        {(['jobs', 'dlq'] as const).map((t) => (
-          <button
-            key={t}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-              tab === t
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-            onClick={() => setTab(t)}
-          >
-            {t === 'jobs' ? 'All jobs' : 'Dead letter queue'}
-          </button>
-        ))}
+        {tab === 'jobs' ? <JobsTab /> : <DlqTab />}
       </div>
-
-      {tab === 'jobs' ? <JobsTab /> : <DlqTab />}
-    </div>
+    </>
   );
 }
 
@@ -114,18 +119,18 @@ function JobsTab() {
   });
 
   const columns: Column<Job>[] = [
-    { header: 'ID', className: 'font-mono text-xs', cell: (j) => `${j.id.slice(0, 8)}…` },
-    { header: 'Type', className: 'font-mono', cell: (j) => j.type },
+    { header: 'ID', className: 'font-monospace small', cell: (j) => `${j.id.slice(0, 8)}…` },
+    { header: 'Type', className: 'font-monospace', cell: (j) => j.type },
     { header: 'Status', cell: (j) => <StatusBadge status={j.status} /> },
     { header: 'Retries', cell: (j) => `${j.retry_count ?? 0}/${j.max_retries ?? 0}` },
-    { header: 'Worker', className: 'font-mono text-xs', cell: (j) => j.worker_id || '—' },
-    { header: 'Created', className: 'whitespace-nowrap', cell: (j) => formatEpoch(j.created_at) },
-    { header: 'Updated', className: 'whitespace-nowrap', cell: (j) => formatEpoch(j.updated_at) },
+    { header: 'Worker', className: 'font-monospace small', cell: (j) => j.worker_id || '—' },
+    { header: 'Created', className: 'text-nowrap', cell: (j) => formatEpoch(j.created_at) },
+    { header: 'Updated', className: 'text-nowrap', cell: (j) => formatEpoch(j.updated_at) },
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
+    <div className="vstack gap-4">
+      <div className="d-flex align-items-center gap-2">
         <Input
           placeholder="Filter by type (exact, e.g. account_email)"
           value={typeFilter}
@@ -133,13 +138,13 @@ function JobsTab() {
             setTypeFilter(e.target.value.trim());
             setPage(1);
           }}
-          className="max-w-xs"
+          className="w-auto"
         />
-        {data && <span className="text-sm text-muted-foreground">{data.total} total</span>}
+        {data && <span className="small text-secondary">{data.total} total</span>}
       </div>
 
       <Card>
-        <CardContent className="overflow-x-auto pt-6">
+        <CardBody className="table-responsive pt-4">
           <DataTable
             columns={columns}
             rows={data?.data}
@@ -148,8 +153,9 @@ function JobsTab() {
             error={error}
             emptyText="No jobs recorded yet."
             isPlaceholder={isPlaceholderData}
+            hoverable
             rowProps={(j) => ({
-              className: `cursor-pointer hover:bg-accent ${selected?.id === j.id ? 'bg-accent' : ''}`,
+              className: `cursor-pointer ${selected?.id === j.id ? 'table-active' : ''}`,
               onClick: () => setSelected(selected?.id === j.id ? null : j),
             })}
           />
@@ -161,7 +167,7 @@ function JobsTab() {
               onPageChange={setPage}
             />
           )}
-        </CardContent>
+        </CardBody>
       </Card>
 
       {selected && <JobDetailCard job={selected} onClose={() => setSelected(null)} />}
@@ -172,23 +178,22 @@ function JobsTab() {
 function JobDetailCard({ job, onClose }: { job: Job; onClose: () => void }) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="font-mono text-base">{job.id}</CardTitle>
-        <div className="flex gap-2">
+      <CardHeader className="justify-content-between">
+        <CardTitle className="font-monospace">{job.id}</CardTitle>
+        <div className="btn-list">
           {job.trace_id && TRACE_UI_URL && (
-            <Button asChild size="sm" variant="outline">
-              <a
-                href={`${TRACE_UI_URL}/trace/${job.trace_id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Open trace
-              </a>
-            </Button>
+            <a
+              href={`${TRACE_UI_URL}/trace/${job.trace_id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-sm"
+            >
+              Open trace
+            </a>
           )}
           {job.trace_id && !TRACE_UI_URL && (
             <span
-              className="self-center select-all font-mono text-xs text-muted-foreground"
+              className="align-self-center user-select-all font-monospace small text-secondary"
               title="No trace UI configured (set VITE_TRACE_UI_URL at build time)"
             >
               {job.trace_id}
@@ -199,19 +204,22 @@ function JobDetailCard({ job, onClose }: { job: Job; onClose: () => void }) {
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 text-sm">
+      <CardBody className="vstack gap-3 small">
         <JobTimeline job={job} />
         <DetailJson label="Payload" value={job.payload} />
         {job.result != null && <DetailJson label="Result" value={job.result} />}
         {job.error && (
           <div>
-            <p className="font-medium mb-1">Last error</p>
-            <pre className="rounded bg-destructive/10 text-destructive p-3 text-xs whitespace-pre-wrap">
+            <p className="fw-medium mb-1">Last error</p>
+            <pre
+              className="rounded bg-danger-lt text-danger p-3 small"
+              style={{ whiteSpace: 'pre-wrap' }}
+            >
               {job.error}
             </pre>
           </div>
         )}
-      </CardContent>
+      </CardBody>
     </Card>
   );
 }
@@ -224,9 +232,9 @@ function JobTimeline({ job }: { job: Job }) {
     events.push(`retried ${job.retry_count}/${job.max_retries} time(s)`);
   events.push(`${formatEpoch(job.updated_at)} — ${job.status}`);
   return (
-    <ol className="border-l pl-4 space-y-1">
+    <ol className="border-start ps-4 vstack gap-1">
       {events.map((e, i) => (
-        <li key={i} className="text-muted-foreground">
+        <li key={i} className="text-secondary">
           {e}
         </li>
       ))}
@@ -237,8 +245,8 @@ function JobTimeline({ job }: { job: Job }) {
 function DetailJson({ label, value }: { label: string; value: unknown }) {
   return (
     <div>
-      <p className="font-medium mb-1">{label}</p>
-      <pre className="rounded bg-muted p-3 text-xs overflow-x-auto">
+      <p className="fw-medium mb-1">{label}</p>
+      <pre className="rounded bg-muted p-3 small table-responsive">
         {JSON.stringify(value, null, 2)}
       </pre>
     </div>
@@ -265,21 +273,21 @@ function DlqTab() {
   useErrorToast(requeue.error);
 
   const columns: Column<Job>[] = [
-    { header: 'ID', className: 'font-mono text-xs', cell: (j) => `${j.id.slice(0, 8)}…` },
-    { header: 'Type', className: 'font-mono', cell: (j) => j.type },
+    { header: 'ID', className: 'font-monospace small', cell: (j) => `${j.id.slice(0, 8)}…` },
+    { header: 'Type', className: 'font-monospace', cell: (j) => j.type },
     {
       header: 'Error',
-      className: 'max-w-md truncate text-destructive',
+      className: 'text-danger',
       cell: (j) => (
-        <span title={j.error} className="block max-w-md truncate">
+        <span title={j.error} className="d-block text-truncate" style={{ maxWidth: '24rem' }}>
           {j.error || '—'}
         </span>
       ),
     },
-    { header: 'Died at', className: 'whitespace-nowrap', cell: (j) => formatEpoch(j.updated_at) },
+    { header: 'Died at', className: 'text-nowrap', cell: (j) => formatEpoch(j.updated_at) },
     {
       header: '',
-      className: 'text-right',
+      className: 'text-end',
       cell: (j) => (
         <Button
           size="sm"
@@ -287,7 +295,7 @@ function DlqTab() {
           disabled={requeue.isPending}
           onClick={() => requeue.mutate(j.id)}
         >
-          <RotateCcw className="h-3.5 w-3.5 mr-1" />
+          <IconRotateClockwise size={16} className="me-1" />
           Requeue
         </Button>
       ),
@@ -295,12 +303,12 @@ function DlqTab() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="vstack gap-4">
       <Card>
         <CardHeader>
           <CardTitle>{data ? `${data.depth} job(s) in DLQ` : 'Dead letter queue'}</CardTitle>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
+        <CardBody className="table-responsive">
           <DataTable
             columns={columns}
             rows={data?.data}
@@ -309,7 +317,7 @@ function DlqTab() {
             error={loadError}
             emptyText="DLQ is empty — nothing exhausted its retries."
           />
-        </CardContent>
+        </CardBody>
       </Card>
     </div>
   );

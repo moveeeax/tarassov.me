@@ -28,6 +28,12 @@ interface DataTableProps<Row> {
   isPlaceholder?: boolean;
   /** Per-row props (e.g. onClick / className) for selectable tables. */
   rowProps?: (row: Row) => React.HTMLAttributes<HTMLTableRowElement>;
+  /**
+   * Row hover feedback. Only for tables whose rows are clickable (they pass
+   * rowProps with onClick) — a hover highlight on a read-only table promises an
+   * interaction that isn't there.
+   */
+  hoverable?: boolean;
 }
 
 function TableHead<Row>({ columns }: { columns: Column<Row>[] }) {
@@ -53,6 +59,7 @@ export function DataTable<Row>({
   emptyText = 'Nothing here yet.',
   isPlaceholder,
   rowProps,
+  hoverable,
 }: DataTableProps<Row>) {
   if (error) return <p className="text-danger m-3">{apiErrorMessage(error, 'Failed to load.')}</p>;
   // Initial load (rows still undefined) renders placeholder rows so the header
@@ -80,7 +87,11 @@ export function DataTable<Row>({
   if (rows.length === 0) return <p className="text-secondary m-3">{emptyText}</p>;
 
   return (
-    <table className={`table table-vcenter card-table ${isPlaceholder ? 'opacity-75' : ''}`}>
+    <table
+      className={`table table-vcenter card-table ${hoverable ? 'table-hover' : ''} ${
+        isPlaceholder ? 'opacity-75' : ''
+      }`}
+    >
       <TableHead columns={columns} />
       <tbody>
         {rows.map((row) => {
