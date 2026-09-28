@@ -29,6 +29,21 @@ namespace {
 
 class DashboardLayoutTest : public TestHelpers::CoreBackedTest {
 protected:
+    std::string config_file_name() const override { return "dashboard_layout_test_config.json"; }
+
+    // Auth must be ON for this suite. Security::Auth::require_permission answers
+    // "permitted" for everything when mode is None (the dev-mode escape the
+    // controller deliberately reuses), so with the default config the catalog
+    // would never be filtered and PUT would never answer 403 — the two things
+    // half of these cases are about.
+    void config_overrides(nlohmann::json& cfg) override {
+        cfg["auth"]["mode"] = "jwt";
+        cfg["auth"]["jwt"]["secret"] = "test-jwt-secret-for-dashboard-layout-padding";
+        cfg["mail"]["enabled"] = false;
+        cfg["database"]["migrations_enabled"] = true;
+        cfg["database"]["migrations_dir"] = "migrations";
+    }
+
     void SetUp() override {
         TestHelpers::CoreBackedTest::SetUp();
         if (::testing::Test::IsSkipped())
