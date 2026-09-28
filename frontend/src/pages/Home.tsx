@@ -1,38 +1,39 @@
 import { Link } from 'react-router-dom';
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardBody, CardHeader, CardTitle } from '@/components/tabler/Card';
 import { useMe } from '@/hooks/useMe';
 
 export function HomePage() {
   const user = useMe().data ?? null;
   return (
-    <div className="container mx-auto py-8 max-w-3xl space-y-6">
+    <div className="container-xl">
       <Card>
         <CardHeader>
-          <CardTitle>{user ? `Welcome back, ${user.full_name || user.email}` : 'Welcome'}</CardTitle>
-          <CardDescription>
-            {user
-              ? 'You are logged in.'
-              : 'Log in or register to access the rest of the app.'}
-          </CardDescription>
+          <div>
+            <CardTitle>
+              {user ? `Welcome back, ${user.full_name || user.email}` : 'Welcome'}
+            </CardTitle>
+            <div className="text-secondary">
+              {user ? 'You are logged in.' : 'Log in or register to access the rest of the app.'}
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="flex gap-2">
+        <CardBody className="btn-list">
           {user ? (
-            <Button asChild>
-              <Link to="/account">My account</Link>
-            </Button>
+            <Link to="/account" className="btn btn-primary">
+              My account
+            </Link>
           ) : (
             <>
-              <Button asChild>
-                <Link to="/login">Log in</Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link to="/register">Register</Link>
-              </Button>
+              <Link to="/login" className="btn btn-primary">
+                Log in
+              </Link>
+              <Link to="/register" className="btn">
+                Register
+              </Link>
             </>
           )}
-        </CardContent>
+        </CardBody>
       </Card>
     </div>
   );
