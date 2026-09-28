@@ -7,7 +7,7 @@ import type { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/FormField';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/components/ui/toaster';
+import { useToast } from '@/components/tabler/Toaster';
 import { api, apiErrorMessage } from '@/lib/api/client';
 import { resetPasswordSchema } from '@/lib/schemas/auth';
 

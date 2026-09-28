@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-import { useToast } from '@/components/ui/toaster';
+import { useToast } from '@/components/tabler/Toaster';
 
 /**
  * Surface a useApiMutation `error` string as a toast. Server feedback is

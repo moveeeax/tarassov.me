@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { ToastProvider } from './components/ui/toaster';
+import { ToastProvider } from './components/tabler/Toaster';
 import './index.css';
 // Tabler last: its reboot must win over Tailwind's preflight while both are in
 // the bundle (Tailwind leaves in task 13).

@@ -6,7 +6,7 @@ import type { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/FormField';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/components/ui/toaster';
+import { useToast } from '@/components/tabler/Toaster';
 import { useRegister } from '@/hooks/useAuthMutations';
 import { apiErrorMessage } from '@/lib/api/client';
 import { registerSchema } from '@/lib/schemas/auth';

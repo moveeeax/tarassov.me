@@ -9,7 +9,7 @@ import { RoleSelect } from '@/components/RoleSelect';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/components/ui/toaster';
+import { useToast } from '@/components/tabler/Toaster';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { useErrorToast } from '@/hooks/useErrorToast';
 import { useMe } from '@/hooks/useMe';

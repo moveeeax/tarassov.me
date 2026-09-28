@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
+import { IconAlertCircle, IconCircleCheck, IconInfoCircle } from '@tabler/icons-react';
 
 import { cn } from '@/lib/utils';
 
@@ -30,12 +30,8 @@ interface ToastApi {
 const ToastContext = createContext<ToastApi | null>(null);
 let counter = 0;
 
-const ICONS = { error: AlertCircle, success: CheckCircle2, info: Info } as const;
-const ACCENT = {
-  error: 'text-destructive',
-  success: 'text-emerald-500',
-  info: 'text-primary',
-} as const;
+const ICONS = { error: IconAlertCircle, success: IconCircleCheck, info: IconInfoCircle } as const;
+const ACCENT = { error: 'text-danger', success: 'text-green', info: 'text-primary' } as const;
 
 /**
  * Toast notifications. Because the stack is `position: fixed`, toasts never
@@ -63,7 +59,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div className="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-full max-w-sm flex-col gap-2">
+      <div className="toast-container position-fixed bottom-0 end-0 p-3">
         {toasts.map((t) => (
           <ToastItem key={t.id} toast={t} onDismiss={() => dismiss(t.id)} />
         ))}
@@ -80,20 +76,20 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
   const Icon = ICONS[toast.variant];
   return (
     <div
+      className="toast show"
       role="status"
       aria-live={toast.variant === 'error' ? 'assertive' : 'polite'}
-      className="animate-in slide-in-from-right-4 fade-in pointer-events-auto flex items-start gap-3 rounded-md border border-border bg-card p-3 text-sm text-card-foreground shadow-lg"
     >
-      <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', ACCENT[toast.variant])} aria-hidden />
-      <span className="flex-1 break-words">{toast.message}</span>
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label="Dismiss notification"
-        className="shrink-0 rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <X className="h-4 w-4" />
-      </button>
+      <div className="toast-body d-flex align-items-start gap-2">
+        <Icon size={18} className={cn('flex-shrink-0', ACCENT[toast.variant])} aria-hidden />
+        <span className="flex-fill">{toast.message}</span>
+        <button
+          type="button"
+          className="btn-close"
+          aria-label="Dismiss notification"
+          onClick={onDismiss}
+        />
+      </div>
     </div>
   );
 }
