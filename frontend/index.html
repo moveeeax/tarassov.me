@@ -4,10 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>C++ REST Template</title>
-    <!-- Theme class first, then first-paint colors. Order matters: the style
-         below keys off .dark, so theme.js must run before it. External script
-         (not inline) so production CSP script-src 'self' covers it. -->
+    <title>tarassov.me</title>
+    <!-- Theme attribute first, then first-paint colors. Order matters: the
+         style below keys off [data-bs-theme], so theme.js must run before it.
+         External script (not inline) so production CSP script-src 'self'
+         covers it. Colours are Tabler 1.6.0's own body backgrounds
+         (light oklch(98.51% 0 0) = #fafafa, dark oklch(20.46% 0 0) = #171717). -->
     <script src="/theme.js"></script>
     <style>
       html,
@@ -15,16 +17,13 @@
         margin: 0;
         min-height: 100%;
       }
-      /* Dark is the default app theme (theme.js adds .dark unless theme=light). */
-      html.dark,
-      html.dark body {
-        background: #09090b;
-        color: #fafafa;
+      html[data-bs-theme='dark'],
+      html[data-bs-theme='dark'] body {
+        background: #171717;
       }
-      html:not(.dark),
-      html:not(.dark) body {
-        background: #ffffff;
-        color: #09090b;
+      html[data-bs-theme='light'],
+      html[data-bs-theme='light'] body {
+        background: #fafafa;
       }
     </style>
   </head>

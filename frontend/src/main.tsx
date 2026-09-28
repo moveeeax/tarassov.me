@@ -7,6 +7,10 @@ import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './components/ui/toaster';
 import './index.css';
+// Tabler last: its reboot must win over Tailwind's preflight while both are in
+// the bundle (Tailwind leaves in task 13).
+import '@tabler/core/dist/css/tabler.min.css';
+import '@fontsource-variable/inter';
 
 const queryClient = new QueryClient({
   defaultOptions: {
