@@ -4,13 +4,17 @@
  *        the HTTP contract of /api/v1/dashboard/{catalog,layout}.
  */
 
+#include <functional>
 #include <string>
 #include <vector>
 
+#include <drogon/HttpRequest.h>
+#include <drogon/HttpResponse.h>
 #include <gtest/gtest.h>
 
 #include <nlohmann/json.hpp>
 
+#include "api/DashboardController.hpp"
 #include "database/Database.hpp"
 #include "domain/Role.hpp"
 #include "repositories/DashboardWidgetRepository.hpp"
@@ -129,6 +133,176 @@ TEST_F(DashboardLayoutTest, DeletingTheUserCascadesTheLayout) {
     users.remove(owner.subject);
 
     EXPECT_EQ(repo.count_owned(owner.subject), 0);
+}
+
+using namespace drogon;
+
+class DashboardApiTest : public DashboardLayoutTest {
+protected:
+    Api::DashboardController controller;
+
+    json get_catalog(const Security::Auth::AuthPrincipal& p, int* status = nullptr) {
+        HttpResponsePtr resp;
+        controller.catalog(TestHelpers::authed(p), [&](const HttpResponsePtr& r) { resp = r; });
+        if (status)
+            *status = resp->statusCode();
+        return json::parse(std::string(resp->body()));
+    }
+
+    json get_layout(const Security::Auth::AuthPrincipal& p, int* status = nullptr) {
+        HttpResponsePtr resp;
+        controller.layout(TestHelpers::authed(p), [&](const HttpResponsePtr& r) { resp = r; });
+        if (status)
+            *status = resp->statusCode();
+        return json::parse(std::string(resp->body()));
+    }
+
+    json put_layout(const Security::Auth::AuthPrincipal& p, const json& body, int* status = nullptr) {
+        HttpResponsePtr resp;
+        controller.saveLayout(TestHelpers::authed_json(p, body, drogon::Put),
+                              [&](const HttpResponsePtr& r) { resp = r; });
+        if (status)
+            *status = resp->statusCode();
+        return json::parse(std::string(resp->body()));
+    }
+
+    static json widget_json(const char* type, int x, int y, int w, int h) {
+        return json{{"widget_type", type}, {"grid_x", x}, {"grid_y", y}, {"grid_w", w}, {"grid_h", h}};
+    }
+};
+
+TEST_F(DashboardApiTest, CatalogIsFilteredByPermission) {
+    auto admin = seed_user("admin-cat@example.com", Domain::Permission::kAdminister);
+    auto auditor = seed_user("auditor-cat@example.com", Domain::Permission::kAuditRead);
+
+    EXPECT_EQ(get_catalog(admin)["data"].size(), 5u);
+
+    auto limited = get_catalog(auditor)["data"];
+    ASSERT_EQ(limited.size(), 1u);
+    EXPECT_EQ(limited[0]["type"], "audit_recent");
+}
+
+TEST_F(DashboardApiTest, LayoutStartsEmptyAndRoundTrips) {
+    auto owner = seed_user("roundtrip@example.com", Domain::Permission::kAdminister);
+    EXPECT_TRUE(get_layout(owner)["data"].empty());
+
+    int status = 0;
+    auto saved = put_layout(
+        owner,
+        json{{"widgets",
+              json::array({widget_json("posts_summary", 0, 0, 4, 3), widget_json("jobs_queue", 4, 0, 4, 3)})}},
+        &status);
+    ASSERT_EQ(status, k200OK);
+    ASSERT_EQ(saved["data"].size(), 2u);
+    EXPECT_TRUE(saved["data"][0].contains("id"));
+    // owner_id never leaves the DTO.
+    EXPECT_FALSE(saved["data"][0].contains("owner_id"));
+
+    auto read = get_layout(owner)["data"];
+    ASSERT_EQ(read.size(), 2u);
+    EXPECT_EQ(read[0]["widget_type"], "posts_summary");
+    EXPECT_EQ(read[0]["options"], json::object());
+}
+
+TEST_F(DashboardApiTest, EmptyWidgetArrayClearsTheLayout) {
+    auto owner = seed_user("empty@example.com", Domain::Permission::kAdminister);
+    put_layout(owner, json{{"widgets", json::array({widget_json("posts_summary", 0, 0, 4, 3)})}});
+
+    int status = 0;
+    auto cleared = put_layout(owner, json{{"widgets", json::array()}}, &status);
+    EXPECT_EQ(status, k200OK);
+    EXPECT_TRUE(cleared["data"].empty());
+    EXPECT_TRUE(get_layout(owner)["data"].empty());
+}
+
+TEST_F(DashboardApiTest, TwoWidgetsOfTheSameTypeAreAllowed) {
+    auto owner = seed_user("twins@example.com", Domain::Permission::kAdminister);
+    auto a = widget_json("posts_summary", 0, 0, 4, 3);
+    a["options"] = json{{"limit", 3}};
+    auto b = widget_json("posts_summary", 4, 0, 4, 3);
+    b["options"] = json{{"limit", 10}};
+
+    int status = 0;
+    auto saved = put_layout(owner, json{{"widgets", json::array({a, b})}}, &status);
+    ASSERT_EQ(status, k200OK);
+    ASSERT_EQ(saved["data"].size(), 2u);
+    EXPECT_EQ(saved["data"][0]["options"]["limit"], 3);
+    EXPECT_EQ(saved["data"][1]["options"]["limit"], 10);
+}
+
+TEST_F(DashboardApiTest, RejectsUnknownWidgetType) {
+    auto owner = seed_user("unknown@example.com", Domain::Permission::kAdminister);
+    int status = 0;
+    auto body = put_layout(owner, json{{"widgets", json::array({widget_json("nope", 0, 0, 4, 3)})}}, &status);
+    EXPECT_EQ(status, k400BadRequest);
+    EXPECT_EQ(body["error"], "validation_failed");
+    EXPECT_EQ(body["errors"][0]["field"], "widgets[0].widget_type");
+    EXPECT_EQ(body["errors"][0]["code"], "unknown_widget");
+}
+
+TEST_F(DashboardApiTest, RejectsFractionalGeometryWithA400NotA500) {
+    auto owner = seed_user("fraction@example.com", Domain::Permission::kAdminister);
+    auto w = widget_json("posts_summary", 0, 0, 4, 3);
+    w["grid_x"] = 1.5;
+    int status = 0;
+    auto body = put_layout(owner, json{{"widgets", json::array({w})}}, &status);
+    EXPECT_EQ(status, k400BadRequest);
+    EXPECT_EQ(body["errors"][0]["field"], "widgets[0].grid_x");
+    EXPECT_EQ(body["errors"][0]["code"], "not_integer");
+}
+
+TEST_F(DashboardApiTest, RejectsOptionOutOfRange) {
+    auto owner = seed_user("range@example.com", Domain::Permission::kAdminister);
+    auto w = widget_json("posts_summary", 0, 0, 4, 3);
+    w["options"] = json{{"limit", 999}};
+    int status = 0;
+    auto body = put_layout(owner, json{{"widgets", json::array({w})}}, &status);
+    EXPECT_EQ(status, k400BadRequest);
+    EXPECT_EQ(body["errors"][0]["code"], "above_max");
+}
+
+TEST_F(DashboardApiTest, RejectsMoreThanFortyWidgets) {
+    auto owner = seed_user("flood@example.com", Domain::Permission::kAdminister);
+    json widgets = json::array();
+    for (int i = 0; i < 41; ++i)
+        widgets.push_back(widget_json("service_health", 0, i, 4, 2));
+    int status = 0;
+    auto body = put_layout(owner, json{{"widgets", widgets}}, &status);
+    EXPECT_EQ(status, k400BadRequest);
+    EXPECT_EQ(body["errors"][0]["code"], "too_many");
+}
+
+TEST_F(DashboardApiTest, RejectsMissingWidgetsArray) {
+    auto owner = seed_user("nobody@example.com", Domain::Permission::kAdminister);
+    int status = 0;
+    auto body = put_layout(owner, json{{"layout", json::array()}}, &status);
+    EXPECT_EQ(status, k400BadRequest);
+    EXPECT_EQ(body["errors"][0]["field"], "widgets");
+}
+
+TEST_F(DashboardApiTest, PlacingAWidgetWithoutItsPermissionIs403) {
+    auto auditor = seed_user("auditor-put@example.com", Domain::Permission::kAuditRead);
+    int status = 0;
+    // posts_summary needs kAdminister; the auditor holds only kAuditRead.
+    put_layout(auditor, json{{"widgets", json::array({widget_json("posts_summary", 0, 0, 4, 3)})}}, &status);
+    EXPECT_EQ(status, k403Forbidden);
+
+    // Its own widget still goes through.
+    int ok_status = 0;
+    put_layout(auditor, json{{"widgets", json::array({widget_json("audit_recent", 0, 0, 6, 4)})}}, &ok_status);
+    EXPECT_EQ(ok_status, k200OK);
+}
+
+TEST_F(DashboardApiTest, LayoutsAreIsolatedPerCaller) {
+    auto alice = seed_user("alice-api@example.com", Domain::Permission::kAdminister);
+    auto bob = seed_user("bob-api@example.com", Domain::Permission::kAdminister);
+
+    put_layout(alice, json{{"widgets", json::array({widget_json("posts_summary", 0, 0, 4, 3)})}});
+    EXPECT_TRUE(get_layout(bob)["data"].empty());
+
+    put_layout(bob, json{{"widgets", json::array({widget_json("jobs_queue", 0, 0, 4, 3)})}});
+    EXPECT_EQ(get_layout(alice)["data"].size(), 1u);
+    EXPECT_EQ(get_layout(alice)["data"][0]["widget_type"], "posts_summary");
 }
 
 }  // namespace
