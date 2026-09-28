@@ -235,6 +235,18 @@ components:
         data: { $ref: '#/components/schemas/Role' }
 
     # Generic "{message: ...}" envelope: logout, delete user/role, etc.
+    HealthResponse:
+      type: object
+      required: [status, version, timestamp, components]
+      properties:
+        status: { type: string, description: "ok | degraded | unhealthy" }
+        version: { type: string }
+        timestamp: { type: integer, format: int64, description: Epoch seconds }
+        components:
+          type: object
+          additionalProperties: true
+          description: One entry per component registered via Core::register_health_check
+
     DashboardWidget:
       type: object
       required: [id, widget_type, grid_x, grid_y, grid_w, grid_h, options, created_at, updated_at]
@@ -243,8 +255,19 @@ components:
         widget_type: { type: string, description: "A type from /api/v1/dashboard/catalog" }
         grid_x: { type: integer, minimum: 0, maximum: 11 }
         grid_y: { type: integer, minimum: 0, maximum: 200 }
-        grid_w: { type: integer, minimum: 1, maximum: 12 }
-        grid_h: { type: integer, minimum: 1, maximum: 24 }
+        grid_w:
+          type: integer
+          minimum: 2
+          maximum: 12
+          description: >
+            At least the widget type's own min_w from /api/v1/dashboard/catalog
+            (2 to 4 depending on the type), which the server enforces; 2 is the
+            lowest value any type allows.
+        grid_h:
+          type: integer
+          minimum: 2
+          maximum: 24
+          description: At least the type's min_h from the catalog (2 or 3).
         options: { type: object, additionalProperties: { type: integer } }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
@@ -270,6 +293,10 @@ components:
           type: object
           additionalProperties:
             type: object
+            # The server always emits all four (see Domain::Widgets::OptionSpec),
+            # so they are required: a client reading `default` must not have to
+            # carry its own copy of the number.
+            required: [type, min, max, default]
             properties:
               type: { type: string, enum: [int] }
               min: { type: integer }
@@ -331,8 +358,36 @@ paths:
       summary: Detailed component health
       tags: [health]
       responses:
-        '200': { description: All components healthy }
-        '503': { description: One or more components unhealthy }
+        '200':
+          description: All components healthy
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+        '503':
+          description: One or more components unhealthy
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+
+  /api/v1/health:
+    get:
+      summary: Detailed component health, reachable through the /api proxy
+      description: >
+        Same handler as /health. The SPA can only reach the backend through
+        nginx's `location /api/`, so the dashboard's service widget reads this
+        path; /health alone is answered by the SPA fallback.
+      tags: [health]
+      responses:
+        '200':
+          description: All components healthy
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+        '503':
+          description: One or more components unhealthy
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
 
   # ── Public pages / SEO ──────────────────────────────────────────────────────
   /sitemap.xml:
@@ -660,8 +715,18 @@ paths:
                       widget_type: { type: string }
                       grid_x: { type: integer, minimum: 0, maximum: 11 }
                       grid_y: { type: integer, minimum: 0, maximum: 200 }
-                      grid_w: { type: integer, minimum: 1, maximum: 12 }
-                      grid_h: { type: integer, minimum: 1, maximum: 24 }
+                      grid_w:
+                        type: integer
+                        minimum: 2
+                        maximum: 12
+                        description: >
+                          Must be at least the type's min_w from
+                          /api/v1/dashboard/catalog, not merely 2.
+                      grid_h:
+                        type: integer
+                        minimum: 2
+                        maximum: 24
+                        description: Must be at least the type's min_h from the catalog.
                       options: { type: object, additionalProperties: { type: integer } }
       responses:
         '200':
@@ -675,7 +740,11 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ValidationError' }
         '401': { description: Not authenticated }
-        '403': { description: A widget in the layout needs a permission you lack }
+        '403':
+          description: >
+            A widget in the layout needs a permission you lack. This wins over a
+            400: the first forbidden entry ends the request, so field errors
+            collected from earlier entries are not reported.
 
   # ── Admin (require Permission::ADMINISTER) ────────────────────────────────
   /api/v1/admin/users:

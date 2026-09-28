@@ -8,13 +8,29 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "database/Database.hpp"
 #include "domain/DashboardWidget.hpp"
 #include "repositories/CrudBase.hpp"
+#include "repositories/RepoErrors.hpp"
+#include "repositories/SqlErrors.hpp"
 
 namespace Repositories {
+
+/// → 404. The owner_id foreign key failed, which means the user row is gone: an
+/// access token can outlive the account it names, and the INSERT is where that
+/// shows up. Reported as the missing user rather than a bare 500.
+struct DashboardOwnerGone : NotFoundError {
+    DashboardOwnerGone() : NotFoundError("user") {}
+};
+
+/// → 409. A future unique index or CHECK on dashboard_widgets lands here instead
+/// of falling through to the 500 arm of with_repo_errors.
+struct DashboardWidgetConflict : ConflictError {
+    DashboardWidgetConflict() : ConflictError("dashboard_widget_conflict", "layout violates a database constraint") {}
+};
 
 /// Validated input row the controller hands to replace_all. `options_json` is
 /// already-serialized JSON (the controller dumps the validated object), so the
@@ -50,26 +66,36 @@ public:
      */
     std::vector<Domain::DashboardWidget> replace_all(const std::string& owner_id,
                                                      const std::vector<DashboardWidgetInput>& widgets) {
-        return Database::get().execute_write([&](auto& txn) {
-            txn.exec_params("DELETE FROM dashboard_widgets WHERE owner_id = $1", owner_id);
-            std::vector<Domain::DashboardWidget> out;
-            out.reserve(widgets.size());
-            for (const auto& w : widgets) {
-                auto r = txn.exec_params(std::string("INSERT INTO dashboard_widgets "
-                                                     "(owner_id, widget_type, grid_x, grid_y, grid_w, grid_h, options) "
-                                                     "VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb) RETURNING ") +
-                                             kColumns,
-                                         owner_id,
-                                         w.widget_type,
-                                         w.grid_x,
-                                         w.grid_y,
-                                         w.grid_w,
-                                         w.grid_h,
-                                         w.options_json);
-                out.push_back(Domain::DashboardWidget::from_row(r[0]));
-            }
-            return out;
-        });
+        return detail::translate_sql(
+            [&] {
+                return Database::get().execute_write([&](auto& txn) {
+                    txn.exec_params("DELETE FROM dashboard_widgets WHERE owner_id = $1", owner_id);
+                    std::vector<Domain::DashboardWidget> out;
+                    out.reserve(widgets.size());
+                    for (const auto& w : widgets) {
+                        auto r = txn.exec_params(
+                            std::string("INSERT INTO dashboard_widgets "
+                                        "(owner_id, widget_type, grid_x, grid_y, grid_w, grid_h, options) "
+                                        "VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb) RETURNING ") +
+                                kColumns,
+                            owner_id,
+                            w.widget_type,
+                            w.grid_x,
+                            w.grid_y,
+                            w.grid_w,
+                            w.grid_h,
+                            w.options_json);
+                        out.push_back(Domain::DashboardWidget::from_row(r[0]));
+                    }
+                    return out;
+                });
+            },
+            [](std::string_view state) {
+                if (state == "23503")  // foreign_key_violation: the owner is gone
+                    throw DashboardOwnerGone{};
+                if (state == "23505" || state == "23514")  // unique_violation / check_violation
+                    throw DashboardWidgetConflict{};
+            });
     }
 };
 

@@ -5,6 +5,7 @@
 #include <nlohmann/json.hpp>
 
 #include "api/Api.hpp"
+#include "api/Endpoints.hpp"
 #include "test_helpers.hpp"
 
 using json = nlohmann::json;
@@ -103,4 +104,16 @@ TEST(HealthEndpointsNoCoreTest, HealthUnhealthyWithNoSubsystems) {
     auto body = json::parse(std::string(captured->body()));
     EXPECT_EQ(body["status"], "unhealthy");
     EXPECT_EQ(body["version"], "unknown");
+}
+
+// The SPA can only reach the backend through nginx's `location /api/`
+// (frontend/nginx.conf), which the spec freezes. So the detailed probe the
+// dashboard's service widget reads must be registered under /api/v1 as well —
+// /health alone falls through to the SPA fallback and answers index.html.
+TEST(HealthRoutes, DetailedHealthIsAlsoRegisteredUnderApiV1) {
+    bool found = false;
+    for (const auto& ep : Api::get_endpoints())
+        if (ep.method == "GET" && ep.path == "/api/v1/health")
+            found = true;
+    EXPECT_TRUE(found) << "GET /api/v1/health missing from Api::get_endpoints()";
 }

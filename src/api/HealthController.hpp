@@ -32,6 +32,10 @@ public:
     ADD_METHOD_TO(HealthController::liveness, "/healthz", Get);
     ADD_METHOD_TO(HealthController::readiness, "/ready", Get);
     ADD_METHOD_TO(HealthController::health, "/health", Get);
+    // Same handler under /api/v1: the SPA can only reach the backend through
+    // nginx's `location /api/`, and /health alone falls through to the SPA
+    // fallback and answers index.html to a fetch() that expects JSON.
+    ADD_METHOD_TO(HealthController::health, "/api/v1/health", Get);
     METHOD_LIST_END
 
     void liveness(const HttpRequestPtr&, std::function<void(const HttpResponsePtr&)>&& callback) {

@@ -320,4 +320,39 @@ TEST_F(DashboardApiTest, LayoutsAreIsolatedPerCaller) {
     EXPECT_EQ(get_layout(alice)["data"][0]["widget_type"], "posts_summary");
 }
 
+TEST_F(DashboardApiTest, RejectsAWidgetRunningPastTheGrid) {
+    auto owner = seed_user("outofgrid@example.com", Domain::Permission::kAdminister);
+    // 10 + 4 > 12. Covered in the unit bucket too; the spec lists it among the
+    // integration cases because the 400 has to survive the whole HTTP path.
+    int status = 0;
+    auto body = put_layout(owner, json{{"widgets", json::array({widget_json("posts_summary", 10, 0, 4, 3)})}}, &status);
+    EXPECT_EQ(status, k400BadRequest);
+    EXPECT_EQ(body["errors"][0]["field"], "widgets[0].grid_w");
+    EXPECT_EQ(body["errors"][0]["code"], "out_of_grid");
+}
+
+TEST_F(DashboardApiTest, RejectsAnUnknownOptionKey) {
+    auto owner = seed_user("unknownopt@example.com", Domain::Permission::kAdminister);
+    auto w = widget_json("posts_summary", 0, 0, 4, 3);
+    w["options"] = json{{"colour", 3}};
+    int status = 0;
+    auto body = put_layout(owner, json{{"widgets", json::array({w})}}, &status);
+    EXPECT_EQ(status, k400BadRequest);
+    EXPECT_EQ(body["errors"][0]["field"], "widgets[0].options.colour");
+    EXPECT_EQ(body["errors"][0]["code"], "unknown_option");
+}
+
+TEST_F(DashboardApiTest, OwnerRowGoneGives404NotA500) {
+    auto owner = seed_user("vanished@example.com", Domain::Permission::kAdminister);
+    // The access token outlives the user row: authentication succeeds, then the
+    // INSERT trips the owner_id foreign key. Without a SQLSTATE translator that
+    // surfaces as a bare 500.
+    Repositories::UserRepository users;
+    users.remove(owner.subject);
+
+    int status = 0;
+    put_layout(owner, json{{"widgets", json::array({widget_json("posts_summary", 0, 0, 4, 3)})}}, &status);
+    EXPECT_EQ(status, k404NotFound);
+}
+
 }  // namespace
