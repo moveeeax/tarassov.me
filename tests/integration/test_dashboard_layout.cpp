@@ -50,12 +50,8 @@ protected:
         return p;
     }
 
-    static Repositories::DashboardWidgetInput widget(const std::string& type,
-                                                     int x,
-                                                     int y,
-                                                     int w,
-                                                     int h,
-                                                     const std::string& options = "{}") {
+    static Repositories::DashboardWidgetInput widget(
+        const std::string& type, int x, int y, int w, int h, const std::string& options = "{}") {
         Repositories::DashboardWidgetInput in;
         in.widget_type = type;
         in.grid_x = x;
