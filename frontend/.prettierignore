@@ -1,0 +1,4 @@
+# Generated from docs/openapi.yaml by `npm run gen:api` — formatting it would be
+# undone on the next generation. eslint.config.js ignores it for the same reason.
+src/lib/api/schema.gen.ts
+dist

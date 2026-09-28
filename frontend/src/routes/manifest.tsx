@@ -1,5 +1,4 @@
 import { lazy, type ReactElement } from 'react';
-import { Shield, ScrollText } from 'lucide-react';
 
 import { Permission } from '@/lib/auth/permissions';
 
@@ -69,8 +68,7 @@ const AdminMediaPage = lazy(() =>
  *   - 'admin'     — signed in, confirmed, AND Permission.Administer
  *                   (the 0x40000000 sentinel bit, not 0xff).
  *
- * `navLabel` opts a route into the top nav. `navIcon` (a lucide icon
- * component) renders before the label. Routes with a dynamic `:param`
+ * `navLabel` opts a route into the sidebar. Routes with a dynamic `:param`
  * segment never belong in the nav, so they simply omit `navLabel`.
  *
  * `requirePermission` lets a non-admin route still gate on a specific
@@ -83,10 +81,8 @@ export interface RouteEntry {
   path: string;
   element: ReactElement;
   guard: RouteGuard;
-  /** When present, the route shows up in the top nav with this label. */
+  /** When present, the route shows up in the sidebar with this label. */
   navLabel?: string;
-  /** Optional lucide icon component rendered before the nav label. */
-  navIcon?: React.ComponentType<{ className?: string }>;
   /** Extra permission bit a non-admin route must carry (rare). */
   requirePermission?: number;
 }
@@ -130,7 +126,6 @@ export const routes: RouteEntry[] = [
     element: <AdminDashboardPage />,
     guard: 'admin',
     navLabel: 'Admin',
-    navIcon: Shield,
   },
   { path: '/admin/users', element: <AdminUsersPage />, guard: 'admin' },
   { path: '/admin/users/:id', element: <AdminUserDetailPage />, guard: 'admin' },
@@ -149,7 +144,6 @@ export const routes: RouteEntry[] = [
     guard: 'confirmed',
     requirePermission: Permission.AuditRead,
     navLabel: 'Audit',
-    navIcon: ScrollText,
   },
   { path: '/admin/posts', element: <AdminPostsPage />, guard: 'admin', navLabel: 'Posts' },
   { path: '/admin/media', element: <AdminMediaPage />, guard: 'admin', navLabel: 'Media' },

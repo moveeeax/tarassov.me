@@ -44,7 +44,6 @@ function installStorage(overrides: Partial<Storage> = {}): Storage {
 describe('theme', () => {
   beforeEach(() => {
     document.documentElement.removeAttribute('data-bs-theme');
-    document.documentElement.classList.remove('dark');
     installStorage();
   });
 
@@ -57,15 +56,13 @@ describe('theme', () => {
     expect(readTheme()).toBe('light');
   });
 
-  it('applies the attribute, the transitional class and the stored value', () => {
+  it('applies the attribute and the stored value', () => {
     applyTheme('light');
     expect(document.documentElement.getAttribute('data-bs-theme')).toBe('light');
-    expect(document.documentElement.classList.contains('dark')).toBe(false);
     expect(window.localStorage.getItem('theme')).toBe('light');
 
     applyTheme('dark');
     expect(document.documentElement.getAttribute('data-bs-theme')).toBe('dark');
-    expect(document.documentElement.classList.contains('dark')).toBe(true);
     expect(window.localStorage.getItem('theme')).toBe('dark');
   });
 
@@ -78,6 +75,5 @@ describe('theme', () => {
     });
     expect(() => applyTheme('light')).not.toThrow();
     expect(document.documentElement.getAttribute('data-bs-theme')).toBe('light');
-    expect(document.documentElement.classList.contains('dark')).toBe(false);
   });
 });

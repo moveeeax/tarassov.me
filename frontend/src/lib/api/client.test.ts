@@ -30,21 +30,24 @@ afterEach(() => {
 /** Install a fetch mock driven by a per-call handler list (in order). */
 function mockFetchSequence(handlers: Array<(call: FetchCall) => Response | Promise<Response>>) {
   let i = 0;
-  vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => {
-    const call = { url: String(url), init };
-    calls.push(call);
-    const handler = handlers[Math.min(i, handlers.length - 1)];
-    i += 1;
-    return handler(call);
-  }));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init: RequestInit = {}) => {
+      const call = { url: String(url), init };
+      calls.push(call);
+      const handler = handlers[Math.min(i, handlers.length - 1)];
+      i += 1;
+      return handler(call);
+    }),
+  );
 }
 
 describe('api client 401→refresh→retry', () => {
   it('refreshes once and replays the original request on 401', async () => {
     mockFetchSequence([
       () => jsonResponse(401, { error: 'missing_token' }), // original
-      () => new Response(null, { status: 200 }),           // POST /api/auth/refresh
-      () => jsonResponse(200, { data: 'after-refresh' }),  // replay
+      () => new Response(null, { status: 200 }), // POST /api/auth/refresh
+      () => jsonResponse(200, { data: 'after-refresh' }), // replay
     ]);
 
     // Typed path: response type is inferred from the OpenAPI `paths` tree.
@@ -53,7 +56,11 @@ describe('api client 401→refresh→retry', () => {
     expect(error).toBeUndefined();
     expect(data).toEqual({ data: 'after-refresh' });
 
-    expect(calls.map((c) => c.url)).toEqual(['/api/v1/jobs', '/api/v1/auth/refresh', '/api/v1/jobs']);
+    expect(calls.map((c) => c.url)).toEqual([
+      '/api/v1/jobs',
+      '/api/v1/auth/refresh',
+      '/api/v1/jobs',
+    ]);
     expect(calls[1].init.method).toBe('POST');
   });
 
@@ -91,9 +98,9 @@ describe('api client 401→refresh→retry', () => {
     // 401, useMe() resolved to null, and the guard bounced a still-valid
     // session to /login. /me must refresh + replay like any other call.
     mockFetchSequence([
-      () => jsonResponse(401, { error: 'missing_token' }),    // /me — access expired
-      () => new Response(null, { status: 200 }),              // refresh succeeds
-      () => jsonResponse(200, { user: { id: 'u1' } }),        // replayed /me
+      () => jsonResponse(401, { error: 'missing_token' }), // /me — access expired
+      () => new Response(null, { status: 200 }), // refresh succeeds
+      () => jsonResponse(200, { user: { id: 'u1' } }), // replayed /me
     ]);
 
     const { data, error } = await api.GET('/api/v1/auth/me');
@@ -108,20 +115,23 @@ describe('api client 401→refresh→retry', () => {
 
   it('deduplicates concurrent refreshes: N parallel 401s → one refresh call', async () => {
     let refreshes = 0;
-    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => {
-      calls.push({ url: String(url), init });
-      if (String(url) === '/api/v1/auth/refresh') {
-        refreshes += 1;
-        // Slow refresh so all three 401 handlers race into tryRefresh().
-        await new Promise((r) => setTimeout(r, 20));
-        return new Response(null, { status: 200 });
-      }
-      // First hit per path: 401; replay after refresh: 200.
-      const seen = calls.filter((c) => c.url === String(url)).length;
-      return seen === 1
-        ? jsonResponse(401, { error: 'missing_token' })
-        : jsonResponse(200, { ok: true });
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit = {}) => {
+        calls.push({ url: String(url), init });
+        if (String(url) === '/api/v1/auth/refresh') {
+          refreshes += 1;
+          // Slow refresh so all three 401 handlers race into tryRefresh().
+          await new Promise((r) => setTimeout(r, 20));
+          return new Response(null, { status: 200 });
+        }
+        // First hit per path: 401; replay after refresh: 200.
+        const seen = calls.filter((c) => c.url === String(url)).length;
+        return seen === 1
+          ? jsonResponse(401, { error: 'missing_token' })
+          : jsonResponse(200, { ok: true });
+      }),
+    );
 
     const [a, b, c] = await Promise.all([
       api.GET('/api/v1/jobs'),
@@ -152,14 +162,18 @@ describe('api client 401→refresh→retry', () => {
   it('returns the second 401 after a successful refresh — exactly one replay, no loop', async () => {
     mockFetchSequence([
       () => jsonResponse(401, { error: 'missing_token' }), // original
-      () => new Response(null, { status: 200 }),           // refresh succeeds…
+      () => new Response(null, { status: 200 }), // refresh succeeds…
       () => jsonResponse(401, { error: 'missing_token' }), // …but the replay still 401s
     ]);
 
     const { error } = await api.GET('/api/v1/jobs');
     expect(error?.status).toBe(401);
     // original + refresh + one replay. No second refresh, no infinite loop.
-    expect(calls.map((c) => c.url)).toEqual(['/api/v1/jobs', '/api/v1/auth/refresh', '/api/v1/jobs']);
+    expect(calls.map((c) => c.url)).toEqual([
+      '/api/v1/jobs',
+      '/api/v1/auth/refresh',
+      '/api/v1/jobs',
+    ]);
   });
 });
 

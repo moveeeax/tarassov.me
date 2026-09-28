@@ -2,10 +2,6 @@
  * Theme state. Tabler keys its dark palette off `[data-bs-theme="dark"]` on
  * <html>; its own default is LIGHT, so the pre-paint script in /theme.js sets
  * the attribute explicitly to keep this app's dark default.
- *
- * The `dark` class is written too, but only until task 13: the shadcn CSS
- * variables still in index.css key off it, and pages converted to Tabler
- * ignore it. Drop the class once Tailwind is gone.
  */
 export type Theme = 'light' | 'dark';
 
@@ -15,7 +11,6 @@ export function readTheme(): Theme {
 
 export function applyTheme(next: Theme): void {
   document.documentElement.setAttribute('data-bs-theme', next);
-  document.documentElement.classList.toggle('dark', next === 'dark');
   try {
     // window.localStorage, not the bare global: under Node 22 the bare name
     // resolves to Node's own experimental localStorage, which is unavailable
