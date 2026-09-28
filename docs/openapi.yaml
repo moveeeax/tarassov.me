@@ -235,6 +235,53 @@ components:
         data: { $ref: '#/components/schemas/Role' }
 
     # Generic "{message: ...}" envelope: logout, delete user/role, etc.
+    DashboardWidget:
+      type: object
+      required: [id, widget_type, grid_x, grid_y, grid_w, grid_h, options, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        widget_type: { type: string, description: "A type from /api/v1/dashboard/catalog" }
+        grid_x: { type: integer, minimum: 0, maximum: 11 }
+        grid_y: { type: integer, minimum: 0, maximum: 200 }
+        grid_w: { type: integer, minimum: 1, maximum: 12 }
+        grid_h: { type: integer, minimum: 1, maximum: 24 }
+        options: { type: object, additionalProperties: { type: integer } }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    DashboardLayoutResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/DashboardWidget' } }
+
+    DashboardCatalogEntry:
+      type: object
+      required: [type, title, description, default_w, default_h, min_w, min_h, options]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        description: { type: string }
+        default_w: { type: integer }
+        default_h: { type: integer }
+        min_w: { type: integer }
+        min_h: { type: integer }
+        options:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              type: { type: string, enum: [int] }
+              min: { type: integer }
+              max: { type: integer }
+              default: { type: integer }
+
+    DashboardCatalogResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/DashboardCatalogEntry' } }
+
     MessageResponse:
       type: object
       properties:
@@ -564,6 +611,71 @@ paths:
         '200': { description: Key revoked }
         '401': { description: Not authenticated }
         '404': { description: No such key (or not yours) }
+
+  # ── Dashboard (owner-scoped: your own layout) ─────────────────────────────
+  /api/v1/dashboard/catalog:
+    get:
+      summary: Widget types you may place, filtered by your permissions
+      tags: [dashboard]
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: Catalog entries under data[]
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardCatalogResponse' }
+        '401': { description: Not authenticated }
+
+  /api/v1/dashboard/layout:
+    get:
+      summary: Your dashboard layout, ordered by grid position
+      tags: [dashboard]
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: Widgets under data[] (empty array when nothing is configured)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardLayoutResponse' }
+        '401': { description: Not authenticated }
+    put:
+      summary: Replace your whole layout (an empty array clears it)
+      tags: [dashboard]
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [widgets]
+              properties:
+                widgets:
+                  type: array
+                  maxItems: 40
+                  items:
+                    type: object
+                    required: [widget_type, grid_x, grid_y, grid_w, grid_h]
+                    properties:
+                      widget_type: { type: string }
+                      grid_x: { type: integer, minimum: 0, maximum: 11 }
+                      grid_y: { type: integer, minimum: 0, maximum: 200 }
+                      grid_w: { type: integer, minimum: 1, maximum: 12 }
+                      grid_h: { type: integer, minimum: 1, maximum: 24 }
+                      options: { type: object, additionalProperties: { type: integer } }
+      responses:
+        '200':
+          description: The stored layout
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardLayoutResponse' }
+        '400':
+          description: Unknown widget type, geometry outside the grid, or an unknown option
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidationError' }
+        '401': { description: Not authenticated }
+        '403': { description: A widget in the layout needs a permission you lack }
 
   # ── Admin (require Permission::ADMINISTER) ────────────────────────────────
   /api/v1/admin/users:

@@ -1,53 +1,30 @@
 import { api } from '@/lib/api/client';
+import type { paths } from '@/lib/api/schema.gen';
+import type { DashboardCatalogEntry, DashboardWidget } from '@/lib/api/types';
 
-/** One placed widget as the backend stores it. */
-export interface DashboardWidget {
-  id: string;
-  widget_type: string;
-  grid_x: number;
-  grid_y: number;
-  grid_w: number;
-  grid_h: number;
-  options: Record<string, number>;
-  created_at: string;
-  updated_at: string;
-}
+export type { DashboardCatalogEntry as CatalogEntry, DashboardWidget };
 
-/** One type the caller may place, with its geometry defaults and option bounds. */
-export interface CatalogEntry {
-  type: string;
-  title: string;
-  description: string;
-  default_w: number;
-  default_h: number;
-  min_w: number;
-  min_h: number;
-  options: Record<string, { type: 'int'; min: number; max: number; default: number }>;
-}
+type LayoutPutBody = NonNullable<
+  paths['/api/v1/dashboard/layout']['put']['requestBody']
+>['content']['application/json'];
 
-/** What PUT accepts: no id, the server mints one per placement. */
-export interface WidgetPlacement {
-  widget_type: string;
-  grid_x: number;
-  grid_y: number;
-  grid_w: number;
-  grid_h: number;
-  options?: Record<string, number>;
-}
+/**
+ * What PUT accepts: no id, the server mints one per placement. Derived from the
+ * generated request body so the shape cannot drift from docs/openapi.yaml.
+ */
+export type WidgetPlacement = NonNullable<LayoutPutBody['widgets']>[number];
 
 export async function fetchLayout(): Promise<DashboardWidget[]> {
-  const body = await api.getJson<{ data: DashboardWidget[] }>('/api/v1/dashboard/layout');
+  const body = await api.getJson('/api/v1/dashboard/layout');
   return body.data;
 }
 
-export async function fetchCatalog(): Promise<CatalogEntry[]> {
-  const body = await api.getJson<{ data: CatalogEntry[] }>('/api/v1/dashboard/catalog');
+export async function fetchCatalog(): Promise<DashboardCatalogEntry[]> {
+  const body = await api.getJson('/api/v1/dashboard/catalog');
   return body.data;
 }
 
 export async function saveLayout(widgets: WidgetPlacement[]): Promise<DashboardWidget[]> {
-  const body = await api.putJson<{ data: DashboardWidget[] }>('/api/v1/dashboard/layout', {
-    body: { widgets },
-  });
+  const body = await api.putJson('/api/v1/dashboard/layout', { body: { widgets } });
   return body.data;
 }

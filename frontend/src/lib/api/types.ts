@@ -24,6 +24,8 @@ export type UserListResponse = Schemas['UserListResponse'];
 export type JobListResponse = Schemas['JobListResponse'];
 export type DlqListResponse = Schemas['DlqListResponse'];
 export type JobCreate = Schemas['JobCreate'];
+export type DashboardWidget = Schemas['DashboardWidget'];
+export type DashboardCatalogEntry = Schemas['DashboardCatalogEntry'];
 
 /** GET /api/auth/me, POST /api/auth/login, POST /api/auth/refresh — { user }. */
 export type MeResponse = Schemas['MeResponse'];
