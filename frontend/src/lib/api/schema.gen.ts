@@ -176,8 +176,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Detailed component health, reachable through the /api proxy
-         * @description Same handler as /health. The SPA can only reach the backend through nginx's `location /api/`, so the dashboard's service widget reads this path; /health alone is answered by the SPA fallback.
+         * Detailed component health for the admin UI (admin-only)
+         * @description Same payload as /health. The SPA can only reach the backend through nginx's `location /api/`, so the dashboard's service widget reads this path; /health alone is answered by the SPA fallback. Unlike the in-cluster probes this path is reachable through the ingress, so it requires Permission::ADMINISTER.
          */
         get: {
             parameters: {
@@ -196,6 +196,13 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["HealthResponse"];
                     };
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
                 /** @description One or more components unhealthy */
                 503: {

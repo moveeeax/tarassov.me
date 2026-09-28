@@ -371,18 +371,22 @@ paths:
 
   /api/v1/health:
     get:
-      summary: Detailed component health, reachable through the /api proxy
+      summary: Detailed component health for the admin UI (admin-only)
       description: >
-        Same handler as /health. The SPA can only reach the backend through
+        Same payload as /health. The SPA can only reach the backend through
         nginx's `location /api/`, so the dashboard's service widget reads this
-        path; /health alone is answered by the SPA fallback.
+        path; /health alone is answered by the SPA fallback. Unlike the
+        in-cluster probes this path is reachable through the ingress, so it
+        requires Permission::ADMINISTER.
       tags: [health]
+      security: [{ BearerAuth: [] }]
       responses:
         '200':
           description: All components healthy
           content:
             application/json:
               schema: { $ref: '#/components/schemas/HealthResponse' }
+        '403': { description: Not an admin }
         '503':
           description: One or more components unhealthy
           content:

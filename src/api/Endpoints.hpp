@@ -31,7 +31,7 @@ inline const std::vector<EndpointInfo>& get_endpoints() {
         {"GET", "/healthz", "Liveness probe"},
         {"GET", "/ready", "Readiness probe"},
         {"GET", "/health", "Detailed health check"},
-        {"GET", "/api/v1/health", "Detailed health check (same handler, reachable through the /api proxy)"},
+        {"GET", "/api/v1/health", "Detailed health check for the admin UI (admin-only)"},
         {"POST", "/api/v1/auth/register", "Register a new user"},
         {"POST", "/api/v1/auth/login", "Log in (issues access + refresh cookies)"},
         {"POST", "/api/v1/auth/logout", "Log out (clears cookies + revokes refresh)"},

@@ -299,6 +299,10 @@ jobs:
         run: npm test
       - name: Lint
         run: npm run lint  # flat config, zero-warning baseline
+      - name: Format check
+        # Was missing, which is how 13 files drifted out of prettier's style
+        # without anyone noticing. schema.gen.ts is exempt via .prettierignore.
+        run: npm run format:check
       - name: Production build
         run: npm run build
 

@@ -6,6 +6,7 @@
 
 #include "api/Api.hpp"
 #include "api/Endpoints.hpp"
+#include "security/Auth.hpp"
 #include "test_helpers.hpp"
 
 using json = nlohmann::json;
@@ -116,4 +117,44 @@ TEST(HealthRoutes, DetailedHealthIsAlsoRegisteredUnderApiV1) {
         if (ep.method == "GET" && ep.path == "/api/v1/health")
             found = true;
     EXPECT_TRUE(found) << "GET /api/v1/health missing from Api::get_endpoints()";
+}
+
+// ---------- /api/v1/health is the browser-reachable alias, so it is gated ----------
+
+class HealthApiV1GateTest : public TestHelpers::CoreBackedTest {
+protected:
+    Api::HealthController controller;
+
+    std::string config_file_name() const override { return "health_api_v1_gate_test_config.json"; }
+
+    // The gate only exists when auth is on: API_REQUIRE_ADMIN is a no-op under
+    // AUTH_MODE=none, so with the default config this suite would pass vacuously.
+    void config_overrides(nlohmann::json& cfg) override {
+        cfg["auth"]["mode"] = "jwt";
+        cfg["auth"]["jwt"]["secret"] = "test-jwt-secret-for-health-api-v1-gate-padding";
+        cfg["mail"]["enabled"] = false;
+    }
+};
+
+TEST_F(HealthApiV1GateTest, AnonymousCallerIsRefused) {
+    HttpResponsePtr captured;
+    controller.healthAuthed(TestHelpers::make_request(), [&](const HttpResponsePtr& r) { captured = r; });
+    ASSERT_NE(captured, nullptr);
+    EXPECT_EQ(captured->statusCode(), k403Forbidden);
+}
+
+TEST_F(HealthApiV1GateTest, AdminGetsTheSamePayloadAsTheBareProbe) {
+    Security::Auth::AuthPrincipal admin;
+    admin.subject = "00000000-0000-0000-0000-000000000001";
+    admin.raw_claims = json{{"sub", admin.subject}, {"permissions", 0x40000000u}};
+
+    HttpResponsePtr captured;
+    controller.healthAuthed(TestHelpers::authed(admin), [&](const HttpResponsePtr& r) { captured = r; });
+    ASSERT_NE(captured, nullptr);
+    // 200 or 503 depending on component health; what matters is that the gate let
+    // the admin through and the payload is the probe's, not an error envelope.
+    EXPECT_NE(captured->statusCode(), k403Forbidden);
+    auto body = json::parse(std::string(captured->body()));
+    EXPECT_TRUE(body.contains("version"));
+    EXPECT_TRUE(body.contains("components"));
 }
