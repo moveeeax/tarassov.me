@@ -2,8 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [master, main]
+    # Feature branches run CI on push: the only C++ test runner available to
+    # this project is a container build, so a branch that cannot trigger a run
+    # has no way to observe a red test before its fix.
+    branches: [master, main, 'feat/**', 'fix/**']
   pull_request:
+  # Re-run against a ref without pushing a commit (a flake, a cache miss).
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
