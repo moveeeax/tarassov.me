@@ -9,9 +9,7 @@ import { routes, type RouteEntry, type RouteGuard } from '@/routes/manifest';
 
 // Fallback shown while a code-split admin chunk loads. Matches the plain
 // "Loading…" the guards already use, so the transition is visually quiet.
-const ChunkFallback = (
-  <div className="container mx-auto py-8 text-muted-foreground">Loading…</div>
-);
+const ChunkFallback = <div className="container-xl text-secondary">Loading…</div>;
 
 /**
  * Guard groups as layout routes: the wrapper renders once and children
@@ -77,11 +75,7 @@ export default function App() {
 
         <Route
           element={
-            <GuardLayout
-              requirePermission={Permission.Administer}
-              requireConfirmed
-              suspense
-            />
+            <GuardLayout requirePermission={Permission.Administer} requireConfirmed suspense />
           }
         >
           {routesFor('admin').map(renderRoute)}
