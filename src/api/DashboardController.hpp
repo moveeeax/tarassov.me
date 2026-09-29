@@ -58,7 +58,9 @@ public:
         API_REQUIRE_OWNER(req, callback, owner);
         Repositories::DashboardWidgetRepository repo;
         with_repo_errors(callback, "dashboard layout", [&] {
-            auto widgets = repo.list_owned(owner, static_cast<int>(Domain::Widgets::kMaxWidgets), 0);
+            // from_primary: the client refetches the layout straight after a PUT,
+            // and a replica read can answer with the arrangement it just replaced.
+            auto widgets = repo.list_owned(owner, static_cast<int>(Domain::Widgets::kMaxWidgets), 0, true);
             json data = json::array();
             for (const auto& w : widgets)
                 data.push_back(w);

@@ -101,8 +101,16 @@ public:
         return from_primary ? Database::get().execute_read_primary(query) : Database::get().execute_read(query);
     }
 
-    std::vector<Entity> list_owned(const std::string& owner_id, int limit = 100, int offset = 0) {
-        return Database::get().execute_read([&](auto& txn) {
+    /// @p from_primary forces the primary pool, as find() and find_owned() already
+    /// allow. Needed by any list a client re-reads immediately after writing it:
+    /// execute_read prefers a replica, and on a replicated topology (prod runs
+    /// postgresql-rw and postgresql-ro as separate instances) the read-after-write
+    /// can come back stale and the UI shows the arrangement the user just replaced.
+    std::vector<Entity> list_owned(const std::string& owner_id,
+                                   int limit = 100,
+                                   int offset = 0,
+                                   bool from_primary = false) {
+        auto query = [&](auto& txn) {
             auto r = txn.exec_params(select_prefix() + " WHERE " + Derived::kOwnerColumn + " = $1 ORDER BY " +
                                          Derived::kOrderBy + " LIMIT $2 OFFSET $3",
                                      owner_id,
@@ -113,7 +121,8 @@ public:
             for (const auto& row : r)
                 out.push_back(Entity::from_row(row));
             return out;
-        });
+        };
+        return from_primary ? Database::get().execute_read_primary(query) : Database::get().execute_read(query);
     }
 
     long count_owned(const std::string& owner_id) {
