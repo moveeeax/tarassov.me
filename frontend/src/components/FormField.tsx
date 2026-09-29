@@ -1,7 +1,6 @@
 import { forwardRef, type InputHTMLAttributes } from 'react';
 
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Input, Label } from '@/components/tabler/Input';
 
 interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   id: string;
@@ -20,19 +19,22 @@ interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
  */
 export const FormField = forwardRef<HTMLInputElement, FormFieldProps>(
   ({ id, label, error, ...inputProps }, ref) => (
-    <div className="space-y-2">
+    <div className="mb-3">
       <Label htmlFor={id}>{label}</Label>
       <Input
         id={id}
         ref={ref}
+        invalid={!!error}
         aria-invalid={!!error}
         aria-describedby={error ? `${id}-error` : undefined}
         {...inputProps}
       />
       {error && (
-        <p id={`${id}-error`} role="alert" className="text-sm text-destructive">
+        // d-block because Bootstrap only reveals .invalid-feedback next to a
+        // .is-invalid sibling in a form-validated <form>; we drive it ourselves.
+        <div id={`${id}-error`} role="alert" className="invalid-feedback d-block">
           {error}
-        </p>
+        </div>
       )}
     </div>
   ),

@@ -1,8 +1,8 @@
 import { Link, useParams } from 'react-router-dom';
 
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert } from '@/components/tabler/Alert';
+import { Button } from '@/components/tabler/Button';
+import { Card, CardBody, CardSubtitle, CardHeader, CardTitle } from '@/components/tabler/Card';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { qk } from '@/lib/api/queryKeys';
 
@@ -33,37 +33,27 @@ export function TokenConfirmCard({
   const confirm = useApiMutation(() => mutate(token), { invalidate: [qk.me()] });
 
   return (
-    <div className="container mx-auto max-w-md py-8">
+    <div className="container-tight py-4">
       <Card>
         <CardHeader>
-          <CardTitle>{title}</CardTitle>
-          <CardDescription>{description}</CardDescription>
+          <div>
+            <CardTitle>{title}</CardTitle>
+            <CardSubtitle>{description}</CardSubtitle>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {confirm.isSuccess && (
-            <Alert variant="success">
-              <AlertDescription>{successMessage}</AlertDescription>
-            </Alert>
-          )}
-          {confirm.isError && (
-            <Alert variant="destructive">
-              <AlertDescription>{confirm.error ?? errorFallback}</AlertDescription>
-            </Alert>
-          )}
+        <CardBody className="vstack gap-3">
+          {confirm.isSuccess && <Alert variant="success">{successMessage}</Alert>}
+          {confirm.isError && <Alert variant="danger">{confirm.error ?? errorFallback}</Alert>}
           {confirm.isSuccess ? (
-            <Button asChild className="w-full">
-              <Link to="/login">Continue to log in</Link>
-            </Button>
+            <Link to="/login" className="btn btn-primary w-100">
+              Continue to log in
+            </Link>
           ) : (
-            <Button
-              className="w-full"
-              disabled={confirm.isPending}
-              onClick={() => confirm.mutate()}
-            >
+            <Button className="w-100" disabled={confirm.isPending} onClick={() => confirm.mutate()}>
               {confirm.isPending ? 'Confirming…' : buttonLabel}
             </Button>
           )}
-        </CardContent>
+        </CardBody>
       </Card>
     </div>
   );

@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2, Pencil, ExternalLink, Eye } from 'lucide-react';
+import { IconExternalLink, IconEye, IconPencil, IconTrash } from '@tabler/icons-react';
 
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
 import { PaginationFooter } from '@/components/PaginationFooter';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/tabler/Button';
+import { PageHeader } from '@/components/tabler/PageHeader';
+import { Card, CardBody, CardFooter, CardHeader, CardTitle } from '@/components/tabler/Card';
+import { Input } from '@/components/tabler/Input';
+import { Label } from '@/components/tabler/Input';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { useErrorToast } from '@/hooks/useErrorToast';
 import { usePagedQuery } from '@/hooks/usePagedQuery';
@@ -160,28 +161,32 @@ export function AdminPostsPage() {
     !dirtyRef.current || window.confirm('Discard unsaved changes to this post?');
 
   const columns: Column<Post>[] = [
-    { header: 'Title', className: 'font-medium', cell: (p) => p.title },
-    { header: 'Slug', className: 'font-mono text-xs', cell: (p) => p.slug },
+    { header: 'Title', className: 'fw-medium', cell: (p) => p.title },
+    { header: 'Slug', className: 'font-monospace small', cell: (p) => p.slug },
     {
       header: 'Status',
       cell: (p) => (
-        <span className={p.status === 'published' ? 'text-green-600' : 'text-muted-foreground'}>
+        <span className={p.status === 'published' ? 'text-green' : 'text-secondary'}>
           {p.status}
         </span>
       ),
     },
-    { header: 'Published', className: 'text-xs', cell: (p) => fmtDate(p.published_at) },
+    { header: 'Published', className: 'small', cell: (p) => fmtDate(p.published_at) },
     {
       header: '',
-      className: 'text-right space-x-1',
+      className: 'text-end',
       cell: (p) => (
-        <>
+        <div className="btn-list justify-content-end flex-nowrap">
           {p.status === 'published' ? (
-            <Button asChild size="sm" variant="ghost" title="View on the public site">
-              <a href={`/blog/${encodeURIComponent(p.slug)}`} target="_blank" rel="noopener">
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            </Button>
+            <a
+              href={`/blog/${encodeURIComponent(p.slug)}`}
+              target="_blank"
+              rel="noopener"
+              title="View on the public site"
+              className="btn btn-ghost-secondary btn-sm btn-icon"
+            >
+              <IconExternalLink size={16} />
+            </a>
           ) : (
             <Button
               size="sm"
@@ -193,133 +198,138 @@ export function AdminPostsPage() {
                 preview.mutate(p.id);
               }}
             >
-              <Eye className="h-3.5 w-3.5" />
+              <IconEye size={16} />
             </Button>
           )}
           <Button size="sm" variant="ghost" onClick={() => setEditing(p)}>
-            <Pencil className="h-3.5 w-3.5" />
+            <IconPencil size={16} />
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setDeleting(p)}>
-            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+            <IconTrash size={16} className="text-danger" />
           </Button>
-        </>
+        </div>
       ),
     },
   ];
 
   return (
-    <div className="container mx-auto max-w-4xl py-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Posts</h1>
-          <p className="text-sm text-muted-foreground">
-            Blog posts for the public site. Published posts appear at <code>/blog.html</code>.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button asChild variant="ghost">
-            <Link to="/admin">← Admin</Link>
-          </Button>
-          <Button onClick={() => setCreating(true)}>New post</Button>
-        </div>
-      </div>
+    <>
+      <PageHeader
+        title="Posts"
+        pretitle="Admin"
+        actions={
+          <div className="btn-list">
+            <Link to="/admin" className="btn btn-ghost-secondary">
+              ← Admin
+            </Link>
+            <Button onClick={() => setCreating(true)}>New post</Button>
+          </div>
+        }
+      />
+      <div className="container-xl vstack gap-3">
+        <p className="small text-secondary mb-0">
+          Blog posts for the public site. Published posts appear at <code>/blog.html</code>.
+        </p>
 
-      <div className="flex gap-2">
-        <Input
-          placeholder="Search title, slug, summary…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <select
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-          value={status}
-          onChange={(e) => setStatus(e.target.value as '' | 'draft' | 'published')}
-        >
-          <option value="">all</option>
-          <option value="draft">draft</option>
-          <option value="published">published</option>
-        </select>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{data ? `${data.total} post(s)` : 'Loading…'}</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <DataTable
-            columns={columns}
-            rows={data?.data}
-            rowKey={(p) => p.id}
-            isLoading={isLoading}
-            error={error}
-            emptyText="No posts yet."
-            isPlaceholder={isPlaceholderData}
+        <div className="d-flex gap-2">
+          <Input
+            placeholder="Search title, slug, summary…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
           />
-          {data && (
-            <PaginationFooter
-              page={page}
-              totalPages={totalPages}
-              isPlaceholderData={isPlaceholderData}
-              onPageChange={setPage}
+          <select
+            className="form-select w-auto"
+            value={status}
+            onChange={(e) => setStatus(e.target.value as '' | 'draft' | 'published')}
+          >
+            <option value="">all</option>
+            <option value="draft">draft</option>
+            <option value="published">published</option>
+          </select>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{data ? `${data.total} post(s)` : 'Loading…'}</CardTitle>
+          </CardHeader>
+          <div className="table-responsive">
+            <DataTable
+              columns={columns}
+              rows={data?.data}
+              rowKey={(p) => p.id}
+              isLoading={isLoading}
+              error={error}
+              emptyText="No posts yet."
+              isPlaceholder={isPlaceholderData}
             />
+          </div>
+          {data && totalPages > 1 && (
+            <CardFooter>
+              <PaginationFooter
+                page={page}
+                totalPages={totalPages}
+                isPlaceholderData={isPlaceholderData}
+                onPageChange={setPage}
+              />
+            </CardFooter>
           )}
-        </CardContent>
-      </Card>
+        </Card>
 
-      {creating && (
-        <Modal onClose={() => setCreating(false)} confirmClose={confirmDiscard}>
-          <PostFormCard
-            key="new"
-            title="New post"
-            onDirtyChange={setDirty}
-            initial={{
-              slug: '',
-              title: '',
-              summary: '',
-              body: '',
-              status: 'draft',
-              topic: '',
-              tags: [],
-            }}
-            submitting={create.isPending}
-            onSubmit={(form) => create.mutate(form)}
-            onCancel={() => setCreating(false)}
+        {creating && (
+          <Modal onClose={() => setCreating(false)} confirmClose={confirmDiscard}>
+            <PostFormCard
+              key="new"
+              title="New post"
+              onDirtyChange={setDirty}
+              initial={{
+                slug: '',
+                title: '',
+                summary: '',
+                body: '',
+                status: 'draft',
+                topic: '',
+                tags: [],
+              }}
+              submitting={create.isPending}
+              onSubmit={(form) => create.mutate(form)}
+              onCancel={() => setCreating(false)}
+            />
+          </Modal>
+        )}
+        {editing && (
+          <Modal onClose={() => setEditing(null)} confirmClose={confirmDiscard}>
+            <PostFormCard
+              key={editing.id}
+              title={`Edit: ${editing.title}`}
+              onDirtyChange={setDirty}
+              initial={{
+                slug: editing.slug,
+                title: editing.title,
+                summary: editing.summary,
+                body: editing.body,
+                status: editing.status,
+                topic: editing.topic ?? '',
+                tags: editing.tags ?? [],
+              }}
+              submitting={update.isPending}
+              onSubmit={(form) => update.mutate({ id: editing.id, form })}
+              onCancel={() => setEditing(null)}
+            />
+          </Modal>
+        )}
+        {deleting && (
+          <ConfirmDialog
+            title="Delete post"
+            description={`Delete "${deleting.title}"? This cannot be undone.`}
+            confirmLabel="Delete post"
+            destructive
+            busy={remove.isPending}
+            onConfirm={() => remove.mutate(deleting.id)}
+            onClose={() => setDeleting(null)}
           />
-        </Modal>
-      )}
-      {editing && (
-        <Modal onClose={() => setEditing(null)} confirmClose={confirmDiscard}>
-          <PostFormCard
-            key={editing.id}
-            title={`Edit: ${editing.title}`}
-            onDirtyChange={setDirty}
-            initial={{
-              slug: editing.slug,
-              title: editing.title,
-              summary: editing.summary,
-              body: editing.body,
-              status: editing.status,
-              topic: editing.topic ?? '',
-              tags: editing.tags ?? [],
-            }}
-            submitting={update.isPending}
-            onSubmit={(form) => update.mutate({ id: editing.id, form })}
-            onCancel={() => setEditing(null)}
-          />
-        </Modal>
-      )}
-      {deleting && (
-        <ConfirmDialog
-          title="Delete post"
-          description={`Delete "${deleting.title}"? This cannot be undone.`}
-          confirmLabel="Delete post"
-          destructive
-          busy={remove.isPending}
-          onConfirm={() => remove.mutate(deleting.id)}
-          onClose={() => setDeleting(null)}
-        />
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -425,19 +435,18 @@ function PostFormCard({
     });
   };
 
-  const textareaClass =
-    'flex min-h-[12rem] w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ' +
-    'ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none ' +
-    'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+  // Tabler's .form-control covers the frame, focus ring and placeholder; only the
+  // monospace face and the minimum height are ours.
+  const textareaClass = 'form-control font-monospace';
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1">
+      <CardBody>
+        <form onSubmit={handleSubmit} className="vstack gap-4">
+          <div className="vstack gap-1">
             <Label htmlFor="post-title">Title</Label>
             <Input
               id="post-title"
@@ -451,7 +460,7 @@ function PostFormCard({
             />
           </div>
 
-          <div className="space-y-1">
+          <div className="vstack gap-1">
             <Label htmlFor="post-slug">Slug</Label>
             <Input
               id="post-slug"
@@ -462,11 +471,11 @@ function PostFormCard({
               }}
               required
               maxLength={160}
-              className="font-mono"
+              className="font-monospace"
             />
           </div>
 
-          <div className="space-y-1">
+          <div className="vstack gap-1">
             <Label htmlFor="post-summary">Summary</Label>
             <Input
               id="post-summary"
@@ -476,8 +485,8 @@ function PostFormCard({
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
+          <div className="row g-3">
+            <div className="col-sm-6">
               <Label htmlFor="post-topic">Topic</Label>
               <Input
                 id="post-topic"
@@ -487,27 +496,27 @@ function PostFormCard({
                 placeholder="Section label, e.g. Kubernetes"
               />
             </div>
-            <div className="space-y-1">
+            <div className="col-sm-6">
               <Label htmlFor="post-tags">Tags</Label>
               <Input
                 id="post-tags"
                 value={tagsText}
                 onChange={(e) => setTagsText(e.target.value)}
-                className="font-mono"
+                className="font-monospace"
                 placeholder="comma-separated, e.g. kubernetes, talos, c++"
               />
             </div>
           </div>
 
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
+          <div className="vstack gap-1">
+            <div className="d-flex align-items-center justify-content-between">
               <Label htmlFor="post-body">Body (Markdown)</Label>
-              <label className="cursor-pointer text-xs text-primary hover:underline">
+              <label className="cursor-pointer small text-primary">
                 {uploading ? 'Uploading…' : '+ Image'}
                 <input
                   type="file"
                   accept="image/*"
-                  className="hidden"
+                  className="d-none"
                   disabled={uploading}
                   onChange={(e) => {
                     const f = e.target.files?.[0];
@@ -519,18 +528,19 @@ function PostFormCard({
             </div>
             <textarea
               id="post-body"
+              rows={16}
               className={textareaClass}
               value={body}
               onChange={(e) => setBody(e.target.value)}
             />
-            {uploadErr && <p className="text-xs text-destructive">{uploadErr}</p>}
+            {uploadErr && <p className="small text-danger">{uploadErr}</p>}
           </div>
 
-          <div className="space-y-1">
+          <div className="vstack gap-1">
             <Label htmlFor="post-status">Status</Label>
             <select
               id="post-status"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="form-select"
               value={status}
               onChange={(e) => setStatus(e.target.value as PostForm['status'])}
             >
@@ -539,7 +549,7 @@ function PostFormCard({
             </select>
           </div>
 
-          <div className="flex gap-2">
+          <div className="d-flex gap-2">
             <Button type="submit" disabled={submitting}>
               {submitting ? 'Saving…' : 'Save'}
             </Button>
@@ -548,7 +558,7 @@ function PostFormCard({
             </Button>
           </div>
         </form>
-      </CardContent>
+      </CardBody>
     </Card>
   );
 }

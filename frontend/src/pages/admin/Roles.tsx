@@ -1,13 +1,14 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2, Pencil } from 'lucide-react';
+import { IconPencil, IconTrash } from '@tabler/icons-react';
 
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DataTable, type Column } from '@/components/DataTable';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/tabler/Button';
+import { PageHeader } from '@/components/tabler/PageHeader';
+import { Card, CardBody, CardHeader, CardTitle } from '@/components/tabler/Card';
+import { Input } from '@/components/tabler/Input';
+import { Label } from '@/components/tabler/Input';
 import { useAdminRoles } from '@/hooks/useAdminRoles';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { useErrorToast } from '@/hooks/useErrorToast';
@@ -57,10 +58,10 @@ export function AdminRolesPage() {
   useErrorToast(create.error ?? update.error ?? remove.error);
 
   const columns: Column<Role>[] = [
-    { header: 'Name', className: 'font-medium', cell: (r) => r.name },
+    { header: 'Name', className: 'fw-medium', cell: (r) => r.name },
     {
       header: 'Permissions',
-      className: 'font-mono',
+      className: 'font-monospace',
       // The sentinel is a bit, not a whole mask: 0x40000001 is just as much an
       // admin as 0x40000000, so test it bitwise (mirrors userCan()).
       cell: (r) =>
@@ -78,11 +79,11 @@ export function AdminRolesPage() {
     },
     {
       header: '',
-      className: 'text-right space-x-1',
+      className: 'text-end',
       cell: (r) => (
-        <>
+        <div className="btn-list justify-content-end flex-nowrap">
           <Button size="sm" variant="ghost" onClick={() => setEditing(r)}>
-            <Pencil className="h-3.5 w-3.5" />
+            <IconPencil size={16} />
           </Button>
           <Button
             size="sm"
@@ -91,85 +92,88 @@ export function AdminRolesPage() {
             title={r.is_default ? 'Default role cannot be deleted' : ''}
             onClick={() => setDeleting(r)}
           >
-            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+            <IconTrash size={16} className="text-danger" />
           </Button>
-        </>
+        </div>
       ),
     },
   ];
 
   return (
-    <div className="container mx-auto max-w-4xl py-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Roles</h1>
-          <p className="text-sm text-muted-foreground">
-            Permission bits map to <code>Domain::Permission::k*</code> on the backend.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button asChild variant="ghost">
-            <Link to="/admin">← Admin</Link>
-          </Button>
-          <Button onClick={() => setCreating(true)}>New role</Button>
-        </div>
-      </div>
+    <>
+      <PageHeader
+        title="Roles"
+        pretitle="Admin"
+        actions={
+          <div className="btn-list">
+            <Link to="/admin" className="btn btn-ghost-secondary">
+              ← Admin
+            </Link>
+            <Button onClick={() => setCreating(true)}>New role</Button>
+          </div>
+        }
+      />
+      <div className="container-xl vstack gap-3">
+        <p className="small text-secondary mb-0">
+          Permission bits map to <code>Domain::Permission::k*</code> on the backend.
+        </p>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{rolesQ.data ? `${rolesQ.data.data.length} role(s)` : 'Loading…'}</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <DataTable
-            columns={columns}
-            rows={rolesQ.data?.data}
-            rowKey={(r) => r.id}
-            isLoading={rolesQ.isLoading}
-            error={rolesQ.error}
-            emptyText="No roles defined."
+        <Card>
+          <CardHeader>
+            <CardTitle>{rolesQ.data ? `${rolesQ.data.data.length} role(s)` : 'Loading…'}</CardTitle>
+          </CardHeader>
+          <CardBody className="table-responsive">
+            <DataTable
+              columns={columns}
+              rows={rolesQ.data?.data}
+              rowKey={(r) => r.id}
+              isLoading={rolesQ.isLoading}
+              error={rolesQ.error}
+              emptyText="No roles defined."
+            />
+          </CardBody>
+        </Card>
+
+        {creating && (
+          <RoleFormCard
+            key="new"
+            title="New role"
+            initial={{ name: '', permissions: 0, is_default: false }}
+            submitting={create.isPending}
+            onSubmit={(form) => create.mutate(form)}
+            onCancel={() => setCreating(false)}
           />
-        </CardContent>
-      </Card>
-
-      {creating && (
-        <RoleFormCard
-          key="new"
-          title="New role"
-          initial={{ name: '', permissions: 0, is_default: false }}
-          submitting={create.isPending}
-          onSubmit={(form) => create.mutate(form)}
-          onCancel={() => setCreating(false)}
-        />
-      )}
-      {editing && (
-        // key={editing.id}: remount the form when switching between roles —
-        // useState(initial.*) only seeds on mount, so without the key the
-        // previous role's edits would bleed into the next one.
-        <RoleFormCard
-          key={editing.id}
-          title={`Edit role: ${editing.name}`}
-          initial={{
-            name: editing.name,
-            permissions: editing.permissions,
-            is_default: editing.is_default,
-          }}
-          submitting={update.isPending}
-          onSubmit={(form) => update.mutate({ id: editing.id, form })}
-          onCancel={() => setEditing(null)}
-        />
-      )}
-      {deleting && (
-        <ConfirmDialog
-          title="Delete role"
-          description={`Delete role "${deleting.name}"? Users referencing it must be reassigned first.`}
-          confirmLabel="Delete role"
-          destructive
-          busy={remove.isPending}
-          onConfirm={() => remove.mutate(deleting.id)}
-          onClose={() => setDeleting(null)}
-        />
-      )}
-    </div>
+        )}
+        {editing && (
+          // key={editing.id}: remount the form when switching between roles —
+          // useState(initial.*) only seeds on mount, so without the key the
+          // previous role's edits would bleed into the next one.
+          <RoleFormCard
+            key={editing.id}
+            title={`Edit role: ${editing.name}`}
+            initial={{
+              name: editing.name,
+              permissions: editing.permissions,
+              is_default: editing.is_default,
+            }}
+            submitting={update.isPending}
+            onSubmit={(form) => update.mutate({ id: editing.id, form })}
+            onCancel={() => setEditing(null)}
+          />
+        )}
+        {deleting && (
+          <ConfirmDialog
+            title="Delete role"
+            description={`Delete role "${deleting.name}"? Users referencing it must be reassigned first.`}
+            confirmLabel="Delete role"
+            destructive
+            busy={remove.isPending}
+            onConfirm={() => remove.mutate(deleting.id)}
+            onClose={() => setDeleting(null)}
+          />
+        )}
+      </div>
+    </>
   );
 }
 
@@ -210,9 +214,9 @@ function RoleFormCard({ title, initial, submitting, onSubmit, onCancel }: RoleFo
       <CardHeader>
         <CardTitle>{title}</CardTitle>
       </CardHeader>
-      <CardContent>
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="space-y-2">
+      <CardBody>
+        <form className="vstack gap-4" onSubmit={handleSubmit}>
+          <div className="vstack gap-2">
             <Label htmlFor="role-name">Name</Label>
             <Input
               id="role-name"
@@ -223,16 +227,16 @@ function RoleFormCard({ title, initial, submitting, onSubmit, onCancel }: RoleFo
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="vstack gap-2">
             <Label>Permissions</Label>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="d-flex align-items-center gap-2 mb-2">
               <input
                 id="role-admin-all"
                 type="checkbox"
                 checked={adminAll}
                 onChange={(e) => setAdminAll(e.target.checked)}
               />
-              <label htmlFor="role-admin-all" className="text-sm">
+              <label htmlFor="role-admin-all" className="small">
                 Administrator (all, 0x{ADMIN_ALL_BITS.toString(16)})
               </label>
             </div>
@@ -240,46 +244,44 @@ function RoleFormCard({ title, initial, submitting, onSubmit, onCancel }: RoleFo
                 it from the tab order and blocks interaction — so we only need
                 the opacity here as a visual cue, not pointer-events-none
                 (which would leave focusable controls silently inert). */}
-            <div className={`grid grid-cols-2 gap-2 ${adminAll ? 'opacity-50' : ''}`}>
+            <div className={`row row-cols-2 g-2 ${adminAll ? 'opacity-50' : ''}`}>
               {PERMISSION_BITS.map((p) => (
-                <label key={p.bit} className="flex items-start gap-2 text-sm">
+                <label key={p.bit} className="col d-flex align-items-start gap-2 small">
                   <input
                     type="checkbox"
                     checked={(perms & p.bit) !== 0}
                     onChange={() => togglePerm(p.bit)}
                     disabled={adminAll}
-                    className="mt-0.5"
+                    className="mt-1"
                   />
                   <span>
-                    <span className="font-mono text-xs text-muted-foreground">
+                    <span className="font-monospace small text-secondary">
                       0x{p.bit.toString(16).padStart(2, '0')}
                     </span>{' '}
                     {p.label}
-                    {p.hint && (
-                      <span className="block text-xs text-muted-foreground">{p.hint}</span>
-                    )}
+                    {p.hint && <span className="d-block small text-secondary">{p.hint}</span>}
                   </span>
                 </label>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground font-mono">
+            <p className="small text-secondary font-monospace">
               Bitmask: 0x{perms.toString(16).padStart(2, '0')} ({perms})
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="d-flex align-items-center gap-2">
             <input
               id="role-default"
               type="checkbox"
               checked={isDefault}
               onChange={(e) => setIsDefault(e.target.checked)}
             />
-            <label htmlFor="role-default" className="text-sm">
+            <label htmlFor="role-default" className="small">
               Default for new sign-ups (only one role can be default)
             </label>
           </div>
 
-          <div className="flex gap-2">
+          <div className="d-flex gap-2">
             <Button type="submit" disabled={submitting || name.trim().length === 0}>
               {submitting ? 'Saving…' : 'Save'}
             </Button>
@@ -288,7 +290,7 @@ function RoleFormCard({ title, initial, submitting, onSubmit, onCancel }: RoleFo
             </Button>
           </div>
         </form>
-      </CardContent>
+      </CardBody>
     </Card>
   );
 }

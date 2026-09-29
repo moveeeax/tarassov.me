@@ -1,7 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+import { Alert } from '@/components/tabler/Alert';
+import { Button } from '@/components/tabler/Button';
 
 interface Props {
   children: ReactNode;
@@ -38,14 +38,16 @@ export class ErrorBoundary extends Component<Props, State> {
   render(): ReactNode {
     if (this.state.error) {
       return (
-        <div className="container mx-auto max-w-md py-8 space-y-4">
-          <Alert variant="destructive">
-            <AlertTitle>Something went wrong</AlertTitle>
-            <AlertDescription>
+        <div className="container-tight py-4 vstack gap-3">
+          <Alert variant="danger">
+            <h4 className="alert-heading">Something went wrong</h4>
+            <div className="alert-description">
               The page hit an unexpected error. Reloading usually fixes it.
-            </AlertDescription>
+            </div>
           </Alert>
-          <Button onClick={() => window.location.reload()}>Reload the page</Button>
+          <div>
+            <Button onClick={() => window.location.reload()}>Reload the page</Button>
+          </div>
         </div>
       );
     }

@@ -1,6 +1,7 @@
 import { forwardRef, type SelectHTMLAttributes } from 'react';
 
 import { useAdminRoles } from '@/hooks/useAdminRoles';
+import { cn } from '@/lib/utils';
 
 /**
  * Roles dropdown shared by InviteUser and UserDetail. Pulls the role
@@ -21,7 +22,7 @@ export const RoleSelect = forwardRef<HTMLSelectElement, RoleSelectProps>(functio
 ) {
   const rolesQ = useAdminRoles();
   const roles = rolesQ.data?.data ?? [];
-  const selectClass = `flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ${className ?? ''}`;
+  const selectClass = cn('form-select', className);
 
   // The <select> is UNCONTROLLED (defaultValue / react-hook-form register) and
   // its <option>s load asynchronously from useAdminRoles. If it mounts before

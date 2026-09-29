@@ -5,8 +5,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { ToastProvider } from './components/ui/toaster';
+import { ToastProvider } from './components/tabler/Toaster';
 import './index.css';
+// Tabler after index.css: the app sheet only adds rules, so Tabler's own reboot
+// and component styles must be the ones that land last.
+import '@tabler/core/dist/css/tabler.min.css';
+import '@fontsource-variable/inter';
 
 const queryClient = new QueryClient({
   defaultOptions: {

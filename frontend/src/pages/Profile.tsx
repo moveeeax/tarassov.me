@@ -1,41 +1,46 @@
 import { Link } from 'react-router-dom';
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardBody, CardSubtitle, CardHeader, CardTitle } from '@/components/tabler/Card';
 import { useMe } from '@/hooks/useMe';
 
 export function ProfilePage() {
   const user = useMe().data ?? null;
   if (!user) return null;
   return (
-    <div className="container mx-auto max-w-2xl py-8 space-y-6">
+    <div className="container-xl vstack gap-3">
       <Card>
         <CardHeader>
-          <CardTitle>Your account</CardTitle>
-          <CardDescription>{user.email}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-1 text-sm">
           <div>
-            <span className="text-muted-foreground">Name: </span>
+            <CardTitle>Your account</CardTitle>
+            <CardSubtitle>{user.email}</CardSubtitle>
+          </div>
+        </CardHeader>
+        <CardBody className="vstack gap-1 small">
+          <div>
+            <span className="text-secondary">Name: </span>
             {user.full_name || '(not set)'}
           </div>
           <div>
-            <span className="text-muted-foreground">Role: </span>
+            <span className="text-secondary">Role: </span>
             {user.role?.name ?? user.role_id}
           </div>
           <div>
-            <span className="text-muted-foreground">Confirmed: </span>
+            <span className="text-secondary">Confirmed: </span>
             {user.confirmed ? 'yes' : 'no'}
           </div>
-        </CardContent>
+        </CardBody>
       </Card>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Button variant="outline" asChild>
-          <Link to="/account/change-password">Change password</Link>
-        </Button>
-        <Button variant="outline" asChild>
-          <Link to="/account/change-email">Change email</Link>
-        </Button>
+      <div className="row row-cards">
+        <div className="col-sm-6">
+          <Link to="/account/change-password" className="btn w-100">
+            Change password
+          </Link>
+        </div>
+        <div className="col-sm-6">
+          <Link to="/account/change-email" className="btn w-100">
+            Change email
+          </Link>
+        </div>
       </div>
     </div>
   );

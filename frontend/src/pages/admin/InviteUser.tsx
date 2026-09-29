@@ -4,9 +4,9 @@ import { useNavigate } from 'react-router-dom';
 
 import { FormField } from '@/components/FormField';
 import { RoleSelect } from '@/components/RoleSelect';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/tabler/Button';
+import { Card, CardBody, CardHeader, CardSubtitle, CardTitle } from '@/components/tabler/Card';
+import { Label } from '@/components/tabler/Input';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { useErrorToast } from '@/hooks/useErrorToast';
 import { api } from '@/lib/api/client';
@@ -45,16 +45,18 @@ export function AdminInviteUserPage() {
   const onSubmit = handleSubmit((values) => invite.mutate(values));
 
   return (
-    <div className="container mx-auto max-w-md py-8">
+    <div className="container-tight py-4">
       <Card>
         <CardHeader>
-          <CardTitle>Invite a user</CardTitle>
-          <CardDescription>
-            They'll get an email with a link to set their own password.
-          </CardDescription>
+          <div>
+            <CardTitle>Invite a user</CardTitle>
+            <CardSubtitle>
+              They&apos;ll get an email with a link to set their own password.
+            </CardSubtitle>
+          </div>
         </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit}>
+        <CardBody>
+          <form className="vstack gap-3" onSubmit={onSubmit}>
             <FormField
               id="email"
               type="email"
@@ -62,29 +64,33 @@ export function AdminInviteUserPage() {
               error={errors.email?.message}
               {...register('email')}
             />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <FormField
-                id="first_name"
-                label="First name"
-                error={errors.first_name?.message}
-                {...register('first_name')}
-              />
-              <FormField
-                id="last_name"
-                label="Last name"
-                error={errors.last_name?.message}
-                {...register('last_name')}
-              />
+            <div className="row">
+              <div className="col-sm-6">
+                <FormField
+                  id="first_name"
+                  label="First name"
+                  error={errors.first_name?.message}
+                  {...register('first_name')}
+                />
+              </div>
+              <div className="col-sm-6">
+                <FormField
+                  id="last_name"
+                  label="Last name"
+                  error={errors.last_name?.message}
+                  {...register('last_name')}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
+            <div>
               <Label htmlFor="role_id">Role</Label>
               <RoleSelect id="role_id" includeDefaultOption {...register('role_id')} />
             </div>
-            <Button type="submit" className="w-full" disabled={isSubmitting || invite.isPending}>
+            <Button type="submit" className="w-100" disabled={isSubmitting || invite.isPending}>
               Send invitation
             </Button>
           </form>
-        </CardContent>
+        </CardBody>
       </Card>
     </div>
   );

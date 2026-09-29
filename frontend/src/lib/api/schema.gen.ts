@@ -145,6 +145,63 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
+                    content: {
+                        "application/json": components["schemas"]["HealthResponse"];
+                    };
+                };
+                /** @description One or more components unhealthy */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HealthResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Detailed component health for the admin UI (admin-only)
+         * @description Same payload as /health. The SPA can only reach the backend through nginx's `location /api/`, so the dashboard's service widget reads this path; /health alone is answered by the SPA fallback. Unlike the in-cluster probes this path is reachable through the ingress, so it requires Permission::ADMINISTER.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description All components healthy */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HealthResponse"];
+                    };
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
                     content?: never;
                 };
                 /** @description One or more components unhealthy */
@@ -152,7 +209,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["HealthResponse"];
+                    };
                 };
             };
         };
@@ -972,6 +1031,152 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dashboard/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Widget types you may place, filtered by your permissions */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Catalog entries under data[] */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DashboardCatalogResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dashboard/layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your dashboard layout, ordered by grid position */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Widgets under data[] (empty array when nothing is configured) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DashboardLayoutResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        /** Replace your whole layout (an empty array clears it) */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        widgets: {
+                            widget_type: string;
+                            grid_x: number;
+                            grid_y: number;
+                            /** @description Must be at least the type's min_w from /api/v1/dashboard/catalog, not merely 2. */
+                            grid_w: number;
+                            /** @description Must be at least the type's min_h from the catalog. */
+                            grid_h: number;
+                            options?: {
+                                [key: string]: number;
+                            };
+                        }[];
+                    };
+                };
+            };
+            responses: {
+                /** @description The stored layout */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DashboardLayoutResponse"];
+                    };
+                };
+                /** @description Unknown widget type, geometry outside the grid, or an unknown option */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ValidationError"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description A widget in the layout needs a permission you lack. This wins over a 400: the first forbidden entry ends the request, so field errors collected from earlier entries are not reported. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2642,6 +2847,63 @@ export interface components {
         };
         RoleDetailResponse: {
             data: components["schemas"]["Role"];
+        };
+        HealthResponse: {
+            /** @description ok | degraded | unhealthy */
+            status: string;
+            version: string;
+            /**
+             * Format: int64
+             * @description Epoch seconds
+             */
+            timestamp: number;
+            /** @description One entry per component registered via Core::register_health_check */
+            components: {
+                [key: string]: unknown;
+            };
+        };
+        DashboardWidget: {
+            /** Format: uuid */
+            id: string;
+            /** @description A type from /api/v1/dashboard/catalog */
+            widget_type: string;
+            grid_x: number;
+            grid_y: number;
+            /** @description At least the widget type's own min_w from /api/v1/dashboard/catalog (2 to 4 depending on the type), which the server enforces; 2 is the lowest value any type allows. */
+            grid_w: number;
+            /** @description At least the type's min_h from the catalog (2 or 3). */
+            grid_h: number;
+            options: {
+                [key: string]: number;
+            };
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        DashboardLayoutResponse: {
+            data: components["schemas"]["DashboardWidget"][];
+        };
+        DashboardCatalogEntry: {
+            type: string;
+            title: string;
+            description: string;
+            default_w: number;
+            default_h: number;
+            min_w: number;
+            min_h: number;
+            options: {
+                [key: string]: {
+                    /** @enum {string} */
+                    type: "int";
+                    min: number;
+                    max: number;
+                    default: number;
+                };
+            };
+        };
+        DashboardCatalogResponse: {
+            data: components["schemas"]["DashboardCatalogEntry"][];
         };
         MessageResponse: {
             message?: string;

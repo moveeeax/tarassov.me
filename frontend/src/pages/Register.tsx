@@ -3,10 +3,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
 import type { z } from 'zod';
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/tabler/Button';
 import { FormField } from '@/components/FormField';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/components/ui/toaster';
+import { Card, CardBody, CardSubtitle, CardHeader, CardTitle } from '@/components/tabler/Card';
+import { useToast } from '@/components/tabler/Toaster';
 import { useRegister } from '@/hooks/useAuthMutations';
 import { apiErrorMessage } from '@/lib/api/client';
 import { registerSchema } from '@/lib/schemas/auth';
@@ -41,17 +41,23 @@ export function RegisterPage() {
   });
 
   return (
-    <div className="container mx-auto max-w-md py-8">
+    <div className="container-tight py-4">
       <Card>
         <CardHeader>
-          <CardTitle>Create your account</CardTitle>
-          <CardDescription>You'll get a confirmation email after signing up.</CardDescription>
+          <div>
+            <CardTitle>Create your account</CardTitle>
+            <CardSubtitle>You'll get a confirmation email after signing up.</CardSubtitle>
+          </div>
         </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <FormField id="first_name" label="First name" {...register('first_name')} />
-              <FormField id="last_name" label="Last name" {...register('last_name')} />
+        <CardBody>
+          <form className="vstack gap-4" onSubmit={onSubmit}>
+            <div className="row">
+              <div className="col-sm-6">
+                <FormField id="first_name" label="First name" {...register('first_name')} />
+              </div>
+              <div className="col-sm-6">
+                <FormField id="last_name" label="Last name" {...register('last_name')} />
+              </div>
             </div>
             <FormField
               id="email"
@@ -77,17 +83,14 @@ export function RegisterPage() {
               error={errors.password_confirm?.message}
               {...register('password_confirm')}
             />
-            <Button type="submit" className="w-full" disabled={isSubmitting || reg.isPending}>
+            <Button type="submit" className="w-100" disabled={isSubmitting || reg.isPending}>
               {reg.isPending ? 'Creating account…' : 'Register'}
             </Button>
-            <div className="text-sm text-muted-foreground text-center">
-              Already have an account?{' '}
-              <Link to="/login" className="hover:underline">
-                Log in
-              </Link>
+            <div className="small text-secondary text-center">
+              Already have an account? <Link to="/login">Log in</Link>
             </div>
           </form>
-        </CardContent>
+        </CardBody>
       </Card>
     </div>
   );

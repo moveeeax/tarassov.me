@@ -4,10 +4,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useParams } from 'react-router-dom';
 import type { z } from 'zod';
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/tabler/Button';
 import { FormField } from '@/components/FormField';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/components/ui/toaster';
+import { Card, CardBody, CardHeader, CardTitle } from '@/components/tabler/Card';
+import { useToast } from '@/components/tabler/Toaster';
 import { api, apiErrorMessage } from '@/lib/api/client';
 import { resetPasswordSchema } from '@/lib/schemas/auth';
 
@@ -58,24 +58,22 @@ export function JoinFromInvitePage() {
   });
 
   return (
-    <div className="container mx-auto max-w-md py-8">
+    <div className="container-tight py-4">
       <Card>
         <CardHeader>
           <CardTitle>Set your password</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardBody>
           {done ? (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Account ready. You can log in now.
-              </p>
-              <Button asChild className="w-full">
-                <Link to="/login">Continue to log in</Link>
-              </Button>
+            <div className="vstack gap-4">
+              <p className="small text-secondary">Account ready. You can log in now.</p>
+              <Link to="/login" className="btn btn-primary w-100">
+                Continue to log in
+              </Link>
             </div>
           ) : (
-            <form className="space-y-4" onSubmit={onSubmit}>
-              <p className="text-sm text-muted-foreground">
+            <form className="vstack gap-4" onSubmit={onSubmit}>
+              <p className="small text-secondary">
                 Accept your invitation by choosing a password for your new account.
               </p>
               <FormField
@@ -92,12 +90,12 @@ export function JoinFromInvitePage() {
                 error={errors.new_password_confirm?.message}
                 {...register('new_password_confirm')}
               />
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
+              <Button type="submit" className="w-100" disabled={isSubmitting}>
                 Set password
               </Button>
             </form>
           )}
-        </CardContent>
+        </CardBody>
       </Card>
     </div>
   );

@@ -2,8 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [master, main]
+    # Feature branches run CI on push: the only C++ test runner available to
+    # this project is a container build, so a branch that cannot trigger a run
+    # has no way to observe a red test before its fix.
+    branches: [master, main, 'feat/**', 'fix/**']
   pull_request:
+  # Re-run against a ref without pushing a commit (a flake, a cache miss).
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -294,6 +299,10 @@ jobs:
         run: npm test
       - name: Lint
         run: npm run lint  # flat config, zero-warning baseline
+      - name: Format check
+        # Was missing, which is how 13 files drifted out of prettier's style
+        # without anyone noticing. schema.gen.ts is exempt via .prettierignore.
+        run: npm run format:check
       - name: Production build
         run: npm run build
 

@@ -2,10 +2,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { z } from 'zod';
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/tabler/Button';
 import { FormField } from '@/components/FormField';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/components/ui/toaster';
+import { Card, CardBody, CardHeader, CardTitle } from '@/components/tabler/Card';
+import { useToast } from '@/components/tabler/Toaster';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { useErrorToast } from '@/hooks/useErrorToast';
 import { api } from '@/lib/api/client';
@@ -42,13 +42,13 @@ export function ChangePasswordPage() {
   const onSubmit = handleSubmit((values) => change.mutate(values));
 
   return (
-    <div className="container mx-auto max-w-md py-8">
+    <div className="container-tight py-4">
       <Card>
         <CardHeader>
           <CardTitle>Change password</CardTitle>
         </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit}>
+        <CardBody>
+          <form className="vstack gap-4" onSubmit={onSubmit}>
             <FormField
               id="old_password"
               type="password"
@@ -70,11 +70,11 @@ export function ChangePasswordPage() {
               error={errors.new_password_confirm?.message}
               {...register('new_password_confirm')}
             />
-            <Button type="submit" className="w-full" disabled={isSubmitting || change.isPending}>
+            <Button type="submit" className="w-100" disabled={isSubmitting || change.isPending}>
               Update password
             </Button>
           </form>
-        </CardContent>
+        </CardBody>
       </Card>
     </div>
   );

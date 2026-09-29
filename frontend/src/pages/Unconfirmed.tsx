@@ -1,8 +1,8 @@
 import { useState } from 'react';
 
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert } from '@/components/tabler/Alert';
+import { Button } from '@/components/tabler/Button';
+import { Card, CardBody, CardSubtitle, CardHeader, CardTitle } from '@/components/tabler/Card';
 import { useMe } from '@/hooks/useMe';
 import { api } from '@/lib/api/client';
 
@@ -28,30 +28,25 @@ export function UnconfirmedPage() {
   };
 
   return (
-    <div className="container mx-auto max-w-md py-8">
+    <div className="container-tight py-4">
       <Card>
         <CardHeader>
-          <CardTitle>Confirm your email</CardTitle>
-          <CardDescription>
-            We sent a confirmation link to {user?.email ?? 'your email address'}. Click it to
-            unlock the rest of the app.
-          </CardDescription>
+          <div>
+            <CardTitle>Confirm your email</CardTitle>
+            <CardSubtitle>
+              {' '}
+              We sent a confirmation link to {user?.email ?? 'your email address'}. Click it to
+              unlock the rest of the app.{' '}
+            </CardSubtitle>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {resent && (
-            <Alert variant="success">
-              <AlertDescription>A new confirmation link is on its way.</AlertDescription>
-            </Alert>
-          )}
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          <Button onClick={resend} className="w-full" variant="outline">
+        <CardBody className="vstack gap-4">
+          {resent && <Alert variant="success">A new confirmation link is on its way.</Alert>}
+          {error && <Alert variant="danger">{error}</Alert>}
+          <Button onClick={resend} className="w-100" variant="outline">
             Resend confirmation email
           </Button>
-        </CardContent>
+        </CardBody>
       </Card>
     </div>
   );

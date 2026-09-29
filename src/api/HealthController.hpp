@@ -1,7 +1,11 @@
 /**
  * @file HealthController.hpp
  * @brief Health check and root endpoint controllers
- * @details Kubernetes probes (/healthz, /ready, /health) and endpoint discovery (/)
+ * @details Kubernetes probes (/healthz, /ready, /health) and endpoint discovery (/).
+ *          /api/v1/health serves the same payload to the browser, gated: nginx
+ *          proxies only /api/, so that is the one path reachable from outside the
+ *          cluster, and component names plus the build version are not public
+ *          information.
  */
 
 #pragma once
@@ -14,6 +18,7 @@
 #include <nlohmann/json.hpp>
 
 #include "api/Endpoints.hpp"
+#include "api/Guards.hpp"
 #include "core/Core.hpp"
 #include "utils/ErrorResponse.hpp"
 
@@ -32,6 +37,11 @@ public:
     ADD_METHOD_TO(HealthController::liveness, "/healthz", Get);
     ADD_METHOD_TO(HealthController::readiness, "/ready", Get);
     ADD_METHOD_TO(HealthController::health, "/health", Get);
+    // Same payload under /api/v1, admin-gated: the SPA can only reach the
+    // backend through nginx's `location /api/`, so /health alone answers
+    // index.html to a fetch() that expects JSON — and unlike the in-cluster
+    // probes, this path IS reachable from the internet through the ingress.
+    ADD_METHOD_TO(HealthController::healthAuthed, "/api/v1/health", Get);
     METHOD_LIST_END
 
     void liveness(const HttpRequestPtr&, std::function<void(const HttpResponsePtr&)>&& callback) {
@@ -51,6 +61,14 @@ public:
         auto resp = Response::ok({{"status", ready ? "ready" : "not_ready"}, {"timestamp", std::time(nullptr)}});
         resp->setStatusCode(ready ? k200OK : k503ServiceUnavailable);
         callback(resp);
+    }
+
+    /// The dashboard's service widget reads this. Admin-only: the widget itself
+    /// requires Permission::kAdminister, and the probe's component list is not
+    /// something to hand to an anonymous caller on a public origin.
+    void healthAuthed(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
+        API_REQUIRE_ADMIN(req, callback);
+        health(req, std::move(callback));
     }
 
     void health(const HttpRequestPtr&, std::function<void(const HttpResponsePtr&)>&& callback) {

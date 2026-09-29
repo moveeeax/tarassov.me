@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { Skeleton } from '@/components/ui/skeleton';
+import { Placeholder } from '@/components/tabler/Placeholder';
 import { apiErrorMessage } from '@/lib/api/client';
 
 /**
@@ -28,14 +28,20 @@ interface DataTableProps<Row> {
   isPlaceholder?: boolean;
   /** Per-row props (e.g. onClick / className) for selectable tables. */
   rowProps?: (row: Row) => React.HTMLAttributes<HTMLTableRowElement>;
+  /**
+   * Row hover feedback. Only for tables whose rows are clickable (they pass
+   * rowProps with onClick) — a hover highlight on a read-only table promises an
+   * interaction that isn't there.
+   */
+  hoverable?: boolean;
 }
 
 function TableHead<Row>({ columns }: { columns: Column<Row>[] }) {
   return (
     <thead>
-      <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+      <tr>
         {columns.map((c, i) => (
-          <th key={i} scope="col" className={`py-1.5 pr-4 font-medium ${c.className ?? ''}`}>
+          <th key={i} scope="col" className={c.className}>
             {c.header}
           </th>
         ))}
@@ -53,21 +59,22 @@ export function DataTable<Row>({
   emptyText = 'Nothing here yet.',
   isPlaceholder,
   rowProps,
+  hoverable,
 }: DataTableProps<Row>) {
-  if (error) return <p className="text-destructive">{apiErrorMessage(error, 'Failed to load.')}</p>;
-  // Initial load (rows still undefined) renders skeleton rows so the header
+  if (error) return <p className="text-danger m-3">{apiErrorMessage(error, 'Failed to load.')}</p>;
+  // Initial load (rows still undefined) renders placeholder rows so the header
   // and layout are stable from the first paint; pagination keeps the dimmed
-  // previous-page placeholder (isPlaceholder) instead.
+  // previous-page body (isPlaceholder) instead.
   if (isLoading && !rows) {
     return (
-      <table className="w-full text-sm">
+      <table className="table table-vcenter card-table">
         <TableHead columns={columns} />
         <tbody>
           {Array.from({ length: 5 }).map((_, r) => (
-            <tr key={r} className="border-b border-border last:border-0">
+            <tr key={r}>
               {columns.map((_, i) => (
-                <td key={i} className="py-1.5 pr-4">
-                  <Skeleton className="h-4 w-full" />
+                <td key={i}>
+                  <Placeholder />
                 </td>
               ))}
             </tr>
@@ -77,23 +84,23 @@ export function DataTable<Row>({
     );
   }
   if (!rows) return null;
-  if (rows.length === 0) return <p className="text-muted-foreground">{emptyText}</p>;
+  if (rows.length === 0) return <p className="text-secondary m-3">{emptyText}</p>;
 
   return (
-    <table className={`w-full text-sm ${isPlaceholder ? 'opacity-50' : ''}`}>
+    <table
+      className={`table table-vcenter card-table ${hoverable ? 'table-hover' : ''} ${
+        isPlaceholder ? 'opacity-75' : ''
+      }`}
+    >
       <TableHead columns={columns} />
       <tbody>
         {rows.map((row) => {
           const extra = rowProps?.(row);
           const { className: extraClass, ...restProps } = extra ?? {};
           return (
-            <tr
-              key={rowKey(row)}
-              className={`border-b border-border transition-colors last:border-0 hover:bg-muted/50 ${extraClass ?? ''}`}
-              {...restProps}
-            >
+            <tr key={rowKey(row)} className={extraClass} {...restProps}>
               {columns.map((c, i) => (
-                <td key={i} className={`py-1.5 pr-4 ${c.className ?? ''}`}>
+                <td key={i} className={c.className}>
                   {c.cell(row)}
                 </td>
               ))}

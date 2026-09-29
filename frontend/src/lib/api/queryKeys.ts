@@ -8,6 +8,12 @@
  */
 export const qk = {
   me: () => ['me'] as const,
+  /** GET /api/v1/health — the dashboard's service widget. */
+  serviceHealth: () => ['service-health'] as const,
+  dashboard: {
+    layout: () => ['dashboard', 'layout'] as const,
+    catalog: () => ['dashboard', 'catalog'] as const,
+  },
   admin: {
     users: (page?: number) =>
       page === undefined ? (['admin', 'users'] as const) : (['admin', 'users', page] as const),

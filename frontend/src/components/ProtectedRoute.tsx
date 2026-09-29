@@ -1,8 +1,8 @@
 import { type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+import { Alert } from '@/components/tabler/Alert';
+import { Button } from '@/components/tabler/Button';
 import { useMe } from '@/hooks/useMe';
 import { apiErrorMessage } from '@/lib/api/client';
 import { userCan } from '@/lib/auth/permissions';
@@ -70,35 +70,37 @@ export function guardDecision(
  * Reads the user directly from the useMe() query — the TanStack Query
  * cache is the single source of truth for the session.
  */
-export function ProtectedRoute({ children, requirePermission, requireConfirmed }: ProtectedRouteProps) {
+export function ProtectedRoute({
+  children,
+  requirePermission,
+  requireConfirmed,
+}: ProtectedRouteProps) {
   const location = useLocation();
   const me = useMe();
 
-  const decision = guardDecision(
-    me,
-    { requirePermission, requireConfirmed },
-    (user, bit) => userCan(user, bit),
+  const decision = guardDecision(me, { requirePermission, requireConfirmed }, (user, bit) =>
+    userCan(user, bit),
   );
 
   switch (decision.kind) {
     case 'loading':
       // isPending = no data and no error yet. Distinct from isFetching,
       // which can flip true on background revalidations of cached data.
-      return <div className="container mx-auto py-8 text-muted-foreground">Loading…</div>;
+      return <div className="container-xl text-secondary">Loading…</div>;
     case 'error':
       // A thrown error from useMe is a *real* failure (network / 5xx) — the
       // 401 "no session" case resolves to null instead. Don't bounce a
       // possibly-logged-in user to /login on a transient blip; let them retry.
       return (
-        <div className="container mx-auto max-w-md py-8 space-y-4">
-          <Alert variant="destructive">
-            <AlertDescription>
-              {apiErrorMessage(me.error, 'Could not load your session.')}
-            </AlertDescription>
+        <div className="container-tight py-4 vstack gap-3">
+          <Alert variant="danger">
+            {apiErrorMessage(me.error, 'Could not load your session.')}
           </Alert>
-          <Button onClick={() => me.refetch()} disabled={me.isFetching}>
-            {me.isFetching ? 'Retrying…' : 'Retry'}
-          </Button>
+          <div>
+            <Button onClick={() => me.refetch()} disabled={me.isFetching}>
+              {me.isFetching ? 'Retrying…' : 'Retry'}
+            </Button>
+          </div>
         </div>
       );
     case 'redirect':
