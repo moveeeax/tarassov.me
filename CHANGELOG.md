@@ -6,6 +6,70 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-09-29
+
+Admin shell for a personal dashboard (#19): a new owner-scoped layout resource, a
+configurable widget grid on `/admin`, and the whole admin SPA moved off Tailwind and
+shadcn onto Tabler. Minor rather than patch because three routes and a table are new;
+no existing route or response shape changed, but a fork carrying its own pages against
+the old shadcn primitives will not build (see Removed).
+
+### Added
+- `dashboard_widgets` table (migration 010): one row per placed widget, owner-scoped
+  with `ON DELETE CASCADE`. Type, position and size are columns so bounds validation and
+  ordering stay in SQL; `options` is `jsonb` and holds only a widget's own parameters.
+- `GET /api/v1/dashboard/catalog` — the widget types the caller may place, filtered by
+  their permissions, with each type's geometry defaults and option bounds.
+- `GET /api/v1/dashboard/layout` and `PUT /api/v1/dashboard/layout` — read and replace
+  the caller's layout. `PUT` replaces the whole set in one transaction (a drag produces a
+  complete arrangement, not a patch, and a full replace is idempotent); an empty array
+  clears the layout.
+- `GET /api/v1/health` — the detailed probe under the `/api` prefix, so the SPA can reach
+  it through nginx, gated on `Permission::ADMINISTER` because that path (unlike the
+  in-cluster probes) is reachable through the ingress.
+- `src/domain/WidgetCatalog.hpp` — one `constexpr` array that both publishes the catalog
+  and validates writes, with a validator that reports the offending widget's index.
+- `/admin` is now a 12-column widget grid with an explicit Customise mode, five widgets
+  (posts, jobs, audit, users, service health) and a layout persisted per user.
+- `PUT` / `putJson` on the frontend API client; `UNSAFE_METHODS` already covered PUT, so
+  CSRF and idempotency handling were in place.
+- Three drift guards: the frontend widget registry is checked against the C++ catalog, and
+  every `className` token in `frontend/src` is checked against the stylesheets the app
+  actually loads (removing Tailwind turns a leftover utility class into a silent no-op).
+- CI runs on `feat/**` and `fix/**` pushes plus `workflow_dispatch`, and the frontend job
+  now runs `format:check`.
+
+### Changed
+- The admin SPA uses `@tabler/core` 1.6.0. All 22 pages, the shared table, pagination,
+  modals, form field and toaster were rewritten onto Tabler markup. Only the CSS is
+  imported: modals, dropdowns, the nav collapse and focus trapping stay on this repo's own
+  components, so there is one source of behaviour on the DOM.
+- Inter ships from `@fontsource-variable/inter` as local woff2. The admin CSP is unchanged
+  (`font-src 'self'`, no external `style-src`), and `nginx.conf` and the frontend configmap
+  are untouched.
+- `docs/openapi.yaml`: `grid_w` and `grid_h` document a minimum of 2 rather than 1, because
+  the server enforces the per-type minimum from the catalog; `/health` and
+  `/api/v1/health` now document a response schema.
+- `index.html` and `lib/brand.ts` say `tarassov.me` instead of the template's
+  `C++ REST Template`.
+
+### Removed
+- Frontend dependencies `tailwindcss`, `tailwind-merge`, `tailwindcss-animate`,
+  `class-variance-authority`, `lucide-react`, `@radix-ui/react-label`,
+  `@radix-ui/react-slot`, `autoprefixer`, `postcss`, plus `tailwind.config.js`,
+  `postcss.config.js` and the whole `frontend/src/components/ui/` (seven shadcn
+  primitives). `@/components/tabler/*` replaces them.
+
+### Fixed
+- `replace_all` translates SQLSTATE: a foreign-key violation (an access token outliving
+  its user row) answers 404 and a unique or check violation answers 409, instead of both
+  falling through to a bare 500.
+- Dead classes the Tailwind removal would have left behind: `text-right` and `w-16` in the
+  users and media column definitions, `hidden` on the post editor's file input,
+  `text-green-600` on the post status.
+- The Jobs tab strip is a complete ARIA tab pattern (`aria-controls`, a `tabpanel`, tab-order
+  management and arrow keys) rather than roles without a panel.
+
 ## [2.1.0] — 2026-07-27
 
 Round-3 full-project review (#15): 14 area sweeps, 70 findings adversarially
