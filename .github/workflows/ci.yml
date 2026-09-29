@@ -146,6 +146,21 @@ jobs:
             type=registry,ref=ghcr.io/${{ github.repository }}/builder:cache
           cache-to: type=gha,mode=max
 
+      - name: Build frontend image
+        # The frontend image was built nowhere in CI, so a Dockerfile COPY of a
+        # file the tree no longer has (tailwind.config.js, removed with Tailwind)
+        # only failed at release time. Build it here instead.
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
+        with:
+          context: .
+          file: frontend/Dockerfile
+          target: runtime
+          push: false
+          load: true
+          tags: tarassov-me-frontend:runtime-ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Runtime images resolve every shared library
         # ldd exits 0 even when a DT_NEEDED entry is missing, so grep the
         # output. Also assert the CA bundle is present: without it every

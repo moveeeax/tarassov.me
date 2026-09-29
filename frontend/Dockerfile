@@ -16,7 +16,6 @@ RUN if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; \
 
 # Build configuration files.
 COPY frontend/tsconfig.json frontend/tsconfig.node.json frontend/vite.config.ts ./
-COPY frontend/tailwind.config.js frontend/postcss.config.js ./
 COPY frontend/eslint.config.js frontend/.prettierrc.json frontend/index.html ./
 
 # Source.
