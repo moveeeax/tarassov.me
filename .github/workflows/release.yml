@@ -259,6 +259,10 @@ jobs:
   promote:
     runs-on: ubuntu-latest
     needs: scan
+    env:
+      # :latest moves only on a pushed tag; a manual rebuild of an older tag
+      # must not drag :latest back to it.
+      LATEST: ${{ github.event_name == 'push' && '1' || '' }}
     permissions:
       contents: read
     steps:
@@ -281,21 +285,21 @@ jobs:
         run: |
           docker buildx imagetools create \
             -t ${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }} \
-            -t ${{ env.IMAGE_NAME }}:latest \
+            ${LATEST:+-t ${{ env.IMAGE_NAME }}:latest} \
             ${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }}-staging
 
       - name: Promote worker image to version + latest
         run: |
           docker buildx imagetools create \
             -t ${{ env.IMAGE_NAME }}-worker:${{ steps.ver.outputs.version }} \
-            -t ${{ env.IMAGE_NAME }}-worker:latest \
+            ${LATEST:+-t ${{ env.IMAGE_NAME }}-worker:latest} \
             ${{ env.IMAGE_NAME }}-worker:${{ steps.ver.outputs.version }}-staging
 
       - name: Promote frontend image to version + latest
         run: |
           docker buildx imagetools create \
             -t ${{ env.IMAGE_NAME }}-frontend:${{ steps.ver.outputs.version }} \
-            -t ${{ env.IMAGE_NAME }}-frontend:latest \
+            ${LATEST:+-t ${{ env.IMAGE_NAME }}-frontend:latest} \
             ${{ env.IMAGE_NAME }}-frontend:${{ steps.ver.outputs.version }}-staging
 
   github-release:
