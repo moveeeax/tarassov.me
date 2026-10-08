@@ -4,9 +4,19 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  # Rebuild an already released tag (e.g. to add arm64 to an older version).
+  # Republishes the same image tags; leaves the GitHub Release alone.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to rebuild (e.g. v2.1.0)
+        required: true
+        type: string
 
-# Publishes linux/amd64 images on tags matching v<semver> (the prod Talos
-# nodes are all amd64 — arm64 was dropped 2026-07-19). Uses the repo's
+# Publishes linux/amd64 + linux/arm64 images on tags matching v<semver>. Each
+# architecture builds natively on its own hosted runner (ubuntu-latest and
+# ubuntu-24.04-arm), never under QEMU: an emulated C++ build takes hours
+# (that is why arm64 was dropped on 2026-07-19). Uses the repo's
 # existing multi-stage Dockerfile — runtime is the default final stage,
 # worker-runtime is the worker image. Both get tagged with the git tag and
 # :latest.
@@ -18,7 +28,8 @@ on:
 # DOCKER_USERNAME / DOCKER_PASSWORD.
 #
 # Build order:
-#   1. build-staging  — push multi-arch under :<version>-staging (no :latest yet)
+#   1. build-staging  — per-arch native builds, pushed by digest (no tags)
+#      merge-staging  — imagetools create stitches both digests into :<version>-staging
 #   2. scan           — Trivy gates on the staging tags; fails release on fixable CRITICAL
 #   3. promote        — imagetools create stitches staging digest into :<version>/:latest
 #   4. github-release — GitHub Release notes (needs: promote)
@@ -30,19 +41,38 @@ permissions: {}
 env:
   # Single source of truth for the published image namespace.
   IMAGE_NAME: docker.io/moveeeax/tarassov-me
+  # Tag being released: the pushed tag, or the input of a manual rebuild.
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build-staging:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+    name: build-staging (${{ matrix.arch }})
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # amd64 keeps the gha scopes it used before arm64 (warm cache).
+          - arch: amd64
+            runner: ubuntu-latest
+            cache: buildkit
+            frontend_cache: frontend
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            cache: buildkit-arm64
+            frontend_cache: frontend-arm64
+    runs-on: ${{ matrix.runner }}
+    # A cold arm64 run rebuilds the whole vcpkg world (~35 min) before compiling.
+    timeout-minutes: 90
     permissions:
       contents: read   # checkout
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Extract version
         id: ver
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to Docker Hub
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
@@ -53,61 +83,79 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
 
-      # Push under a staging tag so Trivy can scan before :latest/:version are published.
-      # The promote job (needs: scan) will move these digests into the final tags via
-      # imagetools create (no rebuild — digest-level operation).
-      - name: Build and push app image (amd64, staging tag)
+      # Push by digest only: merge-staging stitches the per-arch digests into
+      # the :<version>-staging index, so a half-built release never gets a tag.
+      - name: Build and push app image (by digest)
+        id: app
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
         with:
           context: .
           file: docker/Dockerfile
           target: runtime
-          platforms: linux/amd64
-          push: true
-          tags: ${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }}-staging
+          platforms: linux/${{ matrix.arch }}
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           # Stamps the tag version into the binary (Dockerfile ARG APP_VERSION
           # -> -DPROJECT_VERSION_OVERRIDE). Without it the image reports
           # whatever project(VERSION ...) was last hand-edited to.
           build-args: APP_VERSION=${{ steps.ver.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.cache }}
+          cache-to: type=gha,scope=${{ matrix.cache }},mode=max
           sbom: true
           provenance: mode=max
 
-      - name: Build and push worker image (amd64, staging tag)
+      - name: Build and push worker image (by digest)
+        id: worker
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
         with:
           context: .
           file: docker/Dockerfile
           target: worker-runtime
-          platforms: linux/amd64
-          push: true
-          tags: ${{ env.IMAGE_NAME }}-worker:${{ steps.ver.outputs.version }}-staging
+          platforms: linux/${{ matrix.arch }}
+          outputs: type=image,name=${{ env.IMAGE_NAME }}-worker,push-by-digest=true,name-canonical=true,push=true
           # Same version stamp as the app image — both link Core::version().
           build-args: APP_VERSION=${{ steps.ver.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.cache }}
+          cache-to: type=gha,scope=${{ matrix.cache }},mode=max
           sbom: true
           provenance: mode=max
 
       # Frontend is a separate Node→nginx image (frontend/Dockerfile, final
       # stage `runtime`). Own gha cache scope so it doesn't thrash the C++
       # builder cache shared by the app/worker images above.
-      - name: Build and push frontend image (amd64, staging tag)
+      - name: Build and push frontend image (by digest)
+        id: frontend
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5.4.0
         with:
           context: .
           file: frontend/Dockerfile
           target: runtime
-          platforms: linux/amd64
-          push: true
-          tags: ${{ env.IMAGE_NAME }}-frontend:${{ steps.ver.outputs.version }}-staging
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,scope=frontend,mode=max
+          platforms: linux/${{ matrix.arch }}
+          outputs: type=image,name=${{ env.IMAGE_NAME }}-frontend,push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.frontend_cache }}
+          cache-to: type=gha,scope=${{ matrix.frontend_cache }},mode=max
           sbom: true
           provenance: mode=max
 
-  scan:
+      - name: Export digests
+        env:
+          APP_DIGEST: ${{ steps.app.outputs.digest }}
+          WORKER_DIGEST: ${{ steps.worker.outputs.digest }}
+          FRONTEND_DIGEST: ${{ steps.frontend.outputs.digest }}
+        run: |
+          mkdir -p digests
+          echo "$APP_DIGEST" > digests/app
+          echo "$WORKER_DIGEST" > digests/worker
+          echo "$FRONTEND_DIGEST" > digests/frontend
+
+      - name: Upload digests
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: digests-${{ matrix.arch }}
+          path: digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge-staging:
     runs-on: ubuntu-latest
     needs: build-staging
     permissions:
@@ -115,7 +163,52 @@ jobs:
     steps:
       - name: Extract version
         id: ver
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download digests
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          pattern: digests-*
+          path: digests
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
+
+      - name: Create multi-arch staging tags
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          for img in app worker frontend; do
+            case "$img" in
+              app) name="${IMAGE_NAME}" ;;
+              *)   name="${IMAGE_NAME}-${img}" ;;
+            esac
+            docker buildx imagetools create -t "${name}:${VERSION}-staging" \
+              "${name}@$(cat digests/digests-amd64/${img})" \
+              "${name}@$(cat digests/digests-arm64/${img})"
+            docker buildx imagetools inspect "${name}:${VERSION}-staging"
+          done
+
+  scan:
+    name: scan (${{ matrix.platform }})
+    runs-on: ubuntu-latest
+    needs: merge-staging
+    strategy:
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+    permissions:
+      contents: read
+    steps:
+      - name: Extract version
+        id: ver
+        run: echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to Docker Hub
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
@@ -136,7 +229,7 @@ jobs:
           exit-code: '1'
           image-config-scanners: ''
           scan-type: image
-          platform: linux/amd64
+          platform: ${{ matrix.platform }}
 
       - name: Scan worker image (Trivy)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 (v0.28.0's setup-trivy@v0.2.1 dep was yanked upstream)
@@ -147,7 +240,7 @@ jobs:
           exit-code: '1'
           image-config-scanners: ''
           scan-type: image
-          platform: linux/amd64
+          platform: ${{ matrix.platform }}
 
       # Frontend scan is informational, not a release gate (exit-code 0):
       # a static nginx image tends to carry base-image CVEs that shouldn't
@@ -161,7 +254,7 @@ jobs:
           exit-code: '0'
           image-config-scanners: ''
           scan-type: image
-          platform: linux/amd64
+          platform: ${{ matrix.platform }}
 
   promote:
     runs-on: ubuntu-latest
@@ -171,7 +264,7 @@ jobs:
     steps:
       - name: Extract version
         id: ver
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to Docker Hub
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
@@ -206,6 +299,8 @@ jobs:
             ${{ env.IMAGE_NAME }}-frontend:${{ steps.ver.outputs.version }}-staging
 
   github-release:
+    # A manual rebuild of an old tag republishes images only.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     needs: promote
     permissions:
