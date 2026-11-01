@@ -5,7 +5,7 @@ replicaCount: 1
 
 image:
   # The worker image, NOT the API one — Makefile pushes it as <name>-worker.
-  repository: docker.io/resert/tarassov-me-worker
+  repository: docker.io/moveeeax/tarassov-me-worker
   tag: ""  # Defaults to chart appVersion
   pullPolicy: IfNotPresent
 
