@@ -4,7 +4,7 @@
 # Final image is ~25MB (alpine + ~150KB JS bundle).
 
 # ── builder ─────────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -29,7 +29,7 @@ RUN npm run build
 # Unprivileged base: master + workers run as the non-root "nginx" user (uid
 # 101) and the server listens on 8080, so the image runs under a restrictive
 # podSecurityContext (runAsNonRoot) without a privileged port or root pidfile.
-FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
+FROM nginxinc/nginx-unprivileged:1.30-alpine AS runtime
 
 # The base image drops to the non-root "nginx" user (uid 101). Become root for
 # the file-staging steps below — the webroot is root-owned, so the in-place
