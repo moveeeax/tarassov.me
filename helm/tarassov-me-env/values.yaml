@@ -97,8 +97,8 @@ tarassov-me:
   fullnameOverride: api
   replicaCount: 1
   image:
-    repository: docker.io/resert/tarassov-me
-    tag: "v1.4.0"
+    repository: docker.io/moveeeax/tarassov-me
+    tag: "2.1.0"
     pullPolicy: Always
   nodeSelector:
     kubernetes.io/arch: amd64
@@ -157,8 +157,8 @@ tarassov-me-worker:
   fullnameOverride: worker
   replicaCount: 1
   image:
-    repository: docker.io/resert/tarassov-me-worker
-    tag: "v1.4.0"
+    repository: docker.io/moveeeax/tarassov-me-worker
+    tag: "2.1.0"
     pullPolicy: Always
   nodeSelector:
     kubernetes.io/arch: amd64
@@ -212,8 +212,8 @@ tarassov-me-frontend:
   fullnameOverride: web
   replicaCount: 1
   image:
-    repository: docker.io/resert/tarassov-me-frontend
-    tag: "v1.4.0"
+    repository: docker.io/moveeeax/tarassov-me-frontend
+    tag: "2.1.0"
     pullPolicy: Always
   nodeSelector:
     kubernetes.io/arch: amd64

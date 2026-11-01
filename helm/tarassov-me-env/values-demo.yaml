@@ -55,7 +55,7 @@ demoReset:
 
 tarassov-me:
   image:
-    tag: "v1.4.0"     # pinned known-good amd64 build; bump when a newer one ships
+    tag: "2.1.0"      # pinned release (Docker Hub tags carry no v prefix); bump when a newer one ships
   externalKafka:
     enabled: false
   externalDatabase:
@@ -72,7 +72,7 @@ tarassov-me:
 
 tarassov-me-worker:
   image:
-    tag: "v1.4.0"
+    tag: "2.1.0"
   externalDatabase:
     password: ""
   externalRedis:
@@ -89,4 +89,4 @@ tarassov-me-worker:
 
 tarassov-me-frontend:
   image:
-    tag: "v1.4.0"
+    tag: "2.1.0"

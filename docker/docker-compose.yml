@@ -396,7 +396,7 @@ services:
 
   # Kafka + Zookeeper (optional)
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
+    image: confluentinc/cp-zookeeper:7.9.10
     container_name: tarassov_me_zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
@@ -424,7 +424,7 @@ services:
       - with-kafka
 
   kafka:
-    image: confluentinc/cp-kafka:7.5.0
+    image: confluentinc/cp-kafka:7.9.10
     container_name: tarassov_me_kafka
     depends_on:
       zookeeper:
@@ -484,7 +484,7 @@ services:
 
   # Grafana for visualization (optional)
   grafana:
-    image: grafana/grafana:11.6
+    image: grafana/grafana:12.4
     container_name: tarassov_me_grafana
     ports:
       - "3000:3000"

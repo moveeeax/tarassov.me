@@ -4,7 +4,7 @@
 replicaCount: 1
 
 image:
-  repository: docker.io/resert/tarassov-me-frontend
+  repository: docker.io/moveeeax/tarassov-me-frontend
   tag: ""  # Defaults to chart appVersion
   pullPolicy: IfNotPresent
 

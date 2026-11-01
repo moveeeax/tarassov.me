@@ -12,10 +12,12 @@ COVERAGE_MIN ?= 40
 
 IMAGE     := $(REGISTRY)/$(PROJECT_NAME)
 GIT_SHA   := $(shell git rev-parse --short HEAD)
-# GHCR namespace where builder-cache.yml publishes the builder stage.
-# Override via GHCR_ORG in project.env if your fork lives under a different org.
-GHCR_ORG  ?= resert
-GHCR_REPO := ghcr.io/$(GHCR_ORG)/$(PROJECT_NAME)
+# GHCR namespace where builder-cache.yml publishes the builder stage. The
+# workflow pushes to ghcr.io/<github owner>/<github repo>/builder:cache, so the
+# path uses the GitHub repo name (tarassov.me), not PROJECT_NAME (tarassov-me).
+# Override GHCR_ORG / GHCR_REPO in project.env if your fork lives elsewhere.
+GHCR_ORG  ?= moveeeax
+GHCR_REPO ?= ghcr.io/$(GHCR_ORG)/tarassov.me
 
 # Prefer the Compose v2 plugin (`docker compose`) when present; fall back to
 # the standalone v1 binary. CI images ship only the plugin, older dev
