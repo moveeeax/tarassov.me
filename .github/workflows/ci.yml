@@ -25,11 +25,12 @@ jobs:
     # suite against ephemeral Postgres + Redis containers via the `test`
     # compose profile — the same thing `make test` does locally.
     #
-    # 45m, not 25m: a fully cold cache (no gha, no GHCR builder:cache) means a
-    # full vcpkg dependency build (~20m) before our code even compiles. This
-    # job must be able to finish that once and export type=gha cache —
-    # otherwise it is killed mid-build and every later run stays cold too.
-    timeout-minutes: 45
+    # 60m, not 25m: a fully cold cache (no gha, no GHCR builder:cache) means a
+    # full vcpkg dependency build (~24m on 2026-10-08) before our code even
+    # compiles; that cold run took 41m30s here. This job must be able to finish
+    # that once and export type=gha cache — otherwise it is killed mid-build
+    # and every later run stays cold too.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -97,7 +98,8 @@ jobs:
     # in prod (that is the recorded ca-certificates/STARTTLS incident). Until
     # this job existed the release workflow's Trivy CVE scan was the only thing
     # that ever looked at these two stages.
-    timeout-minutes: 45
+    # 60m: on a cold cache this job hit the old 45m limit (run 36538349920).
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -310,7 +312,10 @@ jobs:
     # compile_commands.json so the analysis sees the real include paths
     # vcpkg resolved. Best-effort: warnings don't gate yet, the .clang-tidy
     # baseline is still being tightened.
-    timeout-minutes: 25
+    # 60m: same cold-cache budget as build-and-test. At 25m the builder stage
+    # alone overran (vcpkg install took 1419s in run 37862089573), so a cold
+    # cache made every main push red.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -374,7 +379,8 @@ jobs:
     # Integration tests need real Postgres/Redis which aren't wired into this
     # job — keep them out of the filter. Allows a separate, fast feedback
     # signal for memory/UB regressions.
-    timeout-minutes: 25
+    # 60m: see clang-tidy — the cold builder stage alone exceeds 25m.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 

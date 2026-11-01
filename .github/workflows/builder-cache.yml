@@ -9,6 +9,13 @@ on:
     paths:
       - vcpkg.json
       - docker/Dockerfile
+  # ubuntu:24.04 is not pinned by digest, so every upstream re-publish of the
+  # base image changes the first layer and invalidates the whole cached
+  # builder stage. Path-triggered pushes alone left builder:cache stale from
+  # 2026-09-17 on, and CI on main ran fully cold until it timed out. A weekly
+  # rebuild keeps the GHCR cache on the current base image.
+  schedule:
+    - cron: '17 3 * * 1'
   workflow_dispatch:
 
 permissions:
