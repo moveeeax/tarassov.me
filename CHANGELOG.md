@@ -6,6 +6,17 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- vcpkg builtin-baseline (vcpkg.json) and VCPKG_REF (docker/Dockerfile) moved
+  from c4aad28 (2026-05-01) to 9a5dfef (2026-10-31): drogon 1.9.12 -> 1.9.13#2,
+  libpqxx 8.0.1 -> 8.0.2, librdkafka 2.14.1 -> 2.15.1, opentelemetry-cpp 1.26.0
+  -> 1.29.0#2, gtest 1.17.0 -> 1.18.0, spdlog 1.17.0 -> 1.17.0#1; redis-plus-plus,
+  prometheus-cpp and nlohmann-json unchanged. The single-header inja goes from
+  v3.4.0 to v3.5.0 (file APIs now take std::filesystem::path; this repo only
+  calls `Environment::render(string, json)`, so no source change; the new
+  `html_autoescape` option defaults to off, so the explicit escaping in
+  `Email::Templates::render` stays the only escaping).
+
 ## [2.1.0] — 2026-07-27
 
 Round-3 full-project review (#15): 14 area sweeps, 70 findings adversarially
