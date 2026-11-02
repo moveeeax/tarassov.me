@@ -32,15 +32,15 @@ baseDomain: tarassov.me
 
 tarassov-me:
   image:
-    tag: "2.1.0"
+    tag: "2.3.0"
 
 tarassov-me-frontend:
   image:
-    tag: "2.1.0"
+    tag: "2.3.0"
 
 tarassov-me-worker:
   image:
-    tag: "2.1.0"
+    tag: "2.3.0"
   app:
     baseUrl: https://app.stage.tarassov.me
   worker:

@@ -6,7 +6,34 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-11-02
+
+Cut from main after the reset of 2026-10. Dependency and CI maintenance from
+the audit of 2026-11-01 (#20, #21); no application change.
+
 ### Changed
+- CI: the heavy jobs (build-and-test, runtime-images, clang-tidy, sanitizers)
+  get 60 minutes, so one cold run can finish and export the gha cache; the
+  last runs on main had timed out at 25 and 45 minutes because the builder
+  cache was keyed on a re-published `ubuntu:24.04`. `builder-cache.yml` also
+  runs weekly so the GHCR builder cache follows such re-publishes (#20).
+- CI: pinned actions moved to their Node 24 majors, still pinned by SHA:
+  checkout v7.0.1, setup-node v7.1.0, upload-artifact v7.0.2,
+  download-artifact v8.0.2, build-push-action v7.4.0, login-action v4.7.0,
+  setup-buildx-action v4.4.1, action-gh-release v3.0.3, gitleaks-action
+  v3.0.0 (#20).
+- Frontend image: `node:24-alpine` and `nginx-unprivileged:1.30-alpine`
+  (Node 20 and nginx 1.27 are past end of life); CI node-version 24. A new
+  `frontend-image` CI job builds `frontend/Dockerfile` without pushing and
+  checks that nginx answers `/healthz` (#20).
+- Charts: image defaults under `docker.io/moveeeax/*`, where `release.yml`
+  publishes, instead of `docker.io/resert/*`; the env umbrella and the
+  stage/demo overlays pin a released tag (2.3.0 in this release) instead of
+  `v1.4.0`, which existed in neither namespace. `make warm-cache` pulls
+  `ghcr.io/moveeeax/tarassov.me/builder:cache`, the path `builder-cache.yml`
+  pushes (#20).
+- Compose: `grafana/grafana` 11.6 -> 12.4, cp-kafka and cp-zookeeper
+  7.5.0 -> 7.9.10 (#20).
 - vcpkg builtin-baseline (vcpkg.json) and VCPKG_REF (docker/Dockerfile) moved
   from c4aad28 (2026-05-01) to 9a5dfef (2026-10-31): drogon 1.9.12 -> 1.9.13#2,
   libpqxx 8.0.1 -> 8.0.2, librdkafka 2.14.1 -> 2.15.1, opentelemetry-cpp 1.26.0
@@ -15,7 +42,13 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
   v3.4.0 to v3.5.0 (file APIs now take std::filesystem::path; this repo only
   calls `Environment::render(string, json)`, so no source change; the new
   `html_autoescape` option defaults to off, so the explicit escaping in
-  `Email::Templates::render` stays the only escaping).
+  `Email::Templates::render` stays the only escaping) (#21).
+
+### Removed
+- 2.2.0 is withdrawn: its Tabler dashboard shell (#19) is not part of main
+  after the reset of 2026-10; this release is cut from main, and the `:latest`
+  images are rebuilt from it. The tag and GitHub release v2.2.0 stay as they
+  are; nothing in main references them.
 
 ## [2.1.0] — 2026-07-27
 

@@ -98,7 +98,7 @@ tarassov-me:
   replicaCount: 1
   image:
     repository: docker.io/moveeeax/tarassov-me
-    tag: "2.1.0"
+    tag: "2.3.0"
     pullPolicy: Always
   nodeSelector:
     kubernetes.io/arch: amd64
@@ -158,7 +158,7 @@ tarassov-me-worker:
   replicaCount: 1
   image:
     repository: docker.io/moveeeax/tarassov-me-worker
-    tag: "2.1.0"
+    tag: "2.3.0"
     pullPolicy: Always
   nodeSelector:
     kubernetes.io/arch: amd64
@@ -213,7 +213,7 @@ tarassov-me-frontend:
   replicaCount: 1
   image:
     repository: docker.io/moveeeax/tarassov-me-frontend
-    tag: "2.1.0"
+    tag: "2.3.0"
     pullPolicy: Always
   nodeSelector:
     kubernetes.io/arch: amd64
