@@ -102,17 +102,17 @@ pkg_check_modules(SODIUM REQUIRED IMPORTED_TARGET libsodium)
 find_package(CURL REQUIRED)
 # inja: single-header Jinja-equivalent for C++. We download the
 # pre-built single-header file directly instead of using FetchContent
-# on the full repo — inja v3.4.0 ships unconditional install(TARGETS
+# on the full repo — inja (seen with v3.4.0) ships unconditional install(TARGETS
 # nlohmann_json) which conflicts with vcpkg's nlohmann_json target.
 # Pulling just the single header avoids that whole CMake mess.
-set(INJA_VERSION v3.4.0)
+set(INJA_VERSION v3.5.0)
 set(INJA_INCLUDE_DIR ${CMAKE_BINARY_DIR}/_deps/inja-single)
 file(DOWNLOAD
     https://raw.githubusercontent.com/pantor/inja/${INJA_VERSION}/single_include/inja/inja.hpp
     ${INJA_INCLUDE_DIR}/inja/inja.hpp
     SHOW_PROGRESS
     TLS_VERIFY ON
-    EXPECTED_HASH SHA256=8022ce5a782e911598accc42311ac44a0b9ccd9ad5995f439c828fb534974543)
+    EXPECTED_HASH SHA256=5f3d3a54e49a9ef256969e8e1db067fae618e1049e749d0ea814bb26ce7f364b)
 add_library(pantor_inja INTERFACE)
 add_library(pantor::inja ALIAS pantor_inja)
 target_include_directories(pantor_inja INTERFACE ${INJA_INCLUDE_DIR})

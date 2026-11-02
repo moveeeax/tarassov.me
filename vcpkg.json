@@ -18,5 +18,5 @@
     "gtest"
   ],
   "$comment": "libsodium and libcurl come from the OS (apt: libsodium-dev, libcurl4-openssl-dev) — vcpkg's libsodium port fails to build on arm64-linux. inja is fetched header-only via CMake FetchContent (see CMakeLists.txt). Both choices keep the docker build green on x86_64 and arm64.",
-  "builtin-baseline": "c4aad2868cfbe7c364192d5de82385647f8425b1"
+  "builtin-baseline": "9a5dfef5d1a0438a7d24856a85bd60f309d355e9"
 }
