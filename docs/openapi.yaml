@@ -8,7 +8,7 @@ info:
     audit, posts, uploads), a background-job API with DLQ, and health probes.
     Authentication is opt-in (auth.mode=jwt|bearer|none). Rate-limiting and
     idempotency are driven by headers.
-  version: 2.0.0
+  version: 2.3.0
   contact:
     name: Michael Tarassov
 servers:
