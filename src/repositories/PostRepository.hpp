@@ -239,6 +239,21 @@ public:
         });
     }
 
+    // Newest @p limit published posts for the Atom feed, same filter and order
+    // as the public list (so ?topic= means the same thing in both places).
+    std::vector<Domain::PostFeedItem> list_published_for_feed(const PublicListFilter& f, int limit) {
+        return Database::get().execute_read([&](auto& txn) {
+            auto r =
+                txn.exec("SELECT id, slug, title, summary, topic, tags, published_at, updated_at FROM posts WHERE " +
+                         public_where(txn, f) + " ORDER BY published_at DESC, id DESC LIMIT " + std::to_string(limit));
+            std::vector<Domain::PostFeedItem> out;
+            out.reserve(r.size());
+            for (const auto& row : r)
+                out.push_back(Domain::PostFeedItem::from_row(row));
+            return out;
+        });
+    }
+
     // Facets over the CURRENT filter (the index chips reflect the result set):
     // topics with counts (blank topic groups as "Other"), and the top tags.
     struct FacetRow {

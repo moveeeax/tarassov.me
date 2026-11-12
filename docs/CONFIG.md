@@ -37,7 +37,7 @@ Set `CONFIG_FILE` to point at a different JSON file (e.g.
 
 | Env | JSON key | Type | Default | Notes |
 |---|---|---|---|---|
-| `API_PUBLIC_PATHS` | `api.public_paths` | csv | `/,/healthz,/ready,/health,/metrics,/api/v1/docs,/api/v1/openapi.yaml,/api/v1/auth/login,/api/v1/auth/register,/api/v1/auth/refresh,/api/v1/account/confirm/*,/api/v1/account/reset-password-request,/api/v1/account/reset-password/*,/api/v1/account/change-email/*,/api/v1/account/join-from-invite/*,/sitemap.xml,/blog/*` | Paths that bypass auth + the general rate limit (`kDefaultPublicPathsCsv` in `src/utils/Strings.hpp`). Exact-match; a trailing `*` is a prefix match (used for the token-bearing account routes). The auth/account subset is still throttled by the `rate_limit.protected_*` limiter. |
+| `API_PUBLIC_PATHS` | `api.public_paths` | csv | `/,/healthz,/ready,/health,/metrics,/api/v1/docs,/api/v1/openapi.yaml,/api/v1/auth/login,/api/v1/auth/register,/api/v1/auth/refresh,/api/v1/account/confirm/*,/api/v1/account/reset-password-request,/api/v1/account/reset-password/*,/api/v1/account/change-email/*,/api/v1/account/join-from-invite/*,/sitemap.xml,/feed.xml,/blog/*` | Paths that bypass auth + the general rate limit (`kDefaultPublicPathsCsv` in `src/utils/Strings.hpp`). Exact-match; a trailing `*` is a prefix match (used for the token-bearing account routes). The auth/account subset is still throttled by the `rate_limit.protected_*` limiter. |
 | `CORS_ALLOWED_ORIGINS` | `cors.allowed_origins` | csv | — | Empty disables CORS |
 
 ## Auth

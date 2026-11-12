@@ -298,6 +298,28 @@ paths:
           content:
             application/xml:
               schema: { type: string }
+  /feed.xml:
+    get:
+      summary: Atom feed of the newest published posts
+      description: |
+        Atom 1.0 feed of the 20 newest published posts (title, summary,
+        published/updated timestamps, topic and tags as categories). Cached
+        in Redis for up to 5 minutes; any post create/update/delete drops
+        the cached copies.
+      tags: [public]
+      parameters:
+        - name: topic
+          in: query
+          required: false
+          description: Only posts in this topic (same matching as GET /api/v1/public/posts?topic=).
+          schema: { type: string, maxLength: 80 }
+      responses:
+        '200':
+          description: Atom feed (empty feed for an unknown topic)
+          content:
+            application/atom+xml:
+              schema: { type: string }
+        '400': { description: topic longer than 80 characters }
   /blog/{slug}:
     get:
       summary: Server-rendered blog post page

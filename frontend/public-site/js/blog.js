@@ -57,6 +57,7 @@
         var keywordRowEl = document.getElementById("blog-keyword-row");
         var resultEl = document.getElementById("blog-result");
         var pagerEl = document.getElementById("blog-pager");
+        var feedEl = document.getElementById("blog-feed");
 
         var PER_PAGE = 10;
         // active: {kind:"topic"|"tag", name} | null. Single-select — the API
@@ -146,6 +147,12 @@
             if (!state.active && facets.topics) state.topics = facets.topics;
             drawTopics(state.topics || facets.topics);
             drawKeywords(facets);
+            // The feed link follows a selected topic (/feed.xml?topic=); the
+            // feed has no tag filter, so a tag selection keeps the main feed.
+            if (feedEl) {
+                var topic = state.active && state.active.kind === "topic" ? state.active.name : "";
+                feedEl.href = "/feed.xml" + (topic ? "?topic=" + encodeURIComponent(topic) : "");
+            }
 
             if (resultEl) {
                 resultEl.textContent = state.active
@@ -349,6 +356,8 @@
                     tbl.parentNode.insertBefore(wrap, tbl);
                     wrap.appendChild(tbl);
                 });
+                // Highlighting, language label and Copy button (js/code-blocks.js).
+                if (window.BlogCode) window.BlogCode.enhance(contentEl);
 
                 bindProgress(); // re-measure after content lands
                 renderPager(slug, post.adjacent, preview);

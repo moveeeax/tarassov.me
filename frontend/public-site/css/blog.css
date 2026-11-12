@@ -84,6 +84,14 @@ body.blog a:hover { color: #17150f; }
     margin-left: auto;  /* pushed to the far right of the topic row */
     font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.12em; color: #a29c8c;
 }
+/* Atom feed link, right of the result count. */
+body.blog a.blog-feed {
+    display: inline-flex; align-items: center; gap: 6px; margin-left: 14px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.12em; color: #b5471d;
+}
+body.blog a.blog-feed:hover { color: #17150f; }
+.blog-feed svg { fill: currentColor; }
+
 /* One shared chip style for both rows — uniform size, no counts, no boxes. */
 .blog-chip-btn {
     font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1; letter-spacing: 0.06em;
@@ -201,6 +209,39 @@ body.blog a:hover { color: #17150f; }
     overflow-x: auto; border: 1px solid #17150f; border-radius: 3px;
 }
 .blog-body pre code { font: inherit; background: none; padding: 0; }
+
+/* Code blocks (js/code-blocks.js): a label + Copy bar on top of the <pre>,
+   Prism tokens in warm tones on the ink background. */
+.blog-code { margin: 28px 0; border: 1px solid #17150f; border-radius: 3px; overflow: hidden; }
+.blog-code pre { margin: 0; border: none; border-radius: 0; }
+.blog-code-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 6px 8px 6px 16px; background: #17150f; border-bottom: 1px solid #2a2822;
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px; line-height: 1; letter-spacing: 0.12em;
+}
+.blog-code-lang { color: #a29c8c; }
+.blog-code-copy {
+    font: inherit; letter-spacing: inherit; padding: 6px 10px; cursor: pointer;
+    background: transparent; color: #e7e3d6; border: 1px solid #3f3c34; border-radius: 2px;
+    transition: border-color .12s, color .12s;
+}
+.blog-code-copy:hover, .blog-code-copy:focus-visible { border-color: #e7e3d6; color: #f5f3ee; }
+.blog-body .token.comment, .blog-body .token.prolog, .blog-body .token.doctype,
+.blog-body .token.cdata, .blog-body .token.shebang { color: #8b8677; }
+.blog-body .token.punctuation, .blog-body .token.operator { color: #a29c8c; }
+.blog-body .token.keyword, .blog-body .token.atrule, .blog-body .token.rule,
+.blog-body .token.important, .blog-body .token.deleted { color: #e07a4f; }
+.blog-body .token.string, .blog-body .token.char, .blog-body .token.attr-value,
+.blog-body .token.regex, .blog-body .token.url, .blog-body .token.inserted { color: #d9b26f; }
+.blog-body .token.number, .blog-body .token.boolean, .blog-body .token.constant,
+.blog-body .token.symbol, .blog-body .token.entity { color: #e9a07a; }
+.blog-body .token.function, .blog-body .token.class-name, .blog-body .token.type,
+.blog-body .token.builtin { color: #f5f3ee; }
+.blog-body .token.property, .blog-body .token.attr-name, .blog-body .token.tag,
+.blog-body .token.selector, .blog-body .token.key { color: #a9bfae; }
+.blog-body .token.variable, .blog-body .token.parameter { color: #e7e3d6; }
+.blog-body .token.important, .blog-body .token.bold { font-weight: 600; }
+.blog-body .token.output { color: #a29c8c; }  /* shell-session output lines */
 .blog-body figure { margin: 36px 0; }
 .blog-body figcaption {
     margin-top: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 12px;
@@ -243,6 +284,16 @@ body.blog a:hover { color: #17150f; }
 .blog-loading {
     font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.06em;
     color: #a29c8c; padding: 24px 0;
+}
+
+/* ── Print: monochrome code, no screen chrome ───────────────────────────── */
+@media print {
+    .blog-progress, .blog-nav, .blog-post-nav, .blog-code-copy { display: none !important; }
+    .blog-code { border-color: #000; }
+    .blog-code-bar { background: #fff; border-bottom: 1px solid #000; }
+    .blog-code-lang { color: #000; }
+    .blog-body pre { background: #fff; color: #000; white-space: pre-wrap; overflow: visible; }
+    .blog-body pre .token { color: #000 !important; font-weight: normal !important; }
 }
 
 /* ── Responsive ─────────────────────────────────────────────────────────── */

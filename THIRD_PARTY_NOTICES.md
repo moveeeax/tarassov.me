@@ -52,6 +52,13 @@ run a license checker over `frontend/node_modules`.
 | clsx, tailwind-merge, class-variance-authority, tailwindcss-animate | MIT |
 | tailwindcss (build-time) | MIT |
 
+## Public site — vendored browser scripts (`frontend/public-site/js/`)
+
+| Component | License |
+|---|---|
+| marked 12.0.2 (`marked.min.js`) | MIT |
+| Prism 1.30.0 (`prism.min.js`, core + selected grammars) | MIT |
+
 † **Apache-2.0 components** require that the upstream `NOTICE` file (if present)
 be reproduced in distributions. Before shipping images publicly/commercially,
 copy each project's `NOTICE` into the image (e.g. under `/app/NOTICES/`) and

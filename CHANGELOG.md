@@ -6,6 +6,19 @@ Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Atom feed at `GET /feed.xml`, per topic with `?topic=<topic>`: the 20 newest
+  published posts with title, summary, published/updated time, topic and tags
+  as `<category>`. Rendered XML is cached in Redis for 5 minutes and dropped on
+  any post create/update/delete. Blog index and post pages carry
+  `<link rel="alternate" type="application/atom+xml">`; the index has an RSS
+  link in the filter bar that follows the selected topic. `/feed.xml` is in the
+  public-paths allowlist and proxied by both nginx configs (#23).
+- Blog articles: syntax highlighting for fenced code blocks (vendored Prism
+  1.30.0 with HCL/Terraform, YAML, Bash, Go, Python, C/C++, Java, Rust, SQL,
+  Dockerfile and a few more), a language label and a Copy button per block.
+  Printed articles get monochrome code (#24).
+
 ## [2.3.0] - 2026-11-02
 
 Cut from main after the reset of 2026-10. Dependency and CI maintenance from

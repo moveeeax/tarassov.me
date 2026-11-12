@@ -200,6 +200,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/feed.xml": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Atom feed of the newest published posts
+         * @description Atom 1.0 feed of the 20 newest published posts (title, summary,
+         *     published/updated timestamps, topic and tags as categories). Cached
+         *     in Redis for up to 5 minutes; any post create/update/delete drops
+         *     the cached copies.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Only posts in this topic (same matching as GET /api/v1/public/posts?topic=). */
+                    topic?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Atom feed (empty feed for an unknown topic) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/atom+xml": string;
+                    };
+                };
+                /** @description topic longer than 80 characters */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/blog/{slug}": {
         parameters: {
             query?: never;

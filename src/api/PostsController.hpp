@@ -16,6 +16,7 @@
 #include "api/RequestUtils.hpp"
 #include "api/Validation.hpp"
 #include "domain/Post.hpp"
+#include "pages/AtomFeed.hpp"
 #include "repositories/PostRepository.hpp"
 #include "security/Auth.hpp"
 #include "security/Tokens.hpp"
@@ -74,6 +75,7 @@ public:
         with_repo_errors(callback, "createPost", [&] {
             Repositories::PostRepository repo;
             auto created = repo.create(in);
+            Pages::invalidate_feed_cache();
             auto resp = Response::ok({{"data", json(created)}});
             resp->setStatusCode(k201Created);
             callback(resp);
@@ -125,6 +127,7 @@ public:
             return;
         with_repo_errors(callback, "updatePost", [&] {
             auto updated = repo.update(id, in);
+            Pages::invalidate_feed_cache();
             callback(Response::ok({{"data", json(updated)}}));
         });
     }
@@ -140,6 +143,7 @@ public:
         with_repo_errors(callback, "deletePost", [&] {
             Repositories::PostRepository repo;
             repo.remove(id);
+            Pages::invalidate_feed_cache();
             callback(Response::ok({{"message", "Post deleted"}}));
         });
     }

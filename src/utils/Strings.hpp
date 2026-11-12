@@ -44,7 +44,7 @@ inline constexpr const char* kDefaultPublicPathsCsv =
     "/api/v1/account/reset-password/*,/api/v1/account/change-email/*,"
     "/api/v1/account/join-from-invite/*,"
     "/api/v1/public/posts,/api/v1/public/posts/*,/api/v1/public/contact,"
-    "/uploads/*,/sitemap.xml,/blog/*";
+    "/uploads/*,/sitemap.xml,/feed.xml,/blog/*";
 
 /**
  * @brief Public endpoints that must STILL be rate-limited despite being
