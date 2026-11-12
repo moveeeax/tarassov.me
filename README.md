@@ -20,8 +20,10 @@
 - **Блог** — посты отдаются из API (`GET /api/v1/public/posts[/{slug}]`):
   серверные фильтры/пагинация/фасеты (`?topic=&tag=&q=&page=&include=facets`),
   соседние посты (`include=adjacent`), превью черновиков (`?preview=`);
-  рендер Markdown на клиенте, `<head>` пост-страниц — SSR из
-  `templates/pages/` с data-island.
+  рендер Markdown на клиенте (подсветка кода Prism, кнопка Copy),
+  `<head>` пост-страниц — SSR из `templates/pages/` с data-island.
+- **Atom-лента** — `GET /feed.xml` (20 последних постов), по теме
+  `/feed.xml?topic=<тема>`; кэш в Redis, сбрасывается при правке постов.
 - **Контакт-форма** — `POST /api/v1/public/contact` → письмо через SMTP (Mailer).
 - **Админка** (`/admin/*`) — React/TS SPA: CRUD постов, загрузка изображений.
 

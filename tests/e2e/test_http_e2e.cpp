@@ -452,6 +452,14 @@ TEST(HttpE2E, SsrSurfaceIsPublicUnderJwtAuth) {
     EXPECT_NE(std::string(smresp->body()).find("<urlset"), std::string::npos);
     EXPECT_EQ(smresp->getHeader("cache-control"), "public, max-age=3600");
 
+    // Atom feed: anonymous 200 with the Atom content type, carries the post.
+    auto feed = HttpRequest::newHttpRequest();
+    feed->setPath("/feed.xml");
+    auto fresp = send(feed);
+    ASSERT_EQ(fresp->statusCode(), k200OK) << "anonymous /feed.xml: " << fresp->getBody();
+    EXPECT_NE(fresp->getHeader("content-type").find("application/atom+xml"), std::string::npos);
+    EXPECT_NE(std::string(fresp->body()).find("/blog/e2e-ssr-post"), std::string::npos);
+
     // Unknown slug: anonymous 404, not 401.
     auto missing = HttpRequest::newHttpRequest();
     missing->setPath("/blog/e2e-definitely-missing");

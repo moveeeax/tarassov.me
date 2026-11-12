@@ -78,6 +78,7 @@ inline const std::vector<EndpointInfo>& get_endpoints() {
         {"DELETE", "/api/v1/admin/uploads/{name}", "Admin: delete an uploaded image"},
         {"GET", "/uploads/{key}", "Serve an uploaded image (public; local storage backend only)"},
         {"GET", "/sitemap.xml", "Dynamic sitemap (public)"},
+        {"GET", "/feed.xml", "Atom feed of published posts, optional ?topic= (public)"},
         {"GET", "/blog/{slug}", "Server-rendered blog post page (public)"},
     };
     return endpoints;

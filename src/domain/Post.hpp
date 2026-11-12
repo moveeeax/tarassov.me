@@ -142,4 +142,33 @@ inline void to_json(nlohmann::json& j, const PostCard& c) {
     };
 }
 
+// Feed projection for /feed.xml: what an Atom entry needs (stable id for
+// atom:id, both timestamps, tags as categories) and no Markdown body — the
+// feed carries the summary, readers follow the link for the full post.
+struct PostFeedItem {
+    std::string id;
+    std::string slug;
+    std::string title;
+    std::string summary;
+    std::string topic;
+    std::vector<std::string> tags;
+    std::optional<std::string> published_at;
+    std::string updated_at;
+
+    template <typename Row>
+    static PostFeedItem from_row(const Row& row) {
+        PostFeedItem f;
+        f.id = row["id"].template as<std::string>();
+        f.slug = row["slug"].template as<std::string>();
+        f.title = row["title"].template as<std::string>();
+        f.summary = row["summary"].template as<std::string>();
+        f.topic = row["topic"].template as<std::string>();
+        f.tags = split_tags(row["tags"].template as<std::string>());
+        if (!row["published_at"].is_null())
+            f.published_at = Utils::Time::pg_to_iso8601(row["published_at"].template as<std::string>());
+        f.updated_at = Utils::Time::pg_to_iso8601(row["updated_at"].template as<std::string>());
+        return f;
+    }
+};
+
 }  // namespace Domain

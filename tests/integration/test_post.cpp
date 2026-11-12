@@ -452,6 +452,10 @@ TEST_F(PublicPagesTest, BlogPostSsrHeadIsoDatesAndIsland) {
     EXPECT_NE(html.find("<link rel=\"canonical\" href=\"https://example.test/blog/ssr-post\">"), std::string::npos);
     EXPECT_NE(html.find("og:url\" content=\"https://example.test/blog/ssr-post\""), std::string::npos);
     EXPECT_NE(html.find("id=\"post-data\""), std::string::npos);
+    // Feed discovery: the main feed plus the post's topic feed.
+    EXPECT_NE(html.find("type=\"application/atom+xml\" title=\"Michael Tarassov — field notes\" href=\"/feed.xml\""),
+              std::string::npos);
+    EXPECT_NE(html.find("href=\"/feed.xml?topic=SRE\""), std::string::npos);
     // JSON-LD dates are ISO 8601 — the raw Postgres "+00" form must be gone.
     EXPECT_EQ(html.find("+00\""), std::string::npos);
     EXPECT_NE(html.find("\"datePublished\":\"2"), std::string::npos);
@@ -464,6 +468,76 @@ TEST_F(PublicPagesTest, BlogPostSsrHeadIsoDatesAndIsland) {
     auto r404 = call([&](auto cb) { pages.blogPost(TestHelpers::make_request(Get), std::move(cb), "no-such-post"); });
     EXPECT_EQ(r404->statusCode(), k404NotFound);
     EXPECT_NE(r404->getHeader("content-security-policy").find("script-src 'self'"), std::string::npos);
+}
+
+TEST_F(PublicPagesTest, FeedIsAtomForTopicAndRefreshesAfterUpdate) {
+    // A topic no other test uses, so the shared DB can't leak entries in.
+    auto feed_for = [&](const std::string& topic) {
+        auto req = TestHelpers::make_request(Get);
+        req->setParameter("topic", topic);
+        return call([&](auto cb) { pages.feed(req, std::move(cb)); });
+    };
+    json older = {{"slug", "feed-older"},
+                  {"title", "Feed Older"},
+                  {"summary", "first & oldest"},
+                  {"status", "published"},
+                  {"topic", "FeedTopic"},
+                  {"tags", {"atom", "FeedTopic"}}};
+    auto r1 = call([&](auto cb) { controller.createPost(TestHelpers::make_request(Post, older), std::move(cb)); });
+    ASSERT_EQ(r1->statusCode(), k201Created);
+    const std::string older_id = json::parse(std::string(r1->body()))["data"]["id"];
+    json newer = {{"slug", "feed-newer"}, {"title", "Feed Newer"}, {"status", "published"}, {"topic", "FeedTopic"}};
+    ASSERT_EQ(call([&](auto cb) {
+                  controller.createPost(TestHelpers::make_request(Post, newer), std::move(cb));
+              })->statusCode(),
+              k201Created);
+    json draft = {{"slug", "feed-draft"}, {"title", "Feed Draft"}, {"status", "draft"}, {"topic", "FeedTopic"}};
+    ASSERT_EQ(call([&](auto cb) {
+                  controller.createPost(TestHelpers::make_request(Post, draft), std::move(cb));
+              })->statusCode(),
+              k201Created);
+
+    auto resp = feed_for("FeedTopic");
+    ASSERT_EQ(resp->statusCode(), k200OK);
+    EXPECT_EQ(resp->getHeader("content-type"), "application/atom+xml; charset=utf-8");
+    EXPECT_EQ(resp->getHeader("cache-control"), "public, max-age=300");
+    std::string xml(resp->body());
+    EXPECT_NE(xml.find("<feed xmlns=\"http://www.w3.org/2005/Atom\">"), std::string::npos);
+    EXPECT_NE(xml.find("href=\"https://example.test/feed.xml?topic=FeedTopic\""), std::string::npos);
+    EXPECT_NE(xml.find("<id>urn:uuid:" + older_id + "</id>"), std::string::npos);
+    EXPECT_NE(xml.find("href=\"https://example.test/blog/feed-older\""), std::string::npos);
+    EXPECT_NE(xml.find("<summary type=\"text\">first &amp; oldest</summary>"), std::string::npos);
+    EXPECT_NE(xml.find("<category term=\"atom\"/>"), std::string::npos);
+    // Newest first; drafts never appear.
+    ASSERT_NE(xml.find("Feed Newer"), std::string::npos);
+    EXPECT_LT(xml.find("Feed Newer"), xml.find("Feed Older"));
+    EXPECT_EQ(xml.find("Feed Draft"), std::string::npos);
+
+    // An edit must show up right away, not after the cache TTL: the write
+    // path bumps the feed cache generation.
+    json patch = {{"title", "Feed Older Renamed"}};
+    auto upd =
+        call([&](auto cb) { controller.updatePost(TestHelpers::make_request(Patch, patch), std::move(cb), older_id); });
+    ASSERT_EQ(upd->statusCode(), k200OK);
+    xml = std::string(feed_for("FeedTopic")->body());
+    EXPECT_NE(xml.find("Feed Older Renamed"), std::string::npos);
+
+    // Unknown topic: a valid, empty feed (not a 404).
+    resp = feed_for("NoSuchFeedTopic");
+    ASSERT_EQ(resp->statusCode(), k200OK);
+    EXPECT_EQ(std::string(resp->body()).find("<entry>"), std::string::npos);
+
+    // The main feed carries the published posts too.
+    resp = call([&](auto cb) { pages.feed(TestHelpers::make_request(Get), std::move(cb)); });
+    ASSERT_EQ(resp->statusCode(), k200OK);
+    EXPECT_NE(std::string(resp->body()).find("<id>https://example.test/feed.xml</id>"), std::string::npos);
+}
+
+TEST_F(PublicPagesTest, FeedRejectsOverlongTopic) {
+    auto req = TestHelpers::make_request(Get);
+    req->setParameter("topic", std::string(81, 'x'));
+    auto resp = call([&](auto cb) { pages.feed(req, std::move(cb)); });
+    EXPECT_EQ(resp->statusCode(), k400BadRequest);
 }
 
 TEST_F(PublicPagesTest, BlogPostDraftPreviewIsNoindexed) {

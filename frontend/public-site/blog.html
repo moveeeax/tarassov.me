@@ -18,6 +18,7 @@
     <meta property="og:image" content="https://tarassov.me/images/site/og.jpg">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:image" content="https://tarassov.me/images/site/og.jpg">
+    <link rel="alternate" type="application/atom+xml" title="Michael Tarassov — field notes" href="/feed.xml">
 
     <!-- FAV and TOUCH ICONS -->
     <link rel="icon" type="image/svg+xml" href="images/ico/favicon.svg">
@@ -60,6 +61,10 @@
                 <span class="blog-rail">TOPIC</span>
                 <div class="blog-chip-set" id="blog-topics"></div>
                 <span class="blog-result" id="blog-result"></span>
+                <!-- Atom feed; js/blog.js points it at the topic feed while a topic is selected. -->
+                <a class="blog-feed" id="blog-feed" href="/feed.xml" title="Subscribe (Atom feed)">
+                    <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><circle cx="3" cy="13" r="2"/><path d="M1 6.5a8.5 8.5 0 0 1 8.5 8.5H7.3A6.3 6.3 0 0 0 1 8.7z"/><path d="M1 1.5A13.5 13.5 0 0 1 14.5 15h-2.2A11.3 11.3 0 0 0 1 3.7z"/></svg>RSS
+                </a>
             </div>
             <div class="blog-filter-row blog-filter-row-kw" id="blog-keyword-row" hidden>
                 <span class="blog-rail">KEYWORD</span>

@@ -7,7 +7,8 @@
  *
  * The article BODY is still hydrated client-side by /js/blog.js (from the
  * embedded #post-data island); this controller guarantees the head + shell.
- * The nginx frontend proxies /sitemap.xml and /blog/ here.
+ * It also serves the Atom feed (/feed.xml, optionally per topic).
+ * The nginx frontend proxies /sitemap.xml, /feed.xml and /blog/ here.
  */
 
 #pragma once
@@ -20,10 +21,14 @@
 #include <nlohmann/json.hpp>
 
 #include "api/PostsController.hpp"
+#include "cache/Cache.hpp"
 #include "domain/Post.hpp"
+#include "pages/AtomFeed.hpp"
 #include "pages/PageTemplates.hpp"
 #include "repositories/PostRepository.hpp"
 #include "utils/Config.hpp"
+#include "utils/ErrorResponse.hpp"
+#include "utils/Time.hpp"
 
 namespace Api {
 
@@ -34,6 +39,7 @@ class PublicPagesController : public HttpController<PublicPagesController> {
 public:
     METHOD_LIST_BEGIN
     ADD_METHOD_TO(PublicPagesController::sitemap, "/sitemap.xml", Get);
+    ADD_METHOD_TO(PublicPagesController::feed, "/feed.xml", Get);
     ADD_METHOD_TO(PublicPagesController::blogPost, "/blog/{1}", Get);
     METHOD_LIST_END
 
@@ -63,6 +69,56 @@ public:
         resp->setContentTypeString("application/xml; charset=utf-8");
         // Cheap SQL, but crawlers poll: an hour of caching is plenty fresh.
         resp->addHeader("Cache-Control", "public, max-age=3600");
+        cb(resp);
+    }
+
+    // Feed size and freshness. 20 entries is what readers poll for; the TTL
+    // is short because a replica lagging behind a publish could otherwise pin
+    // a stale feed in the cache for long (the write path bumps the cache
+    // generation, see Pages::invalidate_feed_cache).
+    static constexpr int kFeedEntries = 20;
+    static constexpr long kFeedCacheTtl = 300;
+
+    // GET /feed.xml[?topic=<topic>] — Atom feed of the newest published posts,
+    // same filter semantics as GET /api/v1/public/posts?topic= ("Other" also
+    // matches blank topics). Rendered XML is cached in Redis per topic; only
+    // non-empty feeds are cached, so probing random topics can't fill Redis.
+    void feed(const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& cb) {
+        const std::string topic = req->getParameter("topic");
+        if (topic.size() > 80) {  // posts.topic is capped at 80 on write
+            cb(ErrorResponse::bad_request("invalid_topic", "topic max length 80"));
+            return;
+        }
+
+        const std::string key = Pages::feed_cache_key(topic);
+        std::optional<std::string> xml;
+        if (Cache::is_initialized())
+            xml = Cache::get().get(key);  // fail-open: nullopt on Redis errors
+        if (!xml) {
+            Repositories::PostRepository repo;
+            Repositories::PublicListFilter f;
+            f.topic = topic;
+            const auto entries = repo.list_published_for_feed(f, kFeedEntries);
+
+            const std::string base = origin(req);
+            Pages::AtomFeedInfo info;
+            info.base = base;
+            info.id = base + "/feed.xml" + (topic.empty() ? "" : "?topic=" + Pages::url_encode_component(topic));
+            info.self_url = info.id;
+            info.html_url = base + "/blog.html";
+            info.title = topic.empty() ? "Michael Tarassov — field notes" : "Michael Tarassov — " + topic;
+            info.subtitle = "Field notes from production — Kubernetes, Terraform, multi-cloud and cost optimization.";
+            info.author = "Michael Tarassov";
+            info.empty_updated = Utils::Time::epoch_to_iso8601(Utils::Time::now_epoch_seconds());
+            xml = Pages::render_atom(info, entries);
+            if (!entries.empty() && Cache::is_initialized())
+                Cache::get().set(key, *xml, kFeedCacheTtl);
+        }
+
+        auto resp = HttpResponse::newHttpResponse();
+        resp->setBody(std::move(*xml));
+        resp->setContentTypeString("application/atom+xml; charset=utf-8");
+        resp->addHeader("Cache-Control", "public, max-age=" + std::to_string(kFeedCacheTtl));
         cb(resp);
     }
 
@@ -111,6 +167,13 @@ public:
         if (!p.tags.empty())
             ld["keywords"] = p.tags;
 
+        // <link rel="alternate"> for the post's topic feed, next to the main one.
+        const std::string topic_feed =
+            p.topic.empty() ? std::string{}
+                            : "<link rel=\"alternate\" type=\"application/atom+xml\" title=\"" +
+                                  esc("Michael Tarassov — " + p.topic) +
+                                  "\" href=\"/feed.xml?topic=" + esc(Pages::url_encode_component(p.topic)) + "\">\n";
+
         auto resp = HttpResponse::newHttpResponse();
         resp->setBody(
             Pages::render("blog_post",
@@ -124,6 +187,7 @@ public:
                               // Previewed drafts must never be indexed.
                               {"ROBOTS", p.status == "published" ? "" : "<meta name=\"robots\" content=\"noindex\">\n"},
                               {"TOPIC", esc(p.topic)},
+                              {"TOPIC_FEED", topic_feed},
                               {"TOPIC_HIDDEN", hideIfEmpty(p.topic)},
                               {"H1", esc(p.title)},
                               {"DEK", esc(p.summary)},

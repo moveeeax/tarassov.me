@@ -58,6 +58,7 @@ CPP_CSP="$(awk '/kPublicSiteCsp =/{f=1} f{print; if (/"[[:space:]]*;[[:space:]]*
 for f in "$DEV_NGINX" "$HELM_NGINX"; do
     grep -qE 'location \^~ /blog/' "$f" || err "$f: missing 'location ^~ /blog/' proxy block"
     grep -qE 'location = /sitemap\.xml' "$f" || err "$f: missing 'location = /sitemap.xml' proxy block"
+    grep -qE 'location = /feed\.xml' "$f" || err "$f: missing 'location = /feed.xml' proxy block"
     grep -qE 'location = /blog\s+\{' "$f" || err "$f: missing 'location = /blog' redirect (the :8080 port-leak guard)"
     grep -qE 'proxy_hide_header Content-Security-Policy' "$f" ||
         err "$f: missing 'proxy_hide_header Content-Security-Policy' (API CSP would brick SSR pages)"
@@ -76,6 +77,7 @@ done
 # Add a route here whenever one is added to Strings.hpp / the configs / values.
 PUBLIC_ROUTES=(
     "/sitemap.xml"
+    "/feed.xml"
     "/blog/\*"
     "/api/v1/public/posts"
     "/api/v1/public/posts/\*"
